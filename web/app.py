@@ -88,7 +88,7 @@ ENV_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__
 
 
 def read_env() -> dict:
-    """Read .env file into a dict."""
+    """Read .env file into a dict, falling back to OS environment variables."""
     env = {}
     if os.path.exists(ENV_PATH):
         with open(ENV_PATH, "r") as f:
@@ -97,6 +97,22 @@ def read_env() -> dict:
                 if line and not line.startswith("#") and "=" in line:
                     key, _, value = line.partition("=")
                     env[key.strip()] = value.strip()
+    else:
+        # No .env file (e.g. Railway deployment) – read from OS env vars
+        _ENV_KEYS = [
+            "EXCHANGE_ID", "EXCHANGE_API_KEY", "EXCHANGE_API_SECRET",
+            "EXCHANGE_PASSWORD", "EXCHANGE_SANDBOX",
+            "DEFAULT_SYMBOL", "DEFAULT_POSITION_SIZE", "DEFAULT_STRATEGY",
+            "DEFAULT_TIMEFRAME", "QUOTE_CURRENCY",
+            "MAX_POSITION_SIZE", "MAX_DAILY_LOSS", "MAX_DRAWDOWN_PCT",
+            "LOG_LEVEL",
+            "BACKTEST_MIN_WINRATE", "BACKTEST_MIN_PROFIT_FACTOR",
+            "BACKTEST_MIN_TRADES", "BACKTEST_MAX_DRAWDOWN", "BACKTEST_MIN_SHARPE",
+        ]
+        for k in _ENV_KEYS:
+            v = os.environ.get(k)
+            if v is not None:
+                env[k] = v
     return env
 
 
