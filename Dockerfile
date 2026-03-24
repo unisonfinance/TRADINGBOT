@@ -16,4 +16,9 @@ COPY . .
 RUN printf '#!/bin/sh\nif [ -n "$FIREBASE_SA_JSON" ]; then\n  echo "$FIREBASE_SA_JSON" > /app/service_account.json\nfi\nexec "$@"\n' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
 
 ENTRYPOINT ["/app/entrypoint.sh"]
-CMD ["sh", "-c", "gunicorn wsgi:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120"]
+
+# Railway injects PORT env var; default to 5050 if not set
+ENV PORT=5050
+EXPOSE 5050
+
+CMD ["sh", "-c", "gunicorn wsgi:app --bind 0.0.0.0:${PORT:-5050} --workers 1 --threads 4 --timeout 120"]
