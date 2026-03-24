@@ -3,20 +3,56 @@
 {% block page_title %}Backtest{% endblock %}
 
 {% block content %}
+
+<!-- ─── Sub-tab strip ──────────────────────────────────────────── -->
+<div class="subtab-strip">
+    <button class="subtab-btn active" id="tabBuild"      onclick="switchTab('build')">Build</button>
+    <button class="subtab-btn"        id="tabLogs"       onclick="switchTab('logs')">Logs</button>
+    <button class="subtab-btn"        id="tabStrategies" onclick="switchTab('strategies')">🤖 Strategies</button>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     TAB: BUILD
+════════════════════════════════════════════════════════════════ -->
+<div id="tabPanelBuild">
+
 <div class="grid-2col">
     <!-- Backtest Form -->
     <div class="panel">
         <div class="panel-header">
-            <h2>Run Backtest</h2>
+            <h2>Configure Backtest</h2>
         </div>
         <div class="panel-body">
             <form id="backtestForm" onsubmit="runBacktest(event)">
                 <div class="form-group">
                     <label>Strategy</label>
                     <select id="btStrategy" class="form-input">
-                        <option value="macd">MACD Histogram (3/15/3)</option>
-                        <option value="rsi">RSI Mean Reversion (14)</option>
-                        <option value="cvd">CVD Divergence (20)</option>
+                        <optgroup label="── Original ──────────────────">
+                            <option value="macd">MACD Histogram (3/15/3)</option>
+                            <option value="rsi">RSI Mean Reversion (14)</option>
+                            <option value="cvd">CVD Divergence (20)</option>
+                            <option value="supertrend">Supertrend + EMA200 + RSI</option>
+                        </optgroup>
+                        <optgroup label="── Research Picks ★ ───────────">
+                            <option value="tema">TEMA Crossover (9/21) + ADX ★ Sharpe 13</option>
+                            <option value="stochrsi">StochRSI (14) + EMA50 ★ PF 2.68</option>
+                            <option value="ichimoku">Ichimoku Cloud (9/26/52) ★ PF 2.40</option>
+                            <option value="adx_psar">ADX (14&gt;20) + Parabolic SAR</option>
+                        </optgroup>
+                        <optgroup label="── More Strategies ────────────">
+                            <option value="vwap_reversion">VWAP Reversion ±1.5σ</option>
+                            <option value="bb_squeeze">Bollinger Band Squeeze</option>
+                            <option value="ema_ribbon">EMA Ribbon (8/13/21/34/55)</option>
+                            <option value="heikinashi">Heikin-Ashi + EMA50</option>
+                            <option value="keltner_breakout">Keltner Channel Breakout</option>
+                            <option value="funding_meanrev">Funding Rate Mean Reversion</option>
+                        </optgroup>
+                        <optgroup label="── RSI Swing ──────────────────">
+                            <option value="rsi_swing">🤖 BTCUSDT PRO_1 — RSI Swing &lt;30/&gt;70 · Scale-In</option>
+                        </optgroup>
+                        <optgroup label="── Arbitrage ──────────────────">
+                            <option value="arbitrage">⚡ Arbitrage Ratio (BTC/ETH)</option>
+                        </optgroup>
                     </select>
                 </div>
                 <div class="form-group">
@@ -27,10 +63,10 @@
                     <label>Timeframe</label>
                     <select id="btTimeframe" class="form-input">
                         <option value="1m">1 Minute</option>
-                        <option value="5m" selected>5 Minutes</option>
+                        <option value="5m">5 Minutes</option>
                         <option value="15m">15 Minutes</option>
                         <option value="1h">1 Hour</option>
-                        <option value="4h">4 Hours</option>
+                        <option value="4h" selected>4 Hours</option>
                         <option value="1d">1 Day</option>
                     </select>
                 </div>
@@ -42,7 +78,7 @@
                     <label>Position Size (USD)</label>
                     <input type="number" id="btSize" class="form-input" value="10" min="1" step="1">
                 </div>
-                <button type="submit" class="btn btn-red btn-full" id="btRunBtn">Run Backtest</button>
+                <button type="submit" class="btn btn-red btn-full" id="btRunBtn">▶ Run Backtest</button>
             </form>
         </div>
     </div>
@@ -51,45 +87,166 @@
     <div class="panel">
         <div class="panel-header">
             <h2>Strategy Benchmarks</h2>
+            <button class="btn btn-sm" id="bmEditBtn" onclick="toggleBmEdit()">✎ Edit</button>
         </div>
         <div class="panel-body">
-            <p class="text-muted" style="margin-bottom: 1rem;">A strategy must pass ALL benchmarks before live trading.</p>
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Metric</th>
-                        <th class="text-right">Minimum</th>
-                        <th class="text-right">Result</th>
-                        <th>Pass?</th>
-                    </tr>
-                </thead>
-                <tbody id="benchmarksTable">
-                    <tr>
-                        <td>Win Rate</td>
-                        <td class="text-right mono">&gt; 55%</td>
-                        <td class="text-right mono" id="bm-wr">—</td>
-                        <td id="bm-wr-pass">—</td>
-                    </tr>
-                    <tr>
-                        <td>Profit Factor</td>
-                        <td class="text-right mono">&gt; 1.5</td>
-                        <td class="text-right mono" id="bm-pf">—</td>
-                        <td id="bm-pf-pass">—</td>
-                    </tr>
-                    <tr>
-                        <td>Max Drawdown</td>
-                        <td class="text-right mono">&lt; 20%</td>
-                        <td class="text-right mono" id="bm-dd">—</td>
-                        <td id="bm-dd-pass">—</td>
-                    </tr>
-                    <tr>
-                        <td>Sample Trades</td>
-                        <td class="text-right mono">≥ 100</td>
-                        <td class="text-right mono" id="bm-st">—</td>
-                        <td id="bm-st-pass">—</td>
-                    </tr>
-                </tbody>
-            </table>
+            <p class="text-muted" style="margin-bottom: 1rem; font-size: 0.82rem;">
+                A strategy must pass <strong>all</strong> benchmarks before going live.
+                Click <strong>Edit</strong> to change thresholds — saved to <code>.env</code>.
+            </p>
+
+            <!-- View mode -->
+            <div id="bmView">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Metric</th>
+                            <th class="text-right">Threshold</th>
+                            <th class="text-right">Last Result</th>
+                            <th>Pass?</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Win Rate</td>
+                            <td class="text-right mono" id="th-wr-disp">&gt; 55%</td>
+                            <td class="text-right mono" id="bm-wr">—</td>
+                            <td id="bm-wr-pass">—</td>
+                        </tr>
+                        <tr>
+                            <td>Profit Factor</td>
+                            <td class="text-right mono" id="th-pf-disp">&gt; 1.5</td>
+                            <td class="text-right mono" id="bm-pf">—</td>
+                            <td id="bm-pf-pass">—</td>
+                        </tr>
+                        <tr>
+                            <td>Max Drawdown</td>
+                            <td class="text-right mono" id="th-dd-disp">&lt; 20%</td>
+                            <td class="text-right mono" id="bm-dd">—</td>
+                            <td id="bm-dd-pass">—</td>
+                        </tr>
+                        <tr>
+                            <td>Sample Trades</td>
+                            <td class="text-right mono" id="th-st-disp">≥ 100</td>
+                            <td class="text-right mono" id="bm-st">—</td>
+                            <td id="bm-st-pass">—</td>
+                        </tr>
+                        <tr>
+                            <td>Sharpe Ratio</td>
+                            <td class="text-right mono" id="th-sh-disp">&gt; 1.0</td>
+                            <td class="text-right mono" id="bm-sh">—</td>
+                            <td id="bm-sh-pass">—</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Edit mode -->
+            <div id="bmEdit" style="display:none;">
+                <div class="bm-edit-grid">
+
+                    <div class="bm-edit-row">
+                        <div class="bm-edit-label">
+                            <span>Win Rate</span>
+                            <span class="bm-edit-hint">Minimum % of winning trades</span>
+                        </div>
+                        <div class="bm-edit-control">
+                            <span class="bm-qualifier">&gt;</span>
+                            <select id="ed-wr" class="form-input bm-select">
+                                <option value="40">40%  — Very Relaxed</option>
+                                <option value="45">45%  — Relaxed</option>
+                                <option value="50">50%  — Moderate</option>
+                                <option value="55">55%  — Standard ✓</option>
+                                <option value="60">60%  — Strict</option>
+                                <option value="65">65%  — Very Strict</option>
+                                <option value="70">70%  — Professional</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="bm-edit-row">
+                        <div class="bm-edit-label">
+                            <span>Profit Factor</span>
+                            <span class="bm-edit-hint">Gross profit ÷ gross loss</span>
+                        </div>
+                        <div class="bm-edit-control">
+                            <span class="bm-qualifier">&gt;</span>
+                            <select id="ed-pf" class="form-input bm-select">
+                                <option value="1.0">1.0  — Break-even</option>
+                                <option value="1.2">1.2  — Relaxed</option>
+                                <option value="1.5">1.5  — Standard ✓</option>
+                                <option value="1.8">1.8  — Good</option>
+                                <option value="2.0">2.0  — Excellent</option>
+                                <option value="2.5">2.5  — Very Good</option>
+                                <option value="3.0">3.0  — Exceptional</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="bm-edit-row">
+                        <div class="bm-edit-label">
+                            <span>Max Drawdown</span>
+                            <span class="bm-edit-hint">Largest equity drop from peak</span>
+                        </div>
+                        <div class="bm-edit-control">
+                            <span class="bm-qualifier">&lt;</span>
+                            <select id="ed-dd" class="form-input bm-select">
+                                <option value="10">10%  — Very Safe</option>
+                                <option value="15">15%  — Safe</option>
+                                <option value="20">20%  — Standard ✓</option>
+                                <option value="25">25%  — Moderate</option>
+                                <option value="30">30%  — Relaxed</option>
+                                <option value="40">40%  — Aggressive</option>
+                                <option value="50">50%  — Very Aggressive</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="bm-edit-row">
+                        <div class="bm-edit-label">
+                            <span>Min Sample Trades</span>
+                            <span class="bm-edit-hint">Minimum trades for significance</span>
+                        </div>
+                        <div class="bm-edit-control">
+                            <span class="bm-qualifier">≥</span>
+                            <select id="ed-st" class="form-input bm-select">
+                                <option value="20">20   — Exploratory</option>
+                                <option value="30">30   — Minimum viable</option>
+                                <option value="50">50   — Moderate</option>
+                                <option value="75">75   — Good</option>
+                                <option value="100">100  — Standard ✓</option>
+                                <option value="150">150  — High confidence</option>
+                                <option value="200">200  — Very high confidence</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="bm-edit-row">
+                        <div class="bm-edit-label">
+                            <span>Sharpe Ratio</span>
+                            <span class="bm-edit-hint">Risk-adjusted return (annualised)</span>
+                        </div>
+                        <div class="bm-edit-control">
+                            <span class="bm-qualifier">&gt;</span>
+                            <select id="ed-sh" class="form-input bm-select">
+                                <option value="0">0    — Disabled</option>
+                                <option value="0.5">0.5  — Weak</option>
+                                <option value="1.0">1.0  — Standard ✓</option>
+                                <option value="1.5">1.5  — Good</option>
+                                <option value="2.0">2.0  — Excellent</option>
+                                <option value="3.0">3.0  — Exceptional</option>
+                            </select>
+                        </div>
+                    </div>
+
+                </div>
+
+                <div style="display:flex; gap:0.75rem; margin-top:1.25rem;">
+                    <button class="btn btn-red" onclick="saveBenchmarks()">💾 Save Benchmarks</button>
+                    <button class="btn btn-sm" onclick="toggleBmEdit()">Cancel</button>
+                </div>
+            </div>
+
         </div>
     </div>
 </div>
@@ -101,6 +258,11 @@
         <span id="resultsBadge" class="badge"></span>
     </div>
     <div class="panel-body">
+
+        <!-- Data info row -->
+        <div style="margin-bottom: 1rem; font-size: 0.8rem; color: var(--text-muted);" id="resultMeta"></div>
+
+        <!-- Key metrics cards -->
         <div class="cards-row">
             <div class="card card-sm">
                 <div class="card-label">Total Trades</div>
@@ -123,100 +285,1242 @@
                 <div class="card-value" id="rDD">—</div>
             </div>
             <div class="card card-sm">
-                <div class="card-label">Avg Win</div>
-                <div class="card-value" id="rAvgWin">—</div>
+                <div class="card-label">Sharpe Ratio</div>
+                <div class="card-value" id="rSharpe">—</div>
             </div>
             <div class="card card-sm">
-                <div class="card-label">Avg Loss</div>
-                <div class="card-value" id="rAvgLoss">—</div>
+                <div class="card-label">Expectancy</div>
+                <div class="card-value" id="rExpectancy">—</div>
             </div>
         </div>
-        <div class="result-details" style="margin-top: 1rem;">
+
+        <!-- Detailed stats table -->
+        <div style="margin-top: 1.5rem;">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th colspan="2">Trade Statistics</th>
+                        <th colspan="2">Risk / Return</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="text-muted">Winning Trades</td>
+                        <td class="mono text-right" id="rWins">—</td>
+                        <td class="text-muted">Avg Win</td>
+                        <td class="mono text-right" id="rAvgWin">—</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Losing Trades</td>
+                        <td class="mono text-right" id="rLosses">—</td>
+                        <td class="text-muted">Avg Loss</td>
+                        <td class="mono text-right" id="rAvgLoss">—</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Largest Win</td>
+                        <td class="mono text-right" id="rBigWin">—</td>
+                        <td class="text-muted">Largest Loss</td>
+                        <td class="mono text-right" id="rBigLoss">—</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Max Consec. Wins</td>
+                        <td class="mono text-right" id="rCW">—</td>
+                        <td class="text-muted">Max Consec. Losses</td>
+                        <td class="mono text-right" id="rCL">—</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Avg Trade P&L</td>
+                        <td class="mono text-right" id="rAvgTrade">—</td>
+                        <td class="text-muted">Position Size</td>
+                        <td class="mono text-right" id="rPosSz">—</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Data From</td>
+                        <td class="mono text-right" id="rFrom">—</td>
+                        <td class="text-muted">Data To</td>
+                        <td class="mono text-right" id="rTo">—</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div style="margin-top: 1rem;">
             <p class="text-muted" id="resultSummary"></p>
         </div>
+
+        <!-- ── Action Bar ─────────────────────────────────────────── -->
+        <div id="btActionBar" class="bt-action-bar" style="display:none;">
+            <div class="bt-action-title">
+                <span class="bt-action-icon">⚡</span>
+                Strategy tested — what would you like to do?
+            </div>
+            <div class="bt-action-buttons">
+                <button class="btn bt-act-btn bt-act-green" id="btActAddBtn" onclick="btAddToTrading()">
+                    ⚡ Add to Quick Trading
+                </button>
+                <button class="btn bt-act-btn bt-act-teal" id="btActBothBtn" onclick="btAddToTradingAndSave()">
+                    ⚡ Add to Quick Trading &amp; Save
+                </button>
+                <button class="btn bt-act-btn bt-act-gray" id="btActSaveBtn" onclick="btConfirmSave()">
+                    💾 Save to Logs
+                </button>
+            </div>
+            <div id="btActionFeedback" class="bt-action-feedback" style="display:none;"></div>
+        </div>
+
     </div>
 </div>
-{% endblock %}
+
+</div><!-- end #tabPanelBuild -->
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     TAB: LOGS
+════════════════════════════════════════════════════════════════ -->
+<div id="tabPanelLogs" style="display:none;">
+
+    <div class="panel">
+        <div class="panel-header">
+            <h2>Backtest History</h2>
+            <button class="btn btn-sm" onclick="loadLogs()">↻ Refresh</button>
+        </div>
+        <div class="panel-body">
+            <p class="text-muted" style="margin-bottom: 1rem; font-size: 0.82rem;">
+                All saved backtest runs — most recent first. Every run from the Build tab is automatically logged here.
+            </p>
+            <div id="logsLoading" style="display:none; color: var(--text-muted); padding: 1rem 0;">Loading logs…</div>
+            <div id="logsEmpty"   style="display:none; color: var(--text-muted); padding: 1rem 0;">No backtest runs saved yet. Run one in the Build tab.</div>
+            <div id="logsError"   style="display:none; color: var(--accent-red); padding: 1rem 0;"></div>
+            <div id="logsContainer"></div>
+        </div>
+    </div>
+
+</div><!-- end #tabPanelLogs -->
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     TAB: STRATEGIES
+════════════════════════════════════════════════════════════════ -->
+<div id="tabPanelStrategies" style="display:none;">
+
+    <div class="strat-tab-intro">
+        <span class="strat-tab-icon">🤖</span>
+        <div>
+            <div class="strat-tab-title">Strategy Library</div>
+            <div class="strat-tab-sub">Click any card to expand the full trading rules for that strategy.</div>
+        </div>
+    </div>
+
+    <!-- ── BTCUSDT PRO_1 ── -->
+    <div class="strat-card" id="sc-pro1">
+        <div class="strat-card-header" onclick="toggleStratCard('sc-pro1')">
+            <div class="strat-card-left">
+                <span class="strat-badge strat-badge-rsi">RSI</span>
+                <div>
+                    <div class="strat-card-name">🤖 BTCUSDT PRO_1</div>
+                    <div class="strat-card-tagline">RSI Swing &lt;30/&gt;70 · Scale-In · Profit-Locked Exit</div>
+                </div>
+            </div>
+            <div class="strat-card-right">
+                <span class="strat-pill strat-pill-green">BTC/USDT</span>
+                <span class="strat-pill strat-pill-blue">1m+</span>
+                <span class="strat-pill strat-pill-gold">Scale-In</span>
+                <span class="strat-expand-arrow" id="sc-pro1-arrow">▼</span>
+            </div>
+        </div>
+        <div class="strat-card-body" id="sc-pro1-body">
+
+            <div class="strat-rule-grid">
+
+                <div class="strat-rule strat-rule-buy">
+                    <div class="strat-rule-num">1</div>
+                    <div class="strat-rule-content">
+                        <div class="strat-rule-title">📈 ENTRY — RSI closes below 30</div>
+                        <ul class="strat-rule-list">
+                            <li>Candle closes with <strong>RSI &lt; 30</strong> and no open position → <span class="strat-hl-green">BUY $5 of BTC</span></li>
+                            <li>Only free USDT cash is used. <strong>No margin, no leverage, ever.</strong></li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="strat-rule strat-rule-scalein">
+                    <div class="strat-rule-num">2</div>
+                    <div class="strat-rule-content">
+                        <div class="strat-rule-title">➕ SCALE-IN — RSI dips below 30 again (while still in trade)</div>
+                        <ul class="strat-rule-list">
+                            <li>RSI drops below 30 again <strong>before</strong> a sell has been triggered</li>
+                            <li>Bot checks real free USDT balance in real-time:</li>
+                            <li class="strat-sub-item"><span class="strat-hl-green">Free balance ≥ $5</span> → BUY another $5 — avg entry price recalculated (weighted average of all fills)</li>
+                            <li class="strat-sub-item"><span class="strat-hl-red">Free balance &lt; $5</span> → HOLD — skip the trade, never borrow</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="strat-rule strat-rule-sell">
+                    <div class="strat-rule-num">3</div>
+                    <div class="strat-rule-content">
+                        <div class="strat-rule-title">📉 SELL — RSI closes above 70 AND trade is in green</div>
+                        <ul class="strat-rule-list">
+                            <li><strong>BOTH</strong> must be true on the same candle close:</li>
+                            <li class="strat-sub-item">RSI &gt; 70</li>
+                            <li class="strat-sub-item">Current price ≥ average entry price <span class="strat-hl-muted">(even $0.001 profit counts — break-even also closes)</span></li>
+                            <li>All accumulated BTC is sold in a <strong>single order</strong></li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="strat-rule strat-rule-lock">
+                    <div class="strat-rule-num">4</div>
+                    <div class="strat-rule-content">
+                        <div class="strat-rule-title">🔒 PROFIT-LOCK — RSI &gt; 70 but still in loss</div>
+                        <ul class="strat-rule-list">
+                            <li>Bot engages <strong>PROFIT-LOCK</strong> mode — does <strong>NOT</strong> sell</li>
+                            <li>Every candle it checks: RSI still &gt; 70 AND price now ≥ avg entry → <span class="strat-hl-green">SELL</span></li>
+                            <li>If RSI drops back below 70 while still in loss → just hold (no sell, no new buys)</li>
+                            <li>Once RSI crosses back above 70 and trade is finally green → <span class="strat-hl-green">SELL</span></li>
+                            <li>No new scale-ins while PROFIT-LOCK is active</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="strat-rule strat-rule-reset">
+                    <div class="strat-rule-num">5</div>
+                    <div class="strat-rule-content">
+                        <div class="strat-rule-title">🔄 CYCLE RESET</div>
+                        <ul class="strat-rule-list">
+                            <li>After any successful sell → back to <strong>IDLE</strong>, wait for next RSI &lt; 30</li>
+                        </ul>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="strat-protections">
+                <div class="strat-prot-title">⚙️ Protections</div>
+                <div class="strat-prot-grid">
+                    <div class="strat-prot-item">
+                        <span class="strat-prot-icon">✅</span>
+                        <span>Never sells at a loss — stop-loss at <strong>–2%</strong> still protects against hard crashes</span>
+                    </div>
+                    <div class="strat-prot-item">
+                        <span class="strat-prot-icon">✅</span>
+                        <span>Never uses margin or leverage — balance check is enforced in real-time on every cycle</span>
+                    </div>
+                    <div class="strat-prot-item">
+                        <span class="strat-prot-icon">✅</span>
+                        <span>Scale-in avg cost is always correctly recalculated as a <strong>weighted average</strong> of all fills</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="strat-example">
+                <div class="strat-example-title">📋 Example Scenario</div>
+                <div class="strat-example-steps">
+                    <div class="strat-ex-step strat-ex-buy">Candle 1: RSI=28 → <strong>BUY $5</strong> @ $85,000</div>
+                    <div class="strat-ex-step strat-ex-buy">Candle 4: RSI=26 again → balance=$5 → <strong>BUY $5 more</strong> @ $84,200 → avg entry=$84,600</div>
+                    <div class="strat-ex-step strat-ex-hold">Candle 9: RSI=72 but price=$84,100 (loss) → <strong>PROFIT-LOCK engaged</strong> — hold</div>
+                    <div class="strat-ex-step strat-ex-hold">Candle 12: RSI=65 → below 70, still holding — no action</div>
+                    <div class="strat-ex-step strat-ex-hold">Candle 15: RSI=71 but price=$84,500 (still loss) → still locked — hold</div>
+                    <div class="strat-ex-step strat-ex-sell">Candle 18: RSI=73 AND price=$84,650 (green!) → <strong>SELL ALL</strong> — cycle complete ✓</div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ── MACD ── -->
+    <div class="strat-card" id="sc-macd">
+        <div class="strat-card-header" onclick="toggleStratCard('sc-macd')">
+            <div class="strat-card-left">
+                <span class="strat-badge strat-badge-macd">MACD</span>
+                <div>
+                    <div class="strat-card-name">📊 MACD Histogram (3/15/3)</div>
+                    <div class="strat-card-tagline">Momentum histogram crossover — good on 4H</div>
+                </div>
+            </div>
+            <div class="strat-card-right">
+                <span class="strat-pill strat-pill-blue">4H recommended</span>
+                <span class="strat-expand-arrow" id="sc-macd-arrow">▼</span>
+            </div>
+        </div>
+        <div class="strat-card-body" id="sc-macd-body">
+            <div class="strat-rule-grid">
+                <div class="strat-rule strat-rule-buy">
+                    <div class="strat-rule-num">BUY</div>
+                    <div class="strat-rule-content">
+                        <div class="strat-rule-title">MACD Histogram crosses from negative to positive</div>
+                        <ul class="strat-rule-list">
+                            <li>Fast EMA (3) crosses above Slow EMA (15) after being below</li>
+                            <li>Signal line (3-period EMA of MACD) confirmation</li>
+                            <li>Histogram bar flips positive — entry on close of that candle</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="strat-rule strat-rule-sell">
+                    <div class="strat-rule-num">SELL</div>
+                    <div class="strat-rule-content">
+                        <div class="strat-rule-title">MACD Histogram crosses from positive to negative</div>
+                        <ul class="strat-rule-list">
+                            <li>Fast EMA crosses back below Slow EMA</li>
+                            <li>Histogram bar flips negative — exit on close of that candle</li>
+                            <li>No profit-lock: exits immediately on signal regardless of P&amp;L</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="strat-protections">
+                <div class="strat-prot-title">⚙️ Notes</div>
+                <div class="strat-prot-grid">
+                    <div class="strat-prot-item"><span class="strat-prot-icon">📌</span><span>Best on 4H or 1D — too noisy on 1m</span></div>
+                    <div class="strat-prot-item"><span class="strat-prot-icon">📌</span><span>Parameters: Fast=3, Slow=15, Signal=3</span></div>
+                    <div class="strat-prot-item"><span class="strat-prot-icon">📌</span><span>Trend-following — performs best in trending markets, struggles in chop</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── TEMA ── -->
+    <div class="strat-card" id="sc-tema">
+        <div class="strat-card-header" onclick="toggleStratCard('sc-tema')">
+            <div class="strat-card-left">
+                <span class="strat-badge strat-badge-tema">TEMA</span>
+                <div>
+                    <div class="strat-card-name">⭐ TEMA Crossover (9/21) + ADX</div>
+                    <div class="strat-card-tagline">Research pick · Sharpe ~13 in backtests · ADX trend filter</div>
+                </div>
+            </div>
+            <div class="strat-card-right">
+                <span class="strat-pill strat-pill-gold">★ Sharpe 13</span>
+                <span class="strat-pill strat-pill-blue">1H–4H</span>
+                <span class="strat-expand-arrow" id="sc-tema-arrow">▼</span>
+            </div>
+        </div>
+        <div class="strat-card-body" id="sc-tema-body">
+            <div class="strat-rule-grid">
+                <div class="strat-rule strat-rule-buy">
+                    <div class="strat-rule-num">BUY</div>
+                    <div class="strat-rule-content">
+                        <div class="strat-rule-title">Fast TEMA (9) crosses above Slow TEMA (21) with ADX &gt; 20</div>
+                        <ul class="strat-rule-list">
+                            <li>Triple EMA (9) crosses above Triple EMA (21)</li>
+                            <li>ADX &gt; 20 confirms a trending market — no trades in sideways chop</li>
+                            <li>Entry on candle close</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="strat-rule strat-rule-sell">
+                    <div class="strat-rule-num">SELL</div>
+                    <div class="strat-rule-content">
+                        <div class="strat-rule-title">Fast TEMA (9) crosses below Slow TEMA (21)</div>
+                        <ul class="strat-rule-list">
+                            <li>Triple EMA (9) drops back below Triple EMA (21)</li>
+                            <li>ADX check not required on exit</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="strat-protections">
+                <div class="strat-prot-title">⚙️ Notes</div>
+                <div class="strat-prot-grid">
+                    <div class="strat-prot-item"><span class="strat-prot-icon">📌</span><span>TEMA reacts faster than EMA/SMA — fewer whipsaws in trending markets</span></div>
+                    <div class="strat-prot-item"><span class="strat-prot-icon">📌</span><span>ADX filter is the key edge — removes most false signals in range conditions</span></div>
+                    <div class="strat-prot-item"><span class="strat-prot-icon">📌</span><span>Backtested Sharpe of ~13 is exceptional — validate with fresh data before live</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Arbitrage ── -->
+    <div class="strat-card" id="sc-arb">
+        <div class="strat-card-header" onclick="toggleStratCard('sc-arb')">
+            <div class="strat-card-left">
+                <span class="strat-badge strat-badge-arb">ARB</span>
+                <div>
+                    <div class="strat-card-name">⚡ Arbitrage Ratio (BTC/ETH)</div>
+                    <div class="strat-card-tagline">Statistical mean-reversion on the BTC÷ETH price ratio</div>
+                </div>
+            </div>
+            <div class="strat-card-right">
+                <span class="strat-pill strat-pill-purple">BTC + ETH</span>
+                <span class="strat-pill strat-pill-blue">4H+</span>
+                <span class="strat-expand-arrow" id="sc-arb-arrow">▼</span>
+            </div>
+        </div>
+        <div class="strat-card-body" id="sc-arb-body">
+            <div class="strat-rule-grid">
+                <div class="strat-rule strat-rule-buy">
+                    <div class="strat-rule-num">BUY</div>
+                    <div class="strat-rule-content">
+                        <div class="strat-rule-title">Ratio drops below mean − 2σ (BTC cheap vs ETH)</div>
+                        <ul class="strat-rule-list">
+                            <li>Computes BTC/ETH price ratio each candle</li>
+                            <li>Rolling SMA(30) and standard deviation of the ratio</li>
+                            <li>When ratio &lt; SMA − 2σ → BUY BTC (statistically undervalued vs ETH)</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="strat-rule strat-rule-sell">
+                    <div class="strat-rule-num">SELL</div>
+                    <div class="strat-rule-content">
+                        <div class="strat-rule-title">Ratio reverts above mean + 2σ (BTC expensive vs ETH)</div>
+                        <ul class="strat-rule-list">
+                            <li>When ratio &gt; SMA + 2σ → SELL BTC</li>
+                            <li>Mean-reversion trade completes when ratio returns to historical norm</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="strat-protections">
+                <div class="strat-prot-title">⚙️ Notes</div>
+                <div class="strat-prot-grid">
+                    <div class="strat-prot-item"><span class="strat-prot-icon">📌</span><span>Requires both BTC and ETH price feeds simultaneously</span></div>
+                    <div class="strat-prot-item"><span class="strat-prot-icon">📌</span><span>Works best when BTC and ETH are highly correlated — breaks down in divergence events</span></div>
+                    <div class="strat-prot-item"><span class="strat-prot-icon">📌</span><span>Live ratio monitor available on the Trading page</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div><!-- end #tabPanelStrategies -->
+
+{% endblock %}<!-- end block content -->
 
 {% block scripts %}
+<style>
+/* ── Sub-tab strip ─────────────────────────────────────────────── */
+.subtab-strip {
+    display: flex;
+    gap: 0.25rem;
+    margin-bottom: 1.5rem;
+    border-bottom: 2px solid var(--border);
+    padding-bottom: 0;
+}
+.subtab-btn {
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    padding: 0.5rem 1.25rem;
+    font-size: 0.9rem;
+    font-family: inherit;
+    font-weight: 600;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+.subtab-btn:hover { color: var(--text-primary); }
+.subtab-btn.active {
+    color: var(--text-primary);
+    border-bottom-color: #e5484d;
+}
+
+/* ── Benchmark edit grid ───────────────────────────────────────── */
+.bm-edit-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+.bm-edit-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.6rem 0.75rem;
+    background: var(--bg-primary, #111827);
+    border: 1px solid var(--border, #2a3240);
+    border-radius: 6px;
+}
+.bm-edit-label {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+.bm-edit-label > span:first-child {
+    font-weight: 600;
+    font-size: 0.88rem;
+    color: var(--text-primary, #e8eaf0);
+}
+.bm-edit-hint {
+    font-size: 0.75rem;
+    color: var(--text-muted, #7a8899);
+}
+.bm-edit-control {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+}
+.bm-qualifier {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1rem;
+    color: var(--accent-green, #05F26C);
+    font-weight: 700;
+    width: 1rem;
+    text-align: center;
+}
+.bm-select {
+    width: 220px !important;
+    font-size: 0.83rem !important;
+}
+
+/* ── Log card ──────────────────────────────────────────────────── */
+.log-card {
+    background: var(--bg-card, #ffffff);
+    border: 1px solid var(--border-light, #e2e8f0);
+    border-radius: 10px;
+    margin-bottom: 0.75rem;
+    overflow: hidden;
+    transition: border-color 0.18s, box-shadow 0.18s, transform 0.15s;
+}
+.log-card:hover {
+    border-color: #cbd5e1;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+}
+.log-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.8rem 1rem;
+    background: var(--bg-card, #ffffff);
+    border-bottom: 1px solid var(--border-light, #e2e8f0);
+    cursor: pointer;
+    user-select: none;
+    gap: 1rem;
+}
+.log-card-header:hover { background: #f8fafc; }
+.log-card-title {
+    font-weight: 700;
+    font-size: 0.88rem;
+    color: var(--text-primary, #1e293b);
+    flex: 1;
+}
+.log-card-meta {
+    font-size: 0.75rem;
+    color: var(--text-muted, #94a3b8);
+}
+.log-card-badges {
+    display: flex;
+    gap: 0.4rem;
+    align-items: center;
+    flex-shrink: 0;
+}
+.log-card-body {
+    padding: 1rem;
+    display: none;
+    background: #f8fafc;
+}
+.log-card-body.open { display: block; }
+.log-stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 0.65rem;
+    margin-bottom: 1rem;
+}
+.log-stat {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 7px;
+    padding: 0.5rem 0.75rem;
+}
+.log-stat-label {
+    font-size: 0.7rem;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.2rem;
+}
+.log-stat-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.86rem;
+    font-weight: 600;
+    color: #1e293b;
+}
+.log-stat-value.green { color: #16a34a; }
+.log-stat-value.red   { color: #dc2626; }
+.log-data-range {
+    font-size: 0.75rem;
+    color: #94a3b8;
+    margin-top: 0.5rem;
+}
+.badge-pass { background:#dcfce7; color:#16a34a; border:1px solid #bbf7d0; border-radius:5px; padding:2px 8px; font-size:0.72rem; font-weight:700; }
+.badge-fail { background:#fee2e2; color:#dc2626; border:1px solid #fecaca; border-radius:5px; padding:2px 8px; font-size:0.72rem; font-weight:700; }
+
+/* ── Backtest Action Bar ─────────────────────────────────────────── */
+.bt-action-bar {
+    background: linear-gradient(135deg, #0d1117, #111827);
+    border: 1px solid #05F26C44;
+    border-radius: 10px;
+    padding: 1.25rem 1.5rem;
+    display: flex; flex-direction: column; gap: 1rem;
+    box-shadow: 0 0 24px #05F26C18, inset 0 1px 0 #05F26C22;
+}
+.bt-action-title {
+    font-size: 0.88rem; font-weight: 700; color: #e8eaf0;
+    display: flex; align-items: center; gap: 0.5rem;
+    letter-spacing: 0.02em;
+}
+.bt-action-icon { font-size: 1.1rem; }
+.bt-action-buttons {
+    display: flex; flex-wrap: wrap; gap: 0.75rem;
+}
+.bt-act-btn {
+    font-size: 0.82rem !important; font-weight: 700 !important;
+    padding: 0.55rem 1.1rem !important; border-radius: 6px !important;
+    border-width: 1px !important; letter-spacing: 0.03em !important;
+    transition: all 0.2s !important; cursor: pointer !important;
+    background: transparent !important;
+}
+.bt-act-green { border-color: #05F26C88 !important; color: #05F26Ccc !important; }
+.bt-act-green:hover:not(:disabled) { background: #05F26C15 !important; border-color: #05F26C !important; color: #05F26C !important; box-shadow: 0 0 12px #05F26C44 !important; }
+.bt-act-teal  { border-color: #00d4ff88 !important; color: #00d4ffcc !important; }
+.bt-act-teal:hover:not(:disabled)  { background: #00d4ff15 !important; border-color: #00d4ff !important; color: #00d4ff !important; box-shadow: 0 0 12px #00d4ff44 !important; }
+.bt-act-gray  { border-color: #556 !important; color: #8b949e !important; }
+.bt-act-gray:hover:not(:disabled)  { border-color: #8b949e !important; color: #e8eaf0 !important; }
+.bt-act-btn:disabled { opacity: 0.9 !important; cursor: default !important; }
+.bt-action-feedback {
+    font-size: 0.8rem; color: #8b949e; background: #05F26C11;
+    border: 1px solid #05F26C22; border-radius: 6px;
+    padding: 0.5rem 0.75rem;
+}
+
+/* ── Log card add-to-trading ─────────────────────────────────────── */
+.log-card-actions {
+    display: flex; align-items: center; gap: 0.75rem;
+    margin-top: 1rem; padding-top: 0.75rem;
+    border-top: 1px solid #21262d;
+}
+.log-action-hint { font-size: 0.74rem; color: #556; }
+.log-add-btn { font-size: 0.78rem !important; padding: 0.3rem 0.8rem !important; }
+
+/* ═══════════════════════════════════════════════════════════════
+   🤖  STRATEGIES TAB
+═══════════════════════════════════════════════════════════════ */
+.strat-tab-intro {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    padding: 1rem 1.25rem;
+    background: var(--bg-secondary, #181f2a);
+    border: 1px solid var(--border, #2a3240);
+    border-radius: 10px;
+}
+.strat-tab-icon { font-size: 2rem; flex-shrink: 0; }
+.strat-tab-title {
+    font-size: 1rem; font-weight: 700;
+    color: var(--text-primary, #e8eaf0);
+    margin-bottom: 0.2rem;
+}
+.strat-tab-sub { font-size: 0.8rem; color: var(--text-muted, #7a8899); }
+
+/* Strategy Card */
+.strat-card {
+    background: var(--bg-secondary, #181f2a);
+    border: 1px solid var(--border, #2a3240);
+    border-radius: 12px;
+    margin-bottom: 0.85rem;
+    overflow: hidden;
+    transition: border-color 0.22s, box-shadow 0.22s, transform 0.15s;
+}
+.strat-card:hover {
+    border-color: #3a4560;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 18px rgba(0,0,0,0.25);
+}
+.strat-card-open {
+    border-color: #e5484d44;
+    box-shadow: 0 0 22px rgba(229,72,77,0.07);
+    transform: none;
+}
+.strat-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.25rem;
+    cursor: pointer;
+    user-select: none;
+    gap: 1rem;
+}
+.strat-card-header:hover { background: transparent; }
+.strat-card-left {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    flex: 1;
+}
+.strat-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 46px; height: 46px; border-radius: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem; font-weight: 800;
+    letter-spacing: 0.04em; flex-shrink: 0;
+}
+.strat-badge-rsi   { background:#05F26C18; color:#05F26C; border:1px solid #05F26C44; }
+.strat-badge-macd  { background:#00bfff18; color:#00bfff; border:1px solid #00bfff44; }
+.strat-badge-tema  { background:#ffd60a18; color:#ffd60a; border:1px solid #ffd60a44; }
+.strat-badge-arb   { background:#b57bee18; color:#b57bee; border:1px solid #b57bee44; }
+.strat-card-name {
+    font-size: 0.96rem; font-weight: 700;
+    color: var(--text-primary, #e8eaf0);
+    margin-bottom: 0.15rem;
+}
+.strat-card-tagline {
+    font-size: 0.78rem;
+    color: var(--text-muted, #7a8899);
+}
+.strat-card-right {
+    display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0;
+}
+.strat-pill {
+    padding: 0.2rem 0.55rem; border-radius: 20px;
+    font-size: 0.68rem; font-weight: 700;
+    letter-spacing: 0.04em; white-space: nowrap;
+}
+.strat-pill-green  { background:#05F26C1a; color:#05F26C; border:1px solid #05F26C33; }
+.strat-pill-blue   { background:#00bfff1a; color:#00bfff; border:1px solid #00bfff33; }
+.strat-pill-gold   { background:#ffd60a1a; color:#ffd60a; border:1px solid #ffd60a33; }
+.strat-pill-purple { background:#b57bee1a; color:#b57bee; border:1px solid #b57bee33; }
+.strat-expand-arrow {
+    font-size: 0.8rem; color: var(--text-muted, #7a8899);
+    width: 1.25rem; text-align: center; flex-shrink: 0;
+    transition: color 0.15s;
+}
+.strat-card-open .strat-expand-arrow { color: #e5484d; }
+
+/* Card body */
+.strat-card-body {
+    display: none;
+    padding: 0 1.25rem 1.25rem;
+    border-top: 1px solid var(--border, #2a3240);
+}
+.strat-card-body.open { display: block; animation: stratFadeIn 0.18s ease; }
+@keyframes stratFadeIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Rule grid */
+.strat-rule-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-top: 1rem;
+}
+.strat-rule {
+    display: flex;
+    gap: 1rem;
+    padding: 0.85rem 1rem;
+    border-radius: 8px;
+    border-left: 3px solid transparent;
+    background: var(--bg-primary, #111827);
+}
+.strat-rule-buy    { border-left-color: #05F26C; background: #05F26C09; }
+.strat-rule-sell   { border-left-color: #ff6b6b; background: #ff6b6b09; }
+.strat-rule-scalein{ border-left-color: #00bfff; background: #00bfff09; }
+.strat-rule-lock   { border-left-color: #ffd60a; background: #ffd60a09; }
+.strat-rule-reset  { border-left-color: #b57bee; background: #b57bee09; }
+.strat-rule-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem; font-weight: 800;
+    color: var(--text-muted, #7a8899);
+    min-width: 1.6rem;
+    padding-top: 0.1rem;
+    text-align: center;
+}
+.strat-rule-content { flex: 1; }
+.strat-rule-title {
+    font-weight: 700;
+    font-size: 0.87rem;
+    color: var(--text-primary, #e8eaf0);
+    margin-bottom: 0.45rem;
+}
+.strat-rule-list {
+    margin: 0; padding-left: 1.1rem;
+    font-size: 0.82rem;
+    color: var(--text-secondary, #b0bac8);
+    line-height: 1.75;
+}
+.strat-rule-list li { margin-bottom: 0.1rem; }
+.strat-sub-item { list-style: none; padding-left: 0.5rem; }
+.strat-sub-item::before { content: '→ '; color: var(--text-muted, #7a8899); }
+.strat-hl-green { color: #05F26C; font-weight: 600; }
+.strat-hl-red   { color: #ff6b6b; font-weight: 600; }
+.strat-hl-muted { color: var(--text-muted, #7a8899); font-size: 0.78rem; }
+
+/* Protections block */
+.strat-protections {
+    margin-top: 1rem;
+    padding: 0.85rem 1rem;
+    background: #05F26C08;
+    border: 1px solid #05F26C22;
+    border-radius: 8px;
+}
+.strat-prot-title {
+    font-size: 0.78rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.08em;
+    color: #05F26C; margin-bottom: 0.6rem;
+}
+.strat-prot-grid {
+    display: flex; flex-direction: column; gap: 0.4rem;
+}
+.strat-prot-item {
+    display: flex; align-items: flex-start; gap: 0.6rem;
+    font-size: 0.82rem; color: var(--text-secondary, #b0bac8);
+    line-height: 1.55;
+}
+.strat-prot-icon { flex-shrink: 0; }
+
+/* Example scenario */
+.strat-example {
+    margin-top: 1rem;
+    padding: 0.85rem 1rem;
+    background: #00bfff08;
+    border: 1px solid #00bfff22;
+    border-radius: 8px;
+}
+.strat-example-title {
+    font-size: 0.78rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.08em;
+    color: #00bfff; margin-bottom: 0.65rem;
+}
+.strat-example-steps {
+    display: flex; flex-direction: column; gap: 0.35rem;
+}
+.strat-ex-step {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.77rem;
+    padding: 0.35rem 0.65rem;
+    border-radius: 5px;
+    color: var(--text-secondary, #b0bac8);
+}
+.strat-ex-buy  { background: #05F26C12; border-left: 2px solid #05F26C; }
+.strat-ex-sell { background: #ff6b6b12; border-left: 2px solid #ff6b6b; }
+.strat-ex-hold { background: #ffd60a10; border-left: 2px solid #ffd60a88; }
+</style>
+
 <script>
+// ── Tab switching ────────────────────────────────────────────────
+function switchTab(tab) {
+    document.getElementById('tabPanelBuild').style.display      = tab === 'build'      ? '' : 'none';
+    document.getElementById('tabPanelLogs').style.display       = tab === 'logs'       ? '' : 'none';
+    document.getElementById('tabPanelStrategies').style.display = tab === 'strategies' ? '' : 'none';
+    document.getElementById('tabBuild').classList.toggle('active',      tab === 'build');
+    document.getElementById('tabLogs').classList.toggle('active',       tab === 'logs');
+    document.getElementById('tabStrategies').classList.toggle('active', tab === 'strategies');
+    if (tab === 'logs') loadLogs();
+}
+
+// ── Strategy cards ───────────────────────────────────────────────
+function toggleStratCard(id) {
+    const body  = document.getElementById(id + '-body');
+    const arrow = document.getElementById(id + '-arrow');
+    const card  = document.getElementById(id);
+    const isOpen = body.classList.toggle('open');
+    arrow.textContent = isOpen ? '▲' : '▼';
+    card.classList.toggle('strat-card-open', isOpen);
+}
+
+// ── Benchmark thresholds (loaded once, updated on save) ──────────
+let _bm = { min_win_rate: 55, min_profit_factor: 1.5, max_drawdown: 20, min_trades: 100, min_sharpe: 1.0 };
+
+async function loadBenchmarks() {
+    try {
+        const res  = await fetch('/api/benchmarks');
+        const data = await res.json();
+        _bm = data;
+        updateBmDisplay();
+        // Pre-select dropdowns
+        setSelectNearest('ed-wr', data.min_win_rate);
+        setSelectNearest('ed-pf', data.min_profit_factor);
+        setSelectNearest('ed-dd', data.max_drawdown);
+        setSelectNearest('ed-st', data.min_trades);
+        setSelectNearest('ed-sh', data.min_sharpe);
+    } catch (e) { /* use defaults */ }
+}
+
+function updateBmDisplay() {
+    document.getElementById('th-wr-disp').textContent = `> ${_bm.min_win_rate}%`;
+    document.getElementById('th-pf-disp').textContent = `> ${_bm.min_profit_factor}`;
+    document.getElementById('th-dd-disp').textContent = `< ${_bm.max_drawdown}%`;
+    document.getElementById('th-st-disp').textContent = `≥ ${_bm.min_trades}`;
+    document.getElementById('th-sh-disp').textContent = `> ${_bm.min_sharpe}`;
+}
+
+function setSelectNearest(id, val) {
+    const sel = document.getElementById(id);
+    let best = null, bestDiff = Infinity;
+    for (const opt of sel.options) {
+        const diff = Math.abs(parseFloat(opt.value) - val);
+        if (diff < bestDiff) { bestDiff = diff; best = opt; }
+    }
+    if (best) best.selected = true;
+}
+
+function toggleBmEdit() {
+    const editing = document.getElementById('bmEdit').style.display !== 'none';
+    document.getElementById('bmView').style.display  = editing ? '' : 'none';
+    document.getElementById('bmEdit').style.display  = editing ? 'none' : '';
+    document.getElementById('bmEditBtn').textContent = editing ? '✎ Edit' : '✕ Cancel';
+}
+
+async function saveBenchmarks() {
+    const payload = {
+        min_win_rate:      parseFloat(document.getElementById('ed-wr').value),
+        min_profit_factor: parseFloat(document.getElementById('ed-pf').value),
+        max_drawdown:      parseFloat(document.getElementById('ed-dd').value),
+        min_trades:        parseInt(document.getElementById('ed-st').value),
+        min_sharpe:        parseFloat(document.getElementById('ed-sh').value),
+    };
+    try {
+        const res = await fetch('/api/benchmarks', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.error) { showToast('Save failed: ' + data.error, 'error'); return; }
+        _bm = payload;
+        updateBmDisplay();
+        toggleBmEdit();
+        showToast('Benchmarks saved to .env', 'success');
+    } catch (e) {
+        showToast('Failed to save benchmarks', 'error');
+    }
+}
+
+// Load benchmarks on page ready
+loadBenchmarks();
+
+// ── Run Backtest ─────────────────────────────────────────────────
 async function runBacktest(e) {
     e.preventDefault();
     const btn = document.getElementById('btRunBtn');
     btn.disabled = true;
-    btn.textContent = 'Running...';
+    btn.textContent = '⏳ Running…';
 
-    const strategy = document.getElementById('btStrategy').value;
-    const symbol = document.getElementById('btSymbol').value;
+    const strategy  = document.getElementById('btStrategy').value;
+    const symbol    = document.getElementById('btSymbol').value;
     const timeframe = document.getElementById('btTimeframe').value;
-    const limit = parseInt(document.getElementById('btLimit').value);
-    const size = parseFloat(document.getElementById('btSize').value);
+    const limit     = parseInt(document.getElementById('btLimit').value);
+    const size      = parseFloat(document.getElementById('btSize').value);
 
     try {
-        const res = await fetch('/api/backtest', {
+        const res  = await fetch('/api/backtest', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({strategy, symbol, timeframe, limit, size})
         });
-        const data = await res.json();
+        const d = await res.json();
 
-        if (data.error) {
-            showToast('Backtest failed: ' + data.error, 'error');
-            return;
-        }
+        if (d.error) { showToast('Backtest failed: ' + d.error, 'error'); return; }
 
-        // Show results
+        // Show results panel
         document.getElementById('resultsPanel').hidden = false;
-        document.getElementById('rTrades').textContent = data.total_trades;
-        document.getElementById('rWinRate').textContent = data.win_rate + '%';
-        document.getElementById('rPF').textContent = data.profit_factor;
-        document.getElementById('rPnL').textContent = '$' + data.total_pnl;
-        document.getElementById('rDD').textContent = data.max_drawdown + '%';
-        document.getElementById('rAvgWin').textContent = '$' + data.avg_win;
-        document.getElementById('rAvgLoss').textContent = '$' + data.avg_loss;
-        document.getElementById('rPnL').className = data.total_pnl >= 0 ? 'card-value text-green' : 'card-value text-red';
 
-        // Update benchmarks
-        const wr = data.win_rate;
-        const pf = data.profit_factor;
-        const dd = data.max_drawdown;
-        const st = data.total_trades;
+        document.getElementById('resultMeta').textContent =
+            `${d.strategy}  ·  ${d.symbol}  ·  ${d.timeframe}  ·  ${d.candles} candles  ·  $${d.position_size} per trade`;
 
-        setBenchmark('bm-wr', wr + '%', wr > 55);
-        setBenchmark('bm-pf', pf, pf > 1.5);
-        setBenchmark('bm-dd', dd + '%', dd < 20);
-        setBenchmark('bm-st', st, st >= 100);
+        document.getElementById('rTrades').textContent     = d.total_trades;
+        document.getElementById('rWinRate').textContent    = d.win_rate + '%';
+        document.getElementById('rPF').textContent         = d.profit_factor;
+        document.getElementById('rDD').textContent         = d.max_drawdown + '%';
+        document.getElementById('rSharpe').textContent     = d.sharpe_ratio;
+        document.getElementById('rExpectancy').textContent = '$' + d.expectancy;
+        document.getElementById('rWins').textContent       = d.winning_trades;
+        document.getElementById('rLosses').textContent     = d.losing_trades;
+        document.getElementById('rAvgWin').textContent     = '$' + d.avg_win;
+        document.getElementById('rAvgLoss').textContent    = '$' + d.avg_loss;
+        document.getElementById('rBigWin').textContent     = '$' + d.largest_win;
+        document.getElementById('rBigLoss').textContent    = '$' + d.largest_loss;
+        document.getElementById('rCW').textContent         = d.consecutive_wins;
+        document.getElementById('rCL').textContent         = d.consecutive_losses;
+        document.getElementById('rAvgTrade').textContent   = '$' + d.avg_trade_pnl;
+        document.getElementById('rPosSz').textContent      = '$' + d.position_size;
+        const fmt = s => s ? s.replace('T', ' ').slice(0,16) : '—';
+        document.getElementById('rFrom').textContent = fmt(d.data_from);
+        document.getElementById('rTo').textContent   = fmt(d.data_to);
+
+        const pnlEl = document.getElementById('rPnL');
+        pnlEl.textContent = (d.total_pnl >= 0 ? '+' : '') + '$' + d.total_pnl;
+        pnlEl.className = 'card-value ' + (d.total_pnl >= 0 ? 'text-green' : 'text-red');
+
+        // Benchmarks — use live _bm thresholds
+        setBenchmark('bm-wr', d.win_rate + '%',     d.win_rate > _bm.min_win_rate);
+        setBenchmark('bm-pf', d.profit_factor,       d.profit_factor > _bm.min_profit_factor);
+        setBenchmark('bm-dd', d.max_drawdown + '%',  d.max_drawdown < _bm.max_drawdown);
+        setBenchmark('bm-st', d.total_trades,        d.total_trades >= _bm.min_trades);
+        setBenchmark('bm-sh', d.sharpe_ratio,        d.sharpe_ratio > _bm.min_sharpe);
 
         const badge = document.getElementById('resultsBadge');
-        if (data.passes) {
-            badge.textContent = 'PASS';
-            badge.className = 'badge badge-green';
-        } else {
-            badge.textContent = 'FAIL';
-            badge.className = 'badge badge-red';
-        }
+        badge.textContent = d.passes ? 'PASS' : 'FAIL';
+        badge.className   = d.passes ? 'badge badge-green' : 'badge badge-red';
 
         document.getElementById('resultSummary').textContent =
-            `${data.strategy} on ${data.symbol} (${data.timeframe}) — ${data.total_trades} trades, ` +
-            `${data.winning_trades} wins, ${data.losing_trades} losses.`;
+            `${d.strategy} on ${d.symbol} (${d.timeframe}) — ${d.total_trades} trades, ` +
+            `${d.winning_trades} wins, ${d.losing_trades} losses. ` +
+            `Saved to Logs.`;
 
-        showToast('Backtest complete', 'success');
-    } catch (e) {
+        // Store last result for action bar
+        window._lastBtResult = {
+            strategy: strategy, symbol: symbol, timeframe: timeframe,
+            size: d.position_size || 5,
+            pf: d.profit_factor, sharpe: d.sharpe_ratio,
+            wr: d.win_rate, trades: d.total_trades
+        };
+        // Reset action buttons and show bar
+        const addBtn  = document.getElementById('btActAddBtn');
+        const bothBtn = document.getElementById('btActBothBtn');
+        if (addBtn)  { addBtn.textContent  = '⚡ Add to Quick Trading'; addBtn.disabled = false; addBtn.removeAttribute('style'); }
+        if (bothBtn) { bothBtn.textContent = '⚡ Add to Quick Trading & Save'; bothBtn.disabled = false; bothBtn.removeAttribute('style'); }
+        document.getElementById('btActionFeedback').style.display = 'none';
+        document.getElementById('btActionBar').style.display = '';
+
+        showToast('Backtest complete — saved to Logs', 'success');
+    } catch (err) {
         showToast('Backtest failed', 'error');
     } finally {
-        btn.disabled = false;
-        btn.textContent = 'Run Backtest';
+        btn.disabled   = false;
+        btn.textContent = '▶ Run Backtest';
     }
 }
 
 function setBenchmark(id, value, pass) {
     document.getElementById(id).textContent = value;
-    const passEl = document.getElementById(id + '-pass');
-    if (pass) {
-        passEl.innerHTML = '<span class="badge badge-green">✓</span>';
+    const el = document.getElementById(id + '-pass');
+    el.innerHTML = pass
+        ? '<span class="badge badge-green">✓</span>'
+        : '<span class="badge badge-red">✗</span>';
+}
+
+// ── Backtest Action Bar ──────────────────────────────────────────
+function _savePresetToStorage(p) {
+    try {
+        const existing = JSON.parse(localStorage.getItem('userQuickPresets') || '[]');
+        const key = `${p.strategy}|${p.symbol}|${p.timeframe}`;
+        if (existing.some(e => `${e.strategy}|${e.symbol}|${e.timeframe}` === key)) return false;
+        existing.push(p);
+        localStorage.setItem('userQuickPresets', JSON.stringify(existing));
+        return true;
+    } catch(e) { return false; }
+}
+
+function btAddToTrading() {
+    if (!window._lastBtResult) return;
+    const added = _savePresetToStorage(window._lastBtResult);
+    const btn = document.getElementById('btActAddBtn');
+    if (added) {
+        btn.textContent = '✓ Added to Quick Trading!';
+        btn.style.borderColor = '#05F26C';
+        btn.style.color = '#05F26C';
+        btn.disabled = true;
+        showToast('⚡ Strategy added to Quick Trading tab', 'success');
+        _showActionFeedback('Strategy added! Go to the <strong>Trading tab</strong> → My Strategies to launch it.');
     } else {
-        passEl.innerHTML = '<span class="badge badge-red">✗</span>';
+        btn.textContent = '✓ Already in Quick Trading';
+        btn.disabled = true;
+        showToast('Already in Quick Trading', 'success');
     }
+}
+
+function btAddToTradingAndSave() {
+    if (!window._lastBtResult) return;
+    const added = _savePresetToStorage(window._lastBtResult);
+    const btn = document.getElementById('btActBothBtn');
+    btn.textContent = '✓ Added & Saved!';
+    btn.style.borderColor = '#00d4ff';
+    btn.style.color = '#00d4ff';
+    btn.disabled = true;
+    document.getElementById('btActAddBtn').disabled = true;
+    document.getElementById('btActAddBtn').textContent = '✓ Added';
+    showToast('⚡ Added to Quick Trading + saved to Logs', 'success');
+    _showActionFeedback('Added to Quick Trading &amp; Logs. Go to the <strong>Trading tab</strong> → My Strategies.');
+}
+
+function btConfirmSave() {
+    const btn = document.getElementById('btActSaveBtn');
+    btn.textContent = '✓ Already Saved in Logs';
+    btn.style.color = '#05F26C';
+    btn.disabled = true;
+    showToast('💾 Result is saved in the Logs tab', 'success');
+}
+
+function _showActionFeedback(html) {
+    const el = document.getElementById('btActionFeedback');
+    el.innerHTML = html;
+    el.style.display = '';
+}
+
+// ── Logs tab ─────────────────────────────────────────────────────
+async function loadLogs() {
+    document.getElementById('logsLoading').style.display   = '';
+    document.getElementById('logsEmpty').style.display     = 'none';
+    document.getElementById('logsError').style.display     = 'none';
+    document.getElementById('logsContainer').innerHTML     = '';
+
+    try {
+        const res  = await fetch('/api/backtest/logs');
+        const data = await res.json();
+        document.getElementById('logsLoading').style.display = 'none';
+
+        if (data.error && !data.logs) {
+            document.getElementById('logsError').style.display  = '';
+            document.getElementById('logsError').textContent    = 'Error: ' + data.error;
+            return;
+        }
+
+        const logs = data.logs || [];
+        if (logs.length === 0) {
+            document.getElementById('logsEmpty').style.display = '';
+            return;
+        }
+
+        window._loadedLogs = logs;
+        const container = document.getElementById('logsContainer');
+        logs.forEach((log, idx) => renderLogCard(log, idx, container));
+    } catch (err) {
+        document.getElementById('logsLoading').style.display = 'none';
+        document.getElementById('logsError').style.display  = '';
+        document.getElementById('logsError').textContent    = 'Failed to load logs.';
+    }
+}
+
+function renderLogCard(log, idx, container) {
+    const pass    = log.passes;
+    const pnlPos  = (log.total_pnl || 0) >= 0;
+    const shPos   = (log.sharpe_ratio || 0) >= 1.0;
+    const runAt   = log.run_at ? log.run_at.replace('T', ' ').slice(0, 16) + ' UTC' : '—';
+    const pnlFmt  = v => (v >= 0 ? '+' : '') + '$' + (v || 0).toFixed(4);
+    const pctFmt  = v => (v || 0).toFixed(2) + '%';
+    const numFmt  = v => (v || 0).toFixed(4);
+    const dataFrom = (log.data_from || '').slice(0, 10);
+    const dataTo   = (log.data_to   || '').slice(0, 10);
+
+    const card = document.createElement('div');
+    card.className = 'log-card';
+    card.innerHTML = `
+        <div class="log-card-header" onclick="toggleLogCard(${idx})">
+            <div class="log-card-title">${log.strategy || '—'} &nbsp;·&nbsp; ${log.symbol || '—'} &nbsp;·&nbsp; ${log.timeframe || '—'}</div>
+            <div class="log-card-meta">${runAt}</div>
+            <div class="log-card-badges">
+                <span class="mono" style="font-size:0.8rem; color:${pnlPos ? '#05F26C' : '#ff4d4d'}">${pnlFmt(log.total_pnl)}</span>
+                <span class="${pass ? 'badge-pass' : 'badge-fail'}">${pass ? 'PASS' : 'FAIL'}</span>
+                <span style="color:var(--text-muted); font-size:0.82rem;" id="logArrow${idx}">▼</span>
+            </div>
+        </div>
+        <div class="log-card-body" id="logBody${idx}">
+
+            <!-- Primary stats grid -->
+            <div class="log-stat-grid">
+                ${statBox('Win Rate',       pctFmt(log.win_rate),      log.win_rate > 55 ? 'green' : '')}
+                ${statBox('Profit Factor',  numFmt(log.profit_factor), log.profit_factor > 1.5 ? 'green' : 'red')}
+                ${statBox('Sharpe Ratio',   numFmt(log.sharpe_ratio),  shPos ? 'green' : '')}
+                ${statBox('Total P&L',      pnlFmt(log.total_pnl),     pnlPos ? 'green' : 'red')}
+                ${statBox('Max Drawdown',   pctFmt(log.max_drawdown),  log.max_drawdown < 20 ? 'green' : 'red')}
+                ${statBox('Expectancy',     pnlFmt(log.expectancy),    (log.expectancy || 0) > 0 ? 'green' : 'red')}
+                ${statBox('Total Trades',   log.total_trades || 0,     log.total_trades >= 100 ? 'green' : '')}
+                ${statBox('Pos. Size',      '$' + (log.position_size || 0))}
+            </div>
+
+            <!-- Trade breakdown table -->
+            <table class="data-table" style="margin-top:0.5rem;">
+                <thead>
+                    <tr>
+                        <th colspan="2">Trade Breakdown</th>
+                        <th colspan="2">Risk Statistics</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="text-muted">Winning Trades</td>
+                        <td class="mono text-right">${log.winning_trades || 0}</td>
+                        <td class="text-muted">Avg Win</td>
+                        <td class="mono text-right">${pnlFmt(log.avg_win)}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Losing Trades</td>
+                        <td class="mono text-right">${log.losing_trades || 0}</td>
+                        <td class="text-muted">Avg Loss</td>
+                        <td class="mono text-right">${pnlFmt(log.avg_loss)}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Largest Win</td>
+                        <td class="mono text-right">${pnlFmt(log.largest_win)}</td>
+                        <td class="text-muted">Largest Loss</td>
+                        <td class="mono text-right">${pnlFmt(log.largest_loss)}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Max Consec. Wins</td>
+                        <td class="mono text-right">${log.consecutive_wins || 0}</td>
+                        <td class="text-muted">Max Consec. Losses</td>
+                        <td class="mono text-right">${log.consecutive_losses || 0}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Avg Trade P&L</td>
+                        <td class="mono text-right">${pnlFmt(log.avg_trade_pnl)}</td>
+                        <td class="text-muted">Candles Used</td>
+                        <td class="mono text-right">${log.candles || '—'}</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="log-data-range">
+                Data range: ${dataFrom} → ${dataTo}
+            </div>
+
+            <!-- Log action buttons -->
+            <div class="log-card-actions">
+                <button class="btn btn-sm bt-act-btn bt-act-green log-add-btn"
+                    onclick="addLogToTrading(${idx})" id="logAddBtn${idx}">
+                    ⚡ Add to Quick Trading
+                </button>
+                <span class="log-action-hint">→ Sends to Trading tab one-click presets</span>
+            </div>
+        </div>
+    `;
+    container.appendChild(card);
+}
+
+function statBox(label, value, color) {
+    return `<div class="log-stat">
+        <div class="log-stat-label">${label}</div>
+        <div class="log-stat-value ${color || ''}">${value}</div>
+    </div>`;
+}
+
+function toggleLogCard(idx) {
+    const body  = document.getElementById('logBody'  + idx);
+    const arrow = document.getElementById('logArrow' + idx);
+    const open  = body.classList.toggle('open');
+    arrow.textContent = open ? '▲' : '▼';
+}
+
+function addLogToTrading(idx) {
+    const logs = window._loadedLogs || [];
+    const log  = logs[idx];
+    if (!log) return;
+    const preset = {
+        strategy: log.strategy || 'macd',
+        symbol:   log.symbol   || 'BTC/USDT',
+        timeframe: log.timeframe || '4h',
+        size:     log.position_size || 5,
+        pf:       log.profit_factor || 0,
+        sharpe:   log.sharpe_ratio  || 0,
+        wr:       log.win_rate      || 0,
+        trades:   log.total_trades  || 0,
+    };
+    const added = _savePresetToStorage(preset);
+    const btn = document.getElementById('logAddBtn' + idx);
+    if (btn) {
+        btn.textContent  = added ? '✓ Added to Quick Trading!' : '✓ Already in Quick Trading';
+        btn.style.borderColor = '#05F26C';
+        btn.style.color       = '#05F26C';
+        btn.disabled = true;
+    }
+    showToast(added ? '⚡ Added to Quick Trading tab!' : 'Already in Quick Trading', 'success');
 }
 </script>
 {% endblock %}
+

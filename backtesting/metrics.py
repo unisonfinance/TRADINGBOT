@@ -36,12 +36,17 @@ class BacktestMetrics:
     consecutive_losses: int
 
     def passes_benchmarks(self) -> bool:
-        """Check if the strategy passes minimum benchmarks."""
+        """Check if the strategy passes minimum benchmarks.
+        Reads live values from settings so user edits take effect immediately.
+        """
+        from importlib import reload
+        from config import settings as _s
+        reload(_s)
         return (
-            self.win_rate >= settings.BACKTEST_MIN_WINRATE
-            and self.profit_factor >= settings.BACKTEST_MIN_PROFIT_FACTOR
-            and self.max_drawdown_pct <= settings.BACKTEST_MAX_DRAWDOWN
-            and self.total_trades >= settings.BACKTEST_MIN_TRADES
+            self.win_rate >= _s.BACKTEST_MIN_WINRATE
+            and self.profit_factor >= _s.BACKTEST_MIN_PROFIT_FACTOR
+            and self.max_drawdown_pct <= _s.BACKTEST_MAX_DRAWDOWN
+            and self.total_trades >= _s.BACKTEST_MIN_TRADES
         )
 
     def summary(self) -> str:

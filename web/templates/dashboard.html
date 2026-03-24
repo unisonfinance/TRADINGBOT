@@ -174,7 +174,7 @@ async function loadBotStatus() {
                         <span>Size: $${bot.size}</span>
                         <span>Cycles: ${bot.cycles}</span>
                     </div>
-                    <button class="btn btn-red btn-sm" onclick="stopBot('${bot.name}')">Stop</button>
+                    <button class="btn btn-red btn-sm" onclick="stopBot('${bot.name}')">🔴 Stop</button>
                 </div>`;
             });
             document.getElementById('activeBotsList').innerHTML = html;
@@ -218,7 +218,14 @@ async function loadBtcPrice() {
 }
 
 async function stopBot(name) {
-    if (!confirm(`Stop bot "${name}"?`)) return;
+    const ok = await botConfirm(`Stop bot "${name}"?`, {
+        title: '⛔ STOP BOT',
+        icon: '🤖',
+        variant: 'danger',
+        okLabel: '🔴 STOP IT',
+        cancelLabel: '✕ KEEP RUNNING'
+    });
+    if (!ok) return;
     try {
         await fetch('/api/bot/stop', {
             method: 'POST',

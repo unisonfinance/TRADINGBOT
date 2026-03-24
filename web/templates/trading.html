@@ -3,54 +3,267 @@
 {% block page_title %}Trading{% endblock %}
 
 {% block content %}
-<div class="grid-2col">
+<div style="display:flex;align-items:center;justify-content:flex-end;margin-bottom:0.4rem;">
+    <button id="topPanelToggle" onclick="toggleTopPanels()" class="btn btn-sm" style="font-size:0.75rem;padding:0.2rem 0.6rem;min-width:28px;font-weight:700;font-family:monospace;" title="Minimize / Maximize panels">−</button>
+</div>
+<div class="grid-2col" id="topPanelsGrid">
     <!-- Start a Bot -->
     <div class="panel">
         <div class="panel-header">
-            <h2>Launch Bot</h2>
+            <h2>🤖 Launch Bot</h2>
         </div>
         <div class="panel-body">
+            <!-- Quick Launch Presets -->
+            <div style="margin-bottom: 1rem;">
+                <div style="font-size: 0.72rem; color: #8b949e; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.5rem;">⚡ Quick Launch</div>
+                <div style="display: flex; flex-wrap: wrap; gap: 0.4rem;" id="presetBtns">
+                    <button type="button" class="btn btn-sm preset-btn" onclick="quickLaunch('macd','BTC/USDT','4h',5)" title="79 trades · PF 1.59 · Sharpe 2.23">MACD · BTC · 4h · $5</button>
+                    <button type="button" class="btn btn-sm preset-btn" onclick="quickLaunch('ichimoku','ETH/USDT','4h',5)" title="★ PF 2.40 · Sharpe 6.76 · 11 trades">Ichimoku · ETH · 4h · $5 ★</button>
+                    <button type="button" class="btn btn-sm preset-btn" onclick="quickLaunch('tema','BTC/USDT','15m',5)" title="★ PF 2.27 · Sharpe 4.77 · 5 trades">TEMA · BTC · 15m · $5 ★</button>
+                    <button type="button" class="btn btn-sm preset-btn" onclick="quickLaunch('adx_psar','BTC/USDT','4h',5)" title="PF 1.56 · Sharpe 3.27 · 12 trades">ADX+SAR · BTC · 4h · $5</button>
+                    <button type="button" class="btn btn-sm preset-btn" onclick="quickLaunch('stochrsi','ETH/USDT','15m',5)" title="PF 2.68 · Sharpe 6.85 · 4 trades">StochRSI · ETH · 15m · $5 ★</button>
+                    <button type="button" class="btn btn-sm preset-btn" onclick="quickLaunch('macd','ETH/USDT','1h',5)" title="106 trades · PF 1.45 · Sharpe 1.79">MACD · ETH · 1h · $5</button>
+                    <button type="button" class="btn btn-sm preset-btn" onclick="quickLaunch('supertrend','BTC/USDT','4h',5)">ST · BTC · 4h · $5</button>
+                </div>
+            </div>
+
+            <!-- My Strategies — saved from Backtest tab -->
+            <div id="myStrategiesSection" style="margin-bottom: 1rem; display: none;">
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 0.4rem;">
+                    <div style="font-size: 0.72rem; color: var(--accent-green); text-transform: uppercase; letter-spacing: 0.08em;">📌 My Strategies</div>
+                    <button onclick="clearUserPresets()" style="background:none;border:none;color:#556;font-size:0.68rem;cursor:pointer;padding:0;" title="Clear all my saved strategies">clear all</button>
+                </div>
+                <div style="display: flex; flex-wrap: wrap; gap: 0.4rem;" id="myStrategyBtns"></div>
+            </div>
+            <hr style="border-color: #30363d; margin: 0.75rem 0 1rem;">
             <form id="botForm" onsubmit="startBot(event)">
                 <div class="form-group">
                     <label>Strategy</label>
                     <select id="strategySelect" class="form-input">
-                        <option value="macd">MACD Histogram (3/15/3)</option>
-                        <option value="rsi">RSI Mean Reversion (14)</option>
-                        <option value="cvd">CVD Divergence (20)</option>
+                        <optgroup label="── Original ──────────────────">
+                            <option value="macd" selected>MACD Histogram (3/15/3)</option>
+                            <option value="supertrend">Supertrend (7/3.0) + EMA200</option>
+                            <option value="rsi">RSI Mean Reversion (14)</option>
+                            <option value="cvd">CVD Divergence (20)</option>
+                        </optgroup>
+                        <optgroup label="── Research Picks ★ ───────────">
+                            <option value="tema">TEMA Crossover (9/21) + ADX ★ Sharpe 13</option>
+                            <option value="stochrsi">StochRSI (14) + EMA50 ★ PF 2.68</option>
+                            <option value="ichimoku">Ichimoku Cloud (9/26/52) ★ PF 2.40</option>
+                            <option value="adx_psar">ADX (14&gt;20) + Parabolic SAR</option>
+                        </optgroup>
+                        <optgroup label="── More Strategies ────────────">
+                            <option value="vwap_reversion">VWAP Reversion ±1.5σ</option>
+                            <option value="bb_squeeze">Bollinger Band Squeeze</option>
+                            <option value="ema_ribbon">EMA Ribbon (8/13/21/34/55)</option>
+                            <option value="heikinashi">Heikin-Ashi + EMA50</option>
+                            <option value="keltner_breakout">Keltner Channel Breakout</option>
+                            <option value="funding_meanrev">Funding Rate Mean Reversion</option>
+                        </optgroup>
+                        <optgroup label="── RSI Swing ──────────────────">
+                            <option value="rsi_swing">🤖 BTCUSDT PRO_1 — RSI Swing &lt;30/&gt;70 · Scale-In</option>
+                        </optgroup>
+                        <optgroup label="── Arbitrage ──────────────────">
+                            <option value="arbitrage">⚡ Arbitrage Ratio (BTC/ETH)</option>
+                        </optgroup>
                     </select>
                 </div>
                 <div class="form-group">
                     <label>Trading Pair</label>
-                    <input type="text" id="symbolInput" class="form-input" value="LUNA/USDC" placeholder="e.g. BTC/USDT">
+                    <input type="text" id="symbolInput" class="form-input" value="BTC/USDT" placeholder="e.g. BTC/USDT">
+                </div>
+                <div class="form-group">
+                    <label>Timeframe</label>
+                    <select id="timeframeSelect" class="form-input">
+                        <option value="1m">1 Minute</option>
+                        <option value="5m">5 Minutes</option>
+                        <option value="15m">15 Minutes</option>
+                        <option value="1h">1 Hour</option>
+                        <option value="4h" selected>4 Hours ★ Recommended</option>
+                        <option value="1d">1 Day</option>
+                    </select>
                 </div>
                 <div class="form-group">
                     <label>Position Size (USD)</label>
-                    <input type="number" id="sizeInput" class="form-input" value="1" min="0.1" step="0.1">
+                    <input type="number" id="sizeInput" class="form-input" value="5" min="0.1" step="0.1">
                 </div>
                 <div class="form-info">
-                    <p>The bot will trade <strong id="previewSymbol">LUNA/USDC</strong> using the <strong id="previewStrategy">MACD</strong> strategy with <strong>$<span id="previewSize">1</span></strong> per trade.</p>
+                    <p>The bot will trade <strong id="previewSymbol">BTC/USDT</strong> using <strong id="previewStrategy">MACD</strong> on <strong id="previewTimeframe">4h</strong> candles with <strong>$<span id="previewSize">5</span></strong> per trade.</p>
                 </div>
                 <button type="submit" class="btn btn-red btn-full">Start Bot</button>
             </form>
         </div>
     </div>
 
-    <!-- Live Price -->
-    <div class="panel">
+    <!-- Live Price — Pro Redesign -->
+    <div class="panel lp-panel" id="livePricePanel">
         <div class="panel-header">
-            <h2>Live Price</h2>
+            <div style="display:flex;align-items:center;gap:0.75rem;">
+                <h2 style="margin:0;">Live Price</h2>
+                <span class="lp-live-pill">⬤ LIVE</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:0.6rem;">
+                <span id="lpUpdated" style="font-size:0.7rem;color:#556;font-family:monospace;"></span>
+                <button class="btn btn-sm" onclick="refreshPrice()" title="Refresh price">↻</button>
+            </div>
         </div>
-        <div class="panel-body">
-            <div class="price-display">
-                <div class="price-symbol" id="priceSymbol">—</div>
-                <div class="price-value" id="priceValue">—</div>
-                <div class="price-details">
-                    <span>Bid: <span id="priceBid" class="mono">—</span></span>
-                    <span>Ask: <span id="priceAsk" class="mono">—</span></span>
-                    <span>Spread: <span id="priceSpread" class="mono">—</span></span>
+        <div class="lp-body">
+
+            <!-- Coin selector tabs -->
+            <div class="lp-coin-tabs" id="lpCoinTabs">
+                <button class="lp-coin-tab active" data-sym="BTC/USDT" onclick="lpSelectCoin(this,'BTC/USDT')">
+                    <span class="lp-ct-icon lp-btc">₿</span>
+                    <span class="lp-ct-name">BTC</span>
+                </button>
+                <button class="lp-coin-tab" data-sym="ETH/USDT" onclick="lpSelectCoin(this,'ETH/USDT')">
+                    <span class="lp-ct-icon lp-eth">Ξ</span>
+                    <span class="lp-ct-name">ETH</span>
+                </button>
+                <button class="lp-coin-tab" data-sym="BNB/USDT" onclick="lpSelectCoin(this,'BNB/USDT')">
+                    <span class="lp-ct-icon lp-bnb">◈</span>
+                    <span class="lp-ct-name">BNB</span>
+                </button>
+                <button class="lp-coin-tab" data-sym="SOL/USDT" onclick="lpSelectCoin(this,'SOL/USDT')">
+                    <span class="lp-ct-icon lp-sol">◎</span>
+                    <span class="lp-ct-name">SOL</span>
+                </button>
+                <button class="lp-coin-tab" data-sym="XRP/USDT" onclick="lpSelectCoin(this,'XRP/USDT')">
+                    <span class="lp-ct-icon lp-xrp">✕</span>
+                    <span class="lp-ct-name">XRP</span>
+                </button>
+            </div>
+
+            <!-- Main price display -->
+            <div class="lp-main">
+                <div class="lp-coin-orb lp-orb-btc" id="lpCoinOrb">
+                    <span id="lpCoinSymbolIcon">₿</span>
+                </div>
+                <div class="lp-price-block">
+                    <div class="lp-pair-label">
+                        <span class="lp-base" id="lpBase">BTC</span>
+                        <span class="lp-slash">/</span>
+                        <span class="lp-quote">USDT</span>
+                    </div>
+                    <div class="lp-price-row">
+                        <div class="lp-price-num" id="lpPriceNum">—</div>
+                        <div class="lp-price-dir" id="lpPriceDir"></div>
+                    </div>
+                    <div class="lp-price-sub" id="lpPriceSub">Awaiting data…</div>
                 </div>
             </div>
-            <button class="btn btn-sm" onclick="refreshPrice()" style="margin-top: 1rem;">Refresh Price</button>
+
+            <!-- Bid / Ask / Spread -->
+            <div class="lp-bask">
+                <div class="lp-bask-col">
+                    <div class="lp-bask-lbl lp-bid-lbl">BID</div>
+                    <div class="lp-bask-val lp-bid-val" id="lpBidVal">—</div>
+                </div>
+                <div class="lp-spread-mid">
+                    <div class="lp-spread-num" id="lpSpreadPct">—%</div>
+                    <div class="lp-spread-lbl">SPREAD</div>
+                    <div class="lp-spread-bar-wrap">
+                        <div class="lp-spread-half lp-spread-left"></div>
+                        <div class="lp-spread-gap" id="lpSpreadGap" style="width:8px;"></div>
+                        <div class="lp-spread-half lp-spread-right"></div>
+                    </div>
+                </div>
+                <div class="lp-bask-col lp-bask-right">
+                    <div class="lp-bask-lbl lp-ask-lbl">ASK</div>
+                    <div class="lp-bask-val lp-ask-val" id="lpAskVal">—</div>
+                </div>
+            </div>
+
+            <!-- Sparkline price chart -->
+            <div class="lp-sparkwrap">
+                <canvas id="lpSparkline" height="52"></canvas>
+                <div class="lp-spark-labels">
+                    <span id="lpSparkLow" class="lp-spark-lo">—</span>
+                    <span class="lp-spark-title">Price History (last 30 ticks)</span>
+                    <span id="lpSparkHigh" class="lp-spark-hi">—</span>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="lp-footer-bar">
+                <button class="btn btn-sm lp-use-btn" onclick="lpUseInBot()">▶ Use in Bot</button>
+                <div class="lp-exchange-tag">
+                    <span class="lp-exchange-dot">⬤</span>
+                    Binance · Real-time
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<!-- Bot Network Animation -->
+<div id="botAnimationPanel" class="panel" style="margin-top: 1.5rem; display: none;">
+    <div class="panel-header">
+        <h2>&#9889; Live Bot Activity</h2>
+        <span id="botAnimLabel" style="font-size:0.75rem; color:var(--accent-green); letter-spacing:0.08em; font-weight:600; text-transform:uppercase; animation: pulse-text 1.5s ease-in-out infinite;">● ACTIVE</span>
+    </div>
+    <div class="panel-body" style="padding: 0; overflow: hidden; border-radius: 0 0 8px 8px;">
+        <canvas id="botNetCanvas" style="width:100%; display:block;"></canvas>
+    </div>
+</div>
+
+<!-- ─── Arbitrage Ratio Monitor ────────────────────────────────── -->
+<div class="panel" id="arbRatioPanel" style="margin-top: 1.5rem;">
+    <div class="panel-header">
+        <div style="display:flex;align-items:center;gap:0.75rem;">
+            <h2 style="margin:0;">⚡ BTC / ETH Ratio</h2>
+            <span class="arb-live-pill" id="arbLivePill" style="font-size:0.65rem;padding:0.15rem 0.5rem;border-radius:10px;background:rgba(5,242,108,.12);color:var(--accent-green);font-weight:700;letter-spacing:0.08em;">● LIVE</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:0.6rem;">
+            <span id="arbUpdated" style="font-size:0.7rem;color:#556;font-family:monospace;"></span>
+            <button class="btn btn-sm" onclick="refreshArbRatio()" title="Refresh ratio">↻</button>
+        </div>
+    </div>
+    <div class="panel-body" style="padding:1rem;">
+        <!-- Top: BTC vs ETH prices side by side -->
+        <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:0.75rem;align-items:center;margin-bottom:1rem;">
+            <div style="text-align:center;">
+                <div style="font-size:0.7rem;text-transform:uppercase;color:#888;letter-spacing:0.06em;margin-bottom:0.2rem;">BTC/USDT</div>
+                <div id="arbBtcPrice" style="font-size:1.4rem;font-weight:700;color:var(--text-primary);font-family:monospace;">—</div>
+            </div>
+            <div style="text-align:center;">
+                <div style="font-size:0.65rem;text-transform:uppercase;color:#888;letter-spacing:0.06em;margin-bottom:0.2rem;">RATIO</div>
+                <div id="arbRatioVal" style="font-size:1.8rem;font-weight:800;color:var(--accent-green);font-family:monospace;">—</div>
+            </div>
+            <div style="text-align:center;">
+                <div style="font-size:0.7rem;text-transform:uppercase;color:#888;letter-spacing:0.06em;margin-bottom:0.2rem;">ETH/USDT</div>
+                <div id="arbEthPrice" style="font-size:1.4rem;font-weight:700;color:var(--text-primary);font-family:monospace;">—</div>
+            </div>
+        </div>
+
+        <!-- Stats row -->
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0.5rem;margin-bottom:1rem;">
+            <div style="text-align:center;padding:0.5rem;border-radius:6px;background:var(--bg-secondary);">
+                <div style="font-size:0.6rem;text-transform:uppercase;color:#888;letter-spacing:0.05em;">SMA</div>
+                <div id="arbSma" style="font-size:0.95rem;font-weight:600;color:var(--text-primary);font-family:monospace;">—</div>
+            </div>
+            <div style="text-align:center;padding:0.5rem;border-radius:6px;background:var(--bg-secondary);">
+                <div style="font-size:0.6rem;text-transform:uppercase;color:#888;letter-spacing:0.05em;">Z-Score</div>
+                <div id="arbZscore" style="font-size:0.95rem;font-weight:600;color:var(--text-primary);font-family:monospace;">—</div>
+            </div>
+            <div style="text-align:center;padding:0.5rem;border-radius:6px;background:var(--bg-secondary);">
+                <div style="font-size:0.6rem;text-transform:uppercase;color:#888;letter-spacing:0.05em;">Deviation</div>
+                <div id="arbDevPct" style="font-size:0.95rem;font-weight:600;color:var(--text-primary);font-family:monospace;">—</div>
+            </div>
+            <div style="text-align:center;padding:0.5rem;border-radius:6px;background:var(--bg-secondary);">
+                <div style="font-size:0.6rem;text-transform:uppercase;color:#888;letter-spacing:0.05em;">Action</div>
+                <div id="arbAction" style="font-size:0.85rem;font-weight:700;font-family:monospace;">—</div>
+            </div>
+        </div>
+
+        <!-- Ratio sparkline chart -->
+        <div style="position:relative;height:60px;margin-bottom:0.5rem;">
+            <canvas id="arbSparkline" style="width:100%;height:100%;"></canvas>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:0.65rem;color:#888;">
+            <span id="arbSparkLo">—</span>
+            <span>Ratio History (last 30h)</span>
+            <span id="arbSparkHi">—</span>
         </div>
     </div>
 </div>
@@ -58,7 +271,7 @@
 <!-- Running Bots -->
 <div class="panel" style="margin-top: 1.5rem;">
     <div class="panel-header">
-        <h2>Running Bots</h2>
+        <h2>🤖 Running Bots</h2>
         <button class="btn btn-sm" onclick="loadRunningBots()">Refresh</button>
     </div>
     <div class="panel-body">
@@ -68,6 +281,7 @@
                     <th>Name</th>
                     <th>Strategy</th>
                     <th>Symbol</th>
+                    <th>Timeframe</th>
                     <th>Size</th>
                     <th>Cycles</th>
                     <th>Positions</th>
@@ -76,7 +290,7 @@
                 </tr>
             </thead>
             <tbody id="runningBotsTable">
-                <tr><td colspan="8" class="text-center text-muted">No bots running</td></tr>
+                <tr><td colspan="9" class="text-center text-muted">No bots running</td></tr>
             </tbody>
         </table>
     </div>
@@ -89,21 +303,35 @@
     </div>
     <div class="panel-body">
         <div class="quick-prices" id="quickPrices">
-            <div class="quick-price-card" onclick="setSymbol('BTC/USDT')">
-                <div class="qp-symbol">BTC/USDT</div>
+            <div class="quick-price-card" onclick="lpSelectCoin(document.querySelector('[data-sym=\'BTC/USDT\']'),'BTC/USDT')">
+                <div class="qp-symbol"><span style="color:#F7931A;">₿</span> BTC</div>
                 <div class="qp-price" id="qp-BTC">—</div>
+                <div class="qp-change" id="qp-BTC-chg"></div>
             </div>
-            <div class="quick-price-card" onclick="setSymbol('ETH/USDT')">
-                <div class="qp-symbol">ETH/USDT</div>
+            <div class="quick-price-card" onclick="lpSelectCoin(document.querySelector('[data-sym=\'ETH/USDT\']'),'ETH/USDT')">
+                <div class="qp-symbol"><span style="color:#627EEA;">Ξ</span> ETH</div>
                 <div class="qp-price" id="qp-ETH">—</div>
+                <div class="qp-change" id="qp-ETH-chg"></div>
             </div>
-            <div class="quick-price-card" onclick="setSymbol('BNB/USDT')">
-                <div class="qp-symbol">BNB/USDT</div>
+            <div class="quick-price-card" onclick="lpSelectCoin(document.querySelector('[data-sym=\'BNB/USDT\']'),'BNB/USDT')">
+                <div class="qp-symbol"><span style="color:#F3BA2F;">◈</span> BNB</div>
                 <div class="qp-price" id="qp-BNB">—</div>
+                <div class="qp-change" id="qp-BNB-chg"></div>
             </div>
-            <div class="quick-price-card" onclick="setSymbol('LUNA/USDC')">
-                <div class="qp-symbol">LUNA/USDC</div>
-                <div class="qp-price" id="qp-LUNA">—</div>
+            <div class="quick-price-card" onclick="lpSelectCoin(document.querySelector('[data-sym=\'SOL/USDT\']'),'SOL/USDT')">
+                <div class="qp-symbol"><span style="color:#9945FF;">◎</span> SOL</div>
+                <div class="qp-price" id="qp-SOL">—</div>
+                <div class="qp-change" id="qp-SOL-chg"></div>
+            </div>
+            <div class="quick-price-card" onclick="lpSelectCoin(document.querySelector('[data-sym=\'XRP/USDT\']'),'XRP/USDT')">
+                <div class="qp-symbol"><span style="color:#00AAE4;">✕</span> XRP</div>
+                <div class="qp-price" id="qp-XRP">—</div>
+                <div class="qp-change" id="qp-XRP-chg"></div>
+            </div>
+            <div class="quick-price-card" onclick="setSymbol('DOGE/USDT')">
+                <div class="qp-symbol"><span style="color:#C2A633;">Ð</span> DOGE</div>
+                <div class="qp-price" id="qp-DOGE">—</div>
+                <div class="qp-change" id="qp-DOGE-chg"></div>
             </div>
         </div>
     </div>
@@ -112,54 +340,361 @@
 
 {% block scripts %}
 <script>
+// Helper: read accent green from CSS variable (respects light/dark)
+function _accentGreen() {
+    return getComputedStyle(document.documentElement).getPropertyValue('--accent-green').trim() || '#059669';
+}
+
+// ── Top panels minimize / maximize ───────────────────────────────
+let _topPanelsOpen = true;
+function toggleTopPanels() {
+    const grid = document.getElementById('topPanelsGrid');
+    const btn = document.getElementById('topPanelToggle');
+    _topPanelsOpen = !_topPanelsOpen;
+    if (_topPanelsOpen) {
+        grid.style.maxHeight = grid.scrollHeight + 'px';
+        grid.style.opacity = '1';
+        grid.style.overflow = '';
+        btn.textContent = '−';
+        btn.title = 'Minimize panels';
+        setTimeout(() => { grid.style.maxHeight = ''; }, 300);
+    } else {
+        grid.style.maxHeight = grid.scrollHeight + 'px';
+        grid.offsetHeight; // force reflow
+        grid.style.overflow = 'hidden';
+        grid.style.maxHeight = '0';
+        grid.style.opacity = '0';
+        btn.textContent = '+';
+        btn.title = 'Maximize panels';
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     loadRunningBots();
     refreshPrice();
     loadQuickPrices();
+    loadUserPresets();
+    refreshArbRatio();
 
     // Live preview
     document.getElementById('symbolInput').addEventListener('input', updatePreview);
     document.getElementById('strategySelect').addEventListener('change', updatePreview);
+    document.getElementById('timeframeSelect').addEventListener('change', updatePreview);
     document.getElementById('sizeInput').addEventListener('input', updatePreview);
 
     setInterval(loadRunningBots, 10000);
+    setInterval(refreshPrice, 15000);   // auto-refresh live price every 15s
+    setInterval(loadQuickPrices, 30000); // quick prices every 30s
+    setInterval(refreshArbRatio, 20000); // arb ratio every 20s
 });
+
+// ── Arbitrage Ratio Monitor ───────────────────────────────────
+let _arbSparkData = [];
+async function refreshArbRatio() {
+    try {
+        const res = await fetch('/api/arbitrage/ratio');
+        const d = await res.json();
+        if (d.error) { console.warn('Arb ratio error:', d.error); return; }
+
+        document.getElementById('arbBtcPrice').textContent = '$' + Number(d.btc_price).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+        document.getElementById('arbEthPrice').textContent = '$' + Number(d.eth_price).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+        document.getElementById('arbRatioVal').textContent = d.ratio.toFixed(4);
+        document.getElementById('arbSma').textContent = d.sma.toFixed(4);
+
+        // Z-Score coloring
+        const zEl = document.getElementById('arbZscore');
+        zEl.textContent = (d.zscore >= 0 ? '+' : '') + d.zscore.toFixed(4);
+        zEl.style.color = Math.abs(d.zscore) > 1.5 ? '#ef4444' : Math.abs(d.zscore) > 0.8 ? '#f59e0b' : _accentGreen();
+
+        // Deviation
+        const devEl = document.getElementById('arbDevPct');
+        devEl.textContent = (d.dev_pct >= 0 ? '+' : '') + d.dev_pct.toFixed(4) + '%';
+        devEl.style.color = Math.abs(d.dev_pct) > 1.5 ? '#ef4444' : _accentGreen();
+
+        // Action badge
+        const actEl = document.getElementById('arbAction');
+        actEl.textContent = d.action;
+        if (d.action_color === 'buy') { actEl.style.color = _accentGreen(); }
+        else if (d.action_color === 'sell') { actEl.style.color = '#ef4444'; }
+        else { actEl.style.color = '#888'; }
+
+        document.getElementById('arbUpdated').textContent = new Date().toLocaleTimeString();
+
+        // Sparkline from history
+        if (d.history && d.history.length > 1) {
+            _arbSparkData = d.history;
+            drawArbSparkline(_arbSparkData, d.sma);
+        }
+    } catch(e) { console.warn('Arb ratio fetch failed:', e); }
+}
+
+function drawArbSparkline(data, sma) {
+    const canvas = document.getElementById('arbSparkline');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.scale(dpr, dpr);
+    const W = rect.width, H = rect.height;
+
+    ctx.clearRect(0, 0, W, H);
+    if (data.length < 2) return;
+
+    const mn = Math.min(...data);
+    const mx = Math.max(...data);
+    const range = mx - mn || 1;
+    const pad = 2;
+
+    // SMA line
+    if (sma >= mn && sma <= mx) {
+        const y = H - pad - ((sma - mn) / range) * (H - pad * 2);
+        ctx.beginPath();
+        ctx.setLineDash([3, 3]);
+        ctx.moveTo(0, y);
+        ctx.lineTo(W, y);
+        ctx.strokeStyle = '#556';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.setLineDash([]);
+    }
+
+    // Ratio line
+    ctx.beginPath();
+    for (let i = 0; i < data.length; i++) {
+        const x = (i / (data.length - 1)) * W;
+        const y = H - pad - ((data[i] - mn) / range) * (H - pad * 2);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = _accentGreen();
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Fill
+    const lastX = W, lastY = H - pad - ((data[data.length - 1] - mn) / range) * (H - pad * 2);
+    ctx.lineTo(lastX, H);
+    ctx.lineTo(0, H);
+    ctx.closePath();
+    const grad = ctx.createLinearGradient(0, 0, 0, H);
+    grad.addColorStop(0, _accentGreen() + '30');
+    grad.addColorStop(1, _accentGreen() + '05');
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Labels
+    document.getElementById('arbSparkLo').textContent = mn.toFixed(4);
+    document.getElementById('arbSparkHi').textContent = mx.toFixed(4);
+}
 
 function updatePreview() {
     document.getElementById('previewSymbol').textContent = document.getElementById('symbolInput').value || '—';
     document.getElementById('previewStrategy').textContent = document.getElementById('strategySelect').value.toUpperCase();
+    document.getElementById('previewTimeframe').textContent = document.getElementById('timeframeSelect').value;
     document.getElementById('previewSize').textContent = document.getElementById('sizeInput').value || '0';
+}
+
+async function quickLaunch(strategy, symbol, timeframe, size) {
+    const btn = [...document.querySelectorAll('.preset-btn')].find(b => b.onclick?.toString().includes(`'${strategy}','${symbol}','${timeframe}'`));
+    if (btn) { btn.disabled = true; btn.textContent = '⟳ Launching…'; }
+    try {
+        const res = await fetch('/api/bot/start', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({strategy, symbol, timeframe, size})
+        });
+        const data = await res.json();
+        if (data.error) {
+            showToast(data.error, 'error');
+            if (btn) { btn.disabled = false; btn.textContent = `${strategy.toUpperCase()} · ${symbol} · ${timeframe} · $${size}`; }
+        } else {
+            showToast(`✓ Started: ${data.name}`, 'success');
+            if (btn) { btn.disabled = true; btn.style.borderColor = _accentGreen(); btn.style.color = _accentGreen(); btn.textContent = `✓ ${data.name}`; }
+            loadRunningBots();
+        }
+    } catch (e) {
+        showToast('Failed to start bot', 'error');
+        if (btn) { btn.disabled = false; }
+    }
 }
 
 function setSymbol(symbol) {
     document.getElementById('symbolInput').value = symbol;
     updatePreview();
+    // sync live price widget tab if exists
+    const tab = document.querySelector(`.lp-coin-tab[data-sym="${symbol}"]`);
+    if (tab) lpSelectCoin(tab, symbol); else { _LP.sym = symbol; refreshPrice(); }
+}
+
+// ── Live Price Widget ─────────────────────────────────────────────
+const _LP = {
+    sym: 'BTC/USDT',
+    prevPrice: null,
+    history: [],
+    COINS: {
+        'BTC/USDT': {icon:'₿', cls:'lp-orb-btc', base:'BTC'},
+        'ETH/USDT': {icon:'Ξ', cls:'lp-orb-eth', base:'ETH'},
+        'BNB/USDT': {icon:'◈', cls:'lp-orb-bnb', base:'BNB'},
+        'SOL/USDT': {icon:'◎', cls:'lp-orb-sol', base:'SOL'},
+        'XRP/USDT': {icon:'✕', cls:'lp-orb-xrp', base:'XRP'},
+    }
+};
+
+function lpSelectCoin(btn, sym) {
+    if (!sym) return;
+    document.querySelectorAll('.lp-coin-tab').forEach(b => b.classList.remove('active'));
+    if (btn && btn.classList) btn.classList.add('active');
+    _LP.sym = sym;
+    _LP.prevPrice = null;
+    _LP.history = [];
+    document.getElementById('symbolInput').value = sym;
+    updatePreview();
     refreshPrice();
 }
 
+function lpUseInBot() {
+    document.getElementById('symbolInput').value = _LP.sym;
+    updatePreview();
+    showToast('Trading pair set to ' + _LP.sym, 'success');
+}
+
 async function refreshPrice() {
-    const symbol = document.getElementById('symbolInput').value;
-    if (!symbol) return;
-    document.getElementById('priceSymbol').textContent = symbol;
-    try {
-        const res = await fetch(`/api/price/${symbol}`);
-        const data = await res.json();
-        if (data.price) {
-            document.getElementById('priceValue').textContent = '$' + formatNum(data.price, data.price > 1 ? 2 : 6);
-            document.getElementById('priceBid').textContent = '$' + formatNum(data.bid, data.bid > 1 ? 2 : 6);
-            document.getElementById('priceAsk').textContent = '$' + formatNum(data.ask, data.ask > 1 ? 2 : 6);
-            const spread = ((data.ask - data.bid) / data.price * 100).toFixed(3);
-            document.getElementById('priceSpread').textContent = spread + '%';
-        }
-    } catch (e) {
-        document.getElementById('priceValue').textContent = 'Error';
+    const symbol = _LP.sym || document.getElementById('symbolInput').value || 'BTC/USDT';
+    const coin = _LP.COINS[symbol] || {icon: symbol.split('/')[0][0], cls: 'lp-orb-btc', base: symbol.split('/')[0]};
+
+    const orb = document.getElementById('lpCoinOrb');
+    if (orb) {
+        orb.className = 'lp-coin-orb ' + coin.cls;
+        const iconEl = document.getElementById('lpCoinSymbolIcon');
+        if (iconEl) iconEl.textContent = coin.icon;
+        const baseEl = document.getElementById('lpBase');
+        if (baseEl) baseEl.textContent = coin.base;
     }
+
+    try {
+        const res  = await fetch(`/api/price/${encodeURIComponent(symbol)}`);
+        const data = await res.json();
+        if (!data.price) return;
+
+        const price  = data.price;
+        const bid    = data.bid;
+        const ask    = data.ask;
+        const spread = ((ask - bid) / price * 100);
+
+        _LP.history.push(price);
+        if (_LP.history.length > 30) _LP.history.shift();
+
+        const dir = _LP.prevPrice === null ? 0 : price > _LP.prevPrice ? 1 : price < _LP.prevPrice ? -1 : 0;
+        _LP.prevPrice = price;
+
+        const dp = price >= 100 ? 2 : price >= 1 ? 4 : 6;
+
+        const numEl = document.getElementById('lpPriceNum');
+        if (numEl) {
+            numEl.textContent = '$' + formatNum(price, dp);
+            if (dir !== 0) {
+                const cls = dir > 0 ? 'lp-flash-up' : 'lp-flash-dn';
+                numEl.classList.add(cls);
+                setTimeout(() => numEl.classList.remove(cls), 800);
+            }
+        }
+
+        const dirEl = document.getElementById('lpPriceDir');
+        if (dirEl) {
+            dirEl.textContent = dir > 0 ? '▲' : dir < 0 ? '▼' : '';
+            dirEl.className   = 'lp-price-dir' + (dir > 0 ? ' lp-up' : dir < 0 ? ' lp-dn' : '');
+        }
+
+        const subEl = document.getElementById('lpPriceSub');
+        if (subEl && _LP.history.length > 1) {
+            const delta = ((_LP.history[_LP.history.length-1] - _LP.history[0]) / _LP.history[0] * 100);
+            subEl.textContent = (delta >= 0 ? '▲ +' : '▼ ') + delta.toFixed(3) + '% this session';
+            subEl.style.color = delta >= 0 ? _accentGreen() : '#ff4d4d';
+        }
+
+        const bidEl = document.getElementById('lpBidVal');
+        const askEl = document.getElementById('lpAskVal');
+        if (bidEl) bidEl.textContent = '$' + formatNum(bid, dp);
+        if (askEl) askEl.textContent = '$' + formatNum(ask, dp);
+
+        const spEl = document.getElementById('lpSpreadPct');
+        if (spEl) spEl.textContent = spread.toFixed(3) + '%';
+
+        const gapEl = document.getElementById('lpSpreadGap');
+        if (gapEl) gapEl.style.width = Math.min(40, Math.max(4, spread * 80)) + 'px';
+
+        const upEl = document.getElementById('lpUpdated');
+        if (upEl) upEl.textContent = new Date().toLocaleTimeString();
+
+        _lpDrawSparkline();
+    } catch(e) {
+        const numEl = document.getElementById('lpPriceNum');
+        if (numEl) numEl.textContent = 'Error';
+    }
+}
+
+function _lpDrawSparkline() {
+    const canvas = document.getElementById('lpSparkline');
+    if (!canvas || _LP.history.length < 2) return;
+    const dpr = window.devicePixelRatio || 1;
+    const W   = canvas.offsetWidth * dpr;
+    const H   = 52 * dpr;
+    canvas.width  = W;
+    canvas.height = H;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, W, H);
+
+    const prices = _LP.history;
+    const min    = Math.min(...prices);
+    const max    = Math.max(...prices);
+    const range  = max - min || 1;
+    const pad    = 4 * dpr;
+    const xOf   = i => pad + (i / (prices.length - 1)) * (W - pad * 2);
+    const yOf   = p => H - pad - ((p - min) / range) * (H - pad * 2);
+    const up    = prices[prices.length - 1] >= prices[0];
+    const _ag  = _accentGreen();
+    const col   = up ? _ag : '#ff4d4d';
+
+    const grad = ctx.createLinearGradient(0, 0, 0, H);
+    grad.addColorStop(0, up ? (_ag + '44') : '#ff4d4d33');
+    grad.addColorStop(1, 'transparent');
+    ctx.beginPath();
+    ctx.moveTo(xOf(0), yOf(prices[0]));
+    for (let i = 1; i < prices.length; i++) ctx.lineTo(xOf(i), yOf(prices[i]));
+    ctx.lineTo(xOf(prices.length - 1), H);
+    ctx.lineTo(xOf(0), H);
+    ctx.closePath();
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.moveTo(xOf(0), yOf(prices[0]));
+    for (let i = 1; i < prices.length; i++) ctx.lineTo(xOf(i), yOf(prices[i]));
+    ctx.strokeStyle  = col;
+    ctx.lineWidth    = 1.5 * dpr;
+    ctx.lineJoin     = 'round';
+    ctx.stroke();
+
+    const lx = xOf(prices.length - 1);
+    const ly = yOf(prices[prices.length - 1]);
+    ctx.save();
+    ctx.shadowColor = col; ctx.shadowBlur = 10 * dpr;
+    ctx.beginPath(); ctx.arc(lx, ly, 3 * dpr, 0, Math.PI * 2);
+    ctx.fillStyle = col; ctx.fill();
+    ctx.restore();
+
+    const dp = min >= 100 ? 2 : min >= 1 ? 4 : 6;
+    const loEl = document.getElementById('lpSparkLow');
+    const hiEl = document.getElementById('lpSparkHigh');
+    if (loEl) loEl.textContent = '$' + formatNum(min, dp);
+    if (hiEl) hiEl.textContent = '$' + formatNum(max, dp);
 }
 
 async function startBot(e) {
     e.preventDefault();
     const strategy = document.getElementById('strategySelect').value;
     const symbol = document.getElementById('symbolInput').value;
+    const timeframe = document.getElementById('timeframeSelect').value;
     const size = parseFloat(document.getElementById('sizeInput').value);
 
     if (!symbol) { showToast('Enter a trading pair', 'error'); return; }
@@ -169,13 +704,19 @@ async function startBot(e) {
         const res = await fetch('/api/bot/start', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({strategy, symbol, size})
+            body: JSON.stringify({strategy, symbol, timeframe, size})
         });
         const data = await res.json();
         if (data.error) {
             showToast(data.error, 'error');
         } else {
             showToast(`Bot started: ${data.name}`, 'success');
+
+            // Save bot config to Firestore
+            if (typeof saveBotConfigToFirestore === 'function' && currentUser) {
+                await saveBotConfigToFirestore({ strategy, symbol, timeframe, size, name: data.name, started_at: new Date().toISOString() });
+            }
+
             loadRunningBots();
         }
     } catch (e) {
@@ -191,9 +732,12 @@ async function loadRunningBots() {
 
         if (bots.length === 0) {
             document.getElementById('runningBotsTable').innerHTML =
-                '<tr><td colspan="8" class="text-center text-muted">No bots running</td></tr>';
+                '<tr><td colspan="9" class="text-center text-muted">No bots running</td></tr>';
+            if (window._startBotAnimation) window._startBotAnimation(0);
             return;
         }
+
+        if (window._startBotAnimation) window._startBotAnimation(bots.length);
 
         let html = '';
         bots.forEach(bot => {
@@ -201,11 +745,12 @@ async function loadRunningBots() {
                 <td><strong>${bot.name}</strong></td>
                 <td>${bot.strategy.toUpperCase()}</td>
                 <td>${bot.symbol}</td>
+                <td class="mono">${bot.timeframe || '—'}</td>
                 <td class="mono">$${bot.size}</td>
                 <td class="mono">${bot.cycles}</td>
                 <td class="mono">${bot.positions}</td>
                 <td><span class="badge badge-green">Running</span></td>
-                <td><button class="btn btn-red btn-sm" onclick="stopBot('${bot.name}')">Stop</button></td>
+                <td><button class="btn btn-red btn-sm" onclick="stopBot('${bot.name}')">🔴 Stop</button></td>
             </tr>`;
         });
         document.getElementById('runningBotsTable').innerHTML = html;
@@ -213,7 +758,14 @@ async function loadRunningBots() {
 }
 
 async function stopBot(name) {
-    if (!confirm(`Stop bot "${name}"?`)) return;
+    const ok = await botConfirm(`Stop bot "${name}"?`, {
+        title: '⛔ STOP BOT',
+        icon: '🤖',
+        variant: 'danger',
+        okLabel: '🔴 STOP IT',
+        cancelLabel: '✕ KEEP RUNNING'
+    });
+    if (!ok) return;
     await fetch('/api/bot/stop', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
@@ -225,20 +777,658 @@ async function stopBot(name) {
 
 async function loadQuickPrices() {
     const pairs = [
-        {symbol: 'BTC/USDT', id: 'qp-BTC'},
-        {symbol: 'ETH/USDT', id: 'qp-ETH'},
-        {symbol: 'BNB/USDT', id: 'qp-BNB'},
-        {symbol: 'LUNA/USDC', id: 'qp-LUNA'},
+        {symbol: 'BTC/USDT',  id: 'qp-BTC',  chg: 'qp-BTC-chg'},
+        {symbol: 'ETH/USDT',  id: 'qp-ETH',  chg: 'qp-ETH-chg'},
+        {symbol: 'BNB/USDT',  id: 'qp-BNB',  chg: 'qp-BNB-chg'},
+        {symbol: 'SOL/USDT',  id: 'qp-SOL',  chg: 'qp-SOL-chg'},
+        {symbol: 'XRP/USDT',  id: 'qp-XRP',  chg: 'qp-XRP-chg'},
+        {symbol: 'DOGE/USDT', id: 'qp-DOGE', chg: 'qp-DOGE-chg'},
     ];
     for (const p of pairs) {
         try {
-            const res = await fetch(`/api/price/${p.symbol}`);
+            const res  = await fetch(`/api/price/${encodeURIComponent(p.symbol)}`);
             const data = await res.json();
             if (data.price) {
-                document.getElementById(p.id).textContent = '$' + formatNum(data.price, data.price > 1 ? 2 : 6);
+                const el  = document.getElementById(p.id);
+                const chgEl = document.getElementById(p.chg);
+                const dp  = data.price >= 100 ? 2 : data.price >= 1 ? 4 : 6;
+                if (el) {
+                    const prev = el.dataset.prev ? parseFloat(el.dataset.prev) : null;
+                    el.textContent = '$' + formatNum(data.price, dp);
+                    if (prev !== null) el.style.color = data.price > prev ? _accentGreen() : data.price < prev ? '#ff4d4d' : '';
+                    if (chgEl && prev !== null) {
+                        const delta = ((data.price - prev) / prev * 100);
+                        chgEl.textContent = (delta >= 0 ? '▲ ' : '▼ ') + Math.abs(delta).toFixed(2) + '%';
+                        chgEl.style.color = delta >= 0 ? _accentGreen() : '#ff4d4d';
+                    }
+                    el.dataset.prev = data.price;
+                }
             }
-        } catch (e) {}
+        } catch(e) {
+            const el = document.getElementById(p.id);
+            if (el && el.textContent === '—') el.textContent = 'N/A';
+        }
     }
 }
+
+// ── User Saved Presets ────────────────────────────────────────────
+function loadUserPresets() {
+    try {
+        const raw = localStorage.getItem('userQuickPresets');
+        if (!raw) return;
+        const presets = JSON.parse(raw);
+        if (!presets || presets.length === 0) return;
+        const section   = document.getElementById('myStrategiesSection');
+        const container = document.getElementById('myStrategyBtns');
+        if (!section || !container) return;
+        section.style.display = '';
+        container.innerHTML = '';
+        presets.forEach((p, idx) => {
+            const wrap = document.createElement('div');
+            wrap.style.cssText = 'display:inline-flex;align-items:center;gap:2px;';
+            wrap.innerHTML = `
+                <button type="button" class="btn btn-sm preset-btn"
+                    onclick="quickLaunchUserPreset(${idx})"
+                    title="PF: ${(p.pf||0).toFixed(2)} · Sharpe: ${(p.sharpe||0).toFixed(2)} · WR: ${(p.wr||0).toFixed(1)}%"
+                    style="border-color:var(--accent-green-border);color:var(--accent-green);">
+                    ${(p.strategy||'?').toUpperCase()} · ${p.symbol||'—'} · ${p.timeframe||'—'} · $${p.size||5}
+                </button>
+                <button onclick="removeUserPreset(${idx})" title="Remove"
+                    style="background:none;border:none;color:#ff4d4d66;cursor:pointer;font-size:0.75rem;padding:0 3px;line-height:1;"
+                    onmouseover="this.style.color='#ff4d4d'" onmouseout="this.style.color='#ff4d4d66'">✕</button>
+            `;
+            container.appendChild(wrap);
+        });
+    } catch(e) {}
+}
+
+function quickLaunchUserPreset(idx) {
+    try {
+        const p = JSON.parse(localStorage.getItem('userQuickPresets') || '[]')[idx];
+        if (p) quickLaunch(p.strategy, p.symbol, p.timeframe, p.size || 5);
+    } catch(e) {}
+}
+
+function removeUserPreset(idx) {
+    try {
+        const presets = JSON.parse(localStorage.getItem('userQuickPresets') || '[]');
+        presets.splice(idx, 1);
+        localStorage.setItem('userQuickPresets', JSON.stringify(presets));
+        if (presets.length === 0) {
+            const s = document.getElementById('myStrategiesSection');
+            if (s) s.style.display = 'none';
+        } else loadUserPresets();
+        showToast('Preset removed', 'success');
+    } catch(e) {}
+}
+
+async function clearUserPresets() {
+    const ok = await botConfirm('Remove all saved strategies?', {
+        title: '🗑️ CLEAR STRATEGIES',
+        icon: '⚠️',
+        variant: 'warning',
+        okLabel: '🗑️ CLEAR ALL',
+        cancelLabel: '✕ CANCEL'
+    });
+    if (!ok) return;
+    localStorage.removeItem('userQuickPresets');
+    const section = document.getElementById('myStrategiesSection');
+    if (section) section.style.display = 'none';
+    showToast('All saved strategies cleared', 'success');
+}
+
+// ─── BOT NETWORK ANIMATION ────────────────────────────────────────────
+(function() {
+    const ACCENT   = _accentGreen();
+    const ACCENT2  = '#00BFFF';
+    const WARN     = '#FFD700';
+    const BG       = '#0d1117';
+    const NODEBG   = '#161b22';
+    const NODEBDR  = '#30363d';
+
+    const NODES = [
+        { id: 'exchange', label: 'BINANCE', sublabel: 'Exchange', icon: '⬡', x: 0.08, y: 0.50, color: ACCENT2 },
+        { id: 'candles',  label: 'CANDLES', sublabel: '4H OHLCV', icon: '⣿', x: 0.30, y: 0.22, color: ACCENT  },
+        { id: 'signal',   label: 'MACD',    sublabel: 'Signal',   icon: '〜', x: 0.52, y: 0.50, color: WARN    },
+        { id: 'risk',     label: 'RISK',    sublabel: 'Manager',  icon: '⬡', x: 0.30, y: 0.78, color: '#FF6B6B'},
+        { id: 'bot',      label: 'BOT CORE',sublabel: 'Trader',   icon: '◈', x: 0.73, y: 0.32, color: ACCENT  },
+        { id: 'order',    label: 'ORDER',   sublabel: 'Engine',   icon: '⟁', x: 0.92, y: 0.65, color: ACCENT2 },
+    ];
+
+    const EDGES = [
+        { from: 'exchange', to: 'candles',  color: ACCENT2, speed: 1.2 },
+        { from: 'exchange', to: 'risk',     color: '#FF6B6B', speed: 0.8 },
+        { from: 'candles',  to: 'signal',   color: ACCENT,  speed: 1.5 },
+        { from: 'risk',     to: 'signal',   color: '#FF6B6B', speed: 0.9 },
+        { from: 'signal',   to: 'bot',      color: WARN,    speed: 2.0 },
+        { from: 'bot',      to: 'order',    color: ACCENT,  speed: 1.8 },
+        { from: 'order',    to: 'exchange', color: ACCENT2, speed: 1.0 },
+    ];
+
+    let packets = [];
+    let raf = null;
+    let canvas, ctx;
+    let W, H;
+    const NODE_R = 44;
+
+    function nodePos(node) {
+        return { x: node.x * W, y: node.y * H };
+    }
+
+    let _glyphCounter = 0;
+    function spawnPacket(edge) {
+        const from = NODES.find(n => n.id === edge.from);
+        const to   = NODES.find(n => n.id === edge.to);
+        packets.push({ edge, from, to, t: 0, speed: edge.speed * (0.7 + Math.random() * 0.6), glyphIdx: _glyphCounter++ });
+    }
+
+    function initPackets() {
+        packets = [];
+        EDGES.forEach(e => {
+            // stagger initial positions
+            const from = NODES.find(n => n.id === e.from);
+            const to   = NODES.find(n => n.id === e.to);
+            for (let i = 0; i < 2; i++) {
+                packets.push({ edge: e, from, to, t: Math.random(), speed: e.speed * (0.7 + Math.random() * 0.6), glyphIdx: _glyphCounter++ });
+            }
+        });
+    }
+
+    function drawGlow(x, y, r, color, alpha = 0.3) {
+        const grad = ctx.createRadialGradient(x, y, 0, x, y, r * 2.5);
+        grad.addColorStop(0, color.replace(')', `, ${alpha})`).replace('rgb', 'rgba').replace('#', 'rgba(').replace(/rgba\(([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})\)/, (m, r, g, b) => `rgba(${parseInt(r,16)},${parseInt(g,16)},${parseInt(b,16)},${alpha})`));
+        // simpler: just use shadowBlur
+        ctx.save();
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 18;
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fillStyle = color + '22';
+        ctx.fill();
+        ctx.restore();
+    }
+
+    function hexToRgb(hex) {
+        const r = parseInt(hex.slice(1,3),16);
+        const g = parseInt(hex.slice(3,5),16);
+        const b = parseInt(hex.slice(5,7),16);
+        return `${r},${g},${b}`;
+    }
+
+    function drawEdge(edge, pulse) {
+        const from = NODES.find(n => n.id === edge.from);
+        const to   = NODES.find(n => n.id === edge.to);
+        const fp = nodePos(from), tp = nodePos(to);
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(fp.x, fp.y);
+        ctx.lineTo(tp.x, tp.y);
+        ctx.strokeStyle = edge.color + '30';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        // animated dashes
+        ctx.setLineDash([8, 14]);
+        ctx.lineDashOffset = -pulse * 30;
+        ctx.strokeStyle = edge.color + '55';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(fp.x, fp.y);
+        ctx.lineTo(tp.x, tp.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.restore();
+    }
+
+    function drawNode(node, tick) {
+        const p = nodePos(node);
+        const breathe = 1 + 0.04 * Math.sin(tick * 0.03 + node.x * 10);
+        const r = NODE_R * breathe;
+        const c = node.color;
+
+        ctx.save();
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        // --- dimensions ---
+        const hw = r * 0.74, hh = r * 0.62;          // head half-width, half-height
+        const hx = p.x - hw, hy = p.y - r * 0.58;    // head top-left
+        const bw = r * 0.48, bh = r * 0.38;           // body half-width, height
+        const bx = p.x - bw, by = hy + hh * 2 + 2;   // body top-left (just below head)
+
+        // === OUTER GLOW (behind everything) ===
+        ctx.shadowColor = c;
+        ctx.shadowBlur = 18 * breathe;
+
+        // === BODY ===
+        ctx.beginPath();
+        ctx.roundRect(bx, by, bw * 2, bh, 5);
+        ctx.fillStyle = NODEBG;
+        ctx.fill();
+        ctx.strokeStyle = c;
+        ctx.lineWidth = 1.6;
+        ctx.stroke();
+        // chest LED strip
+        const ledW = bw * 1.1;
+        ctx.beginPath();
+        ctx.roundRect(p.x - ledW * 0.5, by + bh * 0.28, ledW, bh * 0.3, 2);
+        ctx.fillStyle = c + '33';
+        ctx.fill();
+        ctx.strokeStyle = c + '66';
+        ctx.lineWidth = 0.7;
+        ctx.stroke();
+        // LED dots
+        for (let i = 0; i < 4; i++) {
+            ctx.beginPath();
+            ctx.arc(p.x - ledW * 0.35 + ledW * 0.23 * i, by + bh * 0.43, r * 0.055, 0, Math.PI * 2);
+            ctx.fillStyle = (i === 1 || i === 2) ? c : c + '55';
+            ctx.fill();
+        }
+
+        // === ARM NUBS ===
+        ctx.shadowBlur = 0;
+        [-1, 1].forEach(side => {
+            ctx.beginPath();
+            ctx.arc(p.x + side * (bw + r * 0.13), by + bh * 0.5, r * 0.11, 0, Math.PI * 2);
+            ctx.fillStyle = NODEBG;
+            ctx.fill();
+            ctx.strokeStyle = c + 'aa';
+            ctx.lineWidth = 1.4;
+            ctx.stroke();
+        });
+
+        // === HEAD ===
+        ctx.shadowColor = c;
+        ctx.shadowBlur = 14 * breathe;
+        ctx.beginPath();
+        ctx.roundRect(hx, hy, hw * 2, hh * 2, r * 0.20);
+        ctx.fillStyle = NODEBG;
+        ctx.fill();
+        ctx.strokeStyle = c;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+
+        // === ANTENNA ===
+        const antTopY = hy - r * 0.38;
+        ctx.beginPath();
+        ctx.moveTo(p.x, hy);
+        ctx.lineTo(p.x, antTopY);
+        ctx.strokeStyle = c + 'bb';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(p.x, antTopY, r * 0.095, 0, Math.PI * 2);
+        ctx.fillStyle = c;
+        ctx.shadowColor = c;
+        ctx.shadowBlur = 12;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        // === EAR BOLTS ===
+        [-1, 1].forEach(side => {
+            ctx.beginPath();
+            ctx.arc(p.x + side * (hw + r * 0.07), hy + hh * 0.85, r * 0.09, 0, Math.PI * 2);
+            ctx.fillStyle = NODEBG;
+            ctx.fill();
+            ctx.strokeStyle = c + '88';
+            ctx.lineWidth = 1.2;
+            ctx.stroke();
+        });
+
+        // === EYES ===
+        const eyeY = hy + hh * 0.72;
+        const eyeR = r * 0.16;
+        const eyeOff = hw * 0.42;
+        [-1, 1].forEach(side => {
+            // glow halo
+            ctx.beginPath();
+            ctx.arc(p.x + side * eyeOff, eyeY, eyeR * 1.5, 0, Math.PI * 2);
+            ctx.fillStyle = c + '20';
+            ctx.fill();
+            // iris
+            ctx.beginPath();
+            ctx.arc(p.x + side * eyeOff, eyeY, eyeR, 0, Math.PI * 2);
+            ctx.fillStyle = c;
+            ctx.shadowColor = c;
+            ctx.shadowBlur = 16;
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            // pupil
+            ctx.beginPath();
+            ctx.arc(p.x + side * eyeOff, eyeY, eyeR * 0.42, 0, Math.PI * 2);
+            ctx.fillStyle = '#000';
+            ctx.fill();
+            // catchlight
+            ctx.beginPath();
+            ctx.arc(p.x + side * eyeOff - eyeR * 0.28, eyeY - eyeR * 0.28, eyeR * 0.18, 0, Math.PI * 2);
+            ctx.fillStyle = '#ffffffaa';
+            ctx.fill();
+        });
+
+        // === MOUTH / SPEAKER GRILL ===
+        const mouthY = hy + hh * 1.58;
+        const mouthW = hw * 1.08;
+        const mouthH = r * 0.135;
+        ctx.beginPath();
+        ctx.roundRect(p.x - mouthW * 0.5, mouthY - mouthH * 0.5, mouthW, mouthH, 3);
+        ctx.fillStyle = c + '40';
+        ctx.fill();
+        ctx.strokeStyle = c + 'aa';
+        ctx.lineWidth = 0.9;
+        ctx.stroke();
+        for (let i = 1; i < 5; i++) {
+            const sx = p.x - mouthW * 0.5 + mouthW * i / 5;
+            ctx.beginPath();
+            ctx.moveTo(sx, mouthY - mouthH * 0.5 + 1.5);
+            ctx.lineTo(sx, mouthY + mouthH * 0.5 - 1.5);
+            ctx.strokeStyle = c + '55';
+            ctx.lineWidth = 0.8;
+            ctx.stroke();
+        }
+
+        // === LABEL (forehead, inside head) ===
+        ctx.font = `bold ${Math.round(r * 0.25)}px 'Courier New', monospace`;
+        ctx.fillStyle = '#ffffffcc';
+        ctx.fillText(node.label, p.x, hy + hh * 0.33);
+
+        // === SUBLABEL (below body) ===
+        ctx.font = `bold ${Math.round(r * 0.33)}px monospace`;
+        ctx.fillStyle = c + 'cc';
+        ctx.fillText(node.sublabel, p.x, by + bh + 14);
+
+        ctx.restore();
+    }
+
+    // bot glyphs — cycling for tiny bots travelling the wires
+    const BOT_GLYPHS = ['🤖', '👾', '👽', '🔥', '⚡'];
+
+    function drawPacket(pkt, tick) {
+        const fp = nodePos(pkt.from);
+        const tp = nodePos(pkt.to);
+        const x = fp.x + (tp.x - fp.x) * pkt.t;
+        const y = fp.y + (tp.y - fp.y) * pkt.t;
+        const color = pkt.edge.color;
+        const glyph = BOT_GLYPHS[pkt.glyphIdx % BOT_GLYPHS.length];
+
+        ctx.save();
+
+        // glowing trail behind the bot
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 12;
+        for (let i = 1; i <= 5; i++) {
+            const tt = pkt.t - i * 0.02;
+            if (tt < 0) continue;
+            const tx2 = fp.x + (tp.x - fp.x) * tt;
+            const ty2 = fp.y + (tp.y - fp.y) * tt;
+            ctx.beginPath();
+            ctx.arc(tx2, ty2, 3.5 - i * 0.5, 0, Math.PI * 2);
+            ctx.fillStyle = color + Math.floor((1 - i / 5) * 180).toString(16).padStart(2, '0');
+            ctx.fill();
+        }
+
+        // glowing halo ring behind the bot icon
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 22;
+        ctx.beginPath();
+        ctx.arc(x, y, 11, 0, Math.PI * 2);
+        ctx.fillStyle = color + '28';
+        ctx.fill();
+        ctx.strokeStyle = color + 'aa';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        // bot emoji — no rotation so emoji render correctly
+        ctx.shadowBlur = 28;
+        ctx.font = '18px serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(glyph, x, y);
+
+        ctx.restore();
+    }
+
+    let tick = 0;
+    let lastSpawn = 0;
+
+    function frame(ts) {
+        if (!canvas || !canvas.isConnected) { raf = null; return; }
+        tick++;
+
+        ctx.clearRect(0, 0, W, H);
+        ctx.fillStyle = BG;
+        ctx.fillRect(0, 0, W, H);
+
+        // grid lines subtle
+        ctx.save();
+        ctx.strokeStyle = '#ffffff08';
+        ctx.lineWidth = 1;
+        for (let x = 0; x < W; x += 40) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+        for (let y = 0; y < H; y += 40) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+        ctx.restore();
+
+        const pulse = (tick % 60) / 60;
+        EDGES.forEach(e => drawEdge(e, pulse));
+        NODES.forEach(n => drawNode(n, tick));
+
+        // advance + draw packets
+        packets.forEach(pkt => {
+            pkt.t += pkt.speed * 0.004;
+            if (pkt.t > 1) {
+                pkt.t = 0;
+                pkt.speed = pkt.edge.speed * (0.7 + Math.random() * 0.6);
+            }
+            drawPacket(pkt, tick);
+        });
+
+        // occasionally spawn burst
+        if (tick - lastSpawn > 90) {
+            const e = EDGES[Math.floor(Math.random() * EDGES.length)];
+            spawnPacket(e);
+            lastSpawn = tick;
+            // keep max packets reasonable
+            if (packets.length > 40) packets.splice(0, 5);
+        }
+
+        // scanline overlay
+        ctx.fillStyle = 'rgba(0,0,0,0.03)';
+        for (let y = 0; y < H; y += 4) {
+            ctx.fillRect(0, y, W, 2);
+        }
+
+        raf = requestAnimationFrame(frame);
+    }
+
+    function resize() {
+        if (!canvas) return;
+        const rect = canvas.parentElement.getBoundingClientRect();
+        W = rect.width;
+        H = Math.max(300, Math.min(380, rect.width * 0.36));
+        canvas.width  = W * devicePixelRatio;
+        canvas.height = H * devicePixelRatio;
+        canvas.style.height = H + 'px';
+        ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+    }
+
+    window._startBotAnimation = function(botCount) {
+        const panel = document.getElementById('botAnimationPanel');
+        if (!panel) return;
+        if (botCount === 0) {
+            panel.style.display = 'none';
+            if (raf) { cancelAnimationFrame(raf); raf = null; }
+            return;
+        }
+        panel.style.display = '';
+        canvas = document.getElementById('botNetCanvas');
+        ctx = canvas.getContext('2d');
+        resize();
+        if (!packets.length) initPackets();
+        if (!raf) raf = requestAnimationFrame(frame);
+    };
+
+    window.addEventListener('resize', () => { resize(); });
+})();
 </script>
+
+<style>
+/* Green accent — toned down on light, neon on dark */
+:root, [data-theme="light"] {
+    --accent-green: #0d9488;
+    --accent-green-soft: rgba(13,148,136,0.26);
+    --accent-green-bg: rgba(13,148,136,0.08);
+    --accent-green-border: rgba(13,148,136,0.27);
+}
+[data-theme="dark"] {
+    --accent-green: #05F26C;
+    --accent-green-soft: rgba(5,242,108,0.33);
+    --accent-green-bg: rgba(5,242,108,0.04);
+    --accent-green-border: rgba(5,242,108,0.27);
+}
+@keyframes pulse-text {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+.preset-btn {
+    background: transparent;
+    border: 1px solid #30363d;
+    color: #8b949e;
+    font-size: 0.72rem;
+    padding: 0.25rem 0.6rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: border-color 0.2s, color 0.2s;
+    font-family: 'Courier New', monospace;
+    letter-spacing: 0.03em;
+}
+.preset-btn:hover:not(:disabled) {
+    border-color: var(--accent-green);
+    color: var(--accent-green);
+}
+.preset-btn:disabled {
+    cursor: default;
+    opacity: 0.85;
+}
+
+/* ── Quick Price Check ─────────────────────────────────────── */
+.quick-prices {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 0.6rem;
+}
+.quick-price-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.65rem 0.75rem;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    text-align: center;
+}
+.quick-price-card:hover { border-color: var(--accent-green-soft); background: var(--bg-hover); }
+.qp-symbol { font-size: 0.78rem; font-weight: 700; color: var(--text-muted); margin-bottom: 4px; letter-spacing: 0.04em; }
+.qp-price  { font-family: 'JetBrains Mono','Courier New',monospace; font-size: 0.85rem; font-weight: 700; color: var(--text-primary); }
+.qp-change { font-size: 0.65rem; font-family: monospace; margin-top: 2px; color: var(--text-muted); min-height: 12px; }
+
+/* ── Live Price Widget ─────────────────────────────────────── */
+.lp-panel  { background: var(--bg-card); border: 1px solid var(--border); }
+.lp-live-pill {
+    display: inline-block; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.1em;
+    color: var(--accent-green); background: var(--accent-green-bg); border: 1px solid var(--accent-green-border);
+    border-radius: 20px; padding: 2px 9px;
+    animation: lp-blink 1.8s ease-in-out infinite;
+}
+@keyframes lp-blink { 0%,100%{opacity:1} 50%{opacity:0.35} }
+.lp-body { padding: 0 !important; }
+
+/* Coin tabs */
+.lp-coin-tabs { display: flex; border-bottom: 1px solid var(--border); background: var(--bg-input); }
+.lp-coin-tab {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
+    padding: 10px 4px; background: none; border: none; border-bottom: 2px solid transparent;
+    cursor: pointer; color: var(--text-muted); font-size: 0.68rem; font-weight: 700;
+    letter-spacing: 0.05em; text-transform: uppercase;
+    transition: all 0.18s;
+}
+.lp-coin-tab:hover  { color: var(--text-secondary); background: var(--bg-hover); }
+.lp-coin-tab.active { color: var(--accent-green); border-bottom-color: var(--accent-green); background: var(--accent-green-bg); }
+.lp-ct-icon { font-size: 1.05rem; font-weight: 900; }
+.lp-ct-name { font-size: 0.65rem; }
+.lp-btc { color: #F7931A; }  .lp-eth { color: #627EEA; }
+.lp-bnb { color: #F3BA2F; }  .lp-sol { color: #9945FF; }
+.lp-xrp { color: #00AAE4; }
+
+/* Main display */
+.lp-main { display: flex; align-items: center; gap: 1rem; padding: 1.1rem 1.25rem 0.75rem; }
+.lp-coin-orb {
+    width: 54px; height: 54px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.55rem; font-weight: 900; transition: all 0.3s;
+}
+.lp-orb-btc { background:#F7931A18; border:2px solid #F7931A66; color:#F7931A; box-shadow: 0 0 18px #F7931A33; }
+.lp-orb-eth { background:#627EEA18; border:2px solid #627EEA66; color:#627EEA; box-shadow: 0 0 18px #627EEA33; }
+.lp-orb-bnb { background:#F3BA2F18; border:2px solid #F3BA2F66; color:#F3BA2F; box-shadow: 0 0 18px #F3BA2F33; }
+.lp-orb-sol { background:#9945FF18; border:2px solid #9945FF66; color:#9945FF; box-shadow: 0 0 18px #9945FF33; }
+.lp-orb-xrp { background:#00AAE418; border:2px solid #00AAE466; color:#00AAE4; box-shadow: 0 0 18px #00AAE433; }
+.lp-price-block  { flex: 1; min-width: 0; }
+.lp-pair-label   { font-size: 0.76rem; color: var(--text-muted); font-weight: 600; margin-bottom: 0.15rem; letter-spacing: 0.04em; }
+.lp-base         { color: var(--text-primary); }
+.lp-slash        { color: var(--text-faint); margin: 0 2px; }
+.lp-quote        { color: var(--accent-green); }
+.lp-price-row    { display: flex; align-items: baseline; gap: 0.6rem; }
+.lp-price-num    {
+    font-size: 1.75rem; font-weight: 700;
+    font-family: 'JetBrains Mono','Courier New',monospace;
+    color: var(--text-primary); letter-spacing: -0.02em; white-space: nowrap;
+    transition: color 0.3s;
+}
+@keyframes lp-flash-up { 0%{color:var(--text-primary)} 30%{color:var(--accent-green);text-shadow:0 0 16px var(--accent-green-soft)} 100%{color:var(--text-primary)} }
+@keyframes lp-flash-dn { 0%{color:var(--text-primary)} 30%{color:#ff4d4d;text-shadow:0 0 16px #ff4d4d88} 100%{color:var(--text-primary)} }
+.lp-flash-up { animation: lp-flash-up 0.8s ease forwards !important; }
+.lp-flash-dn { animation: lp-flash-dn 0.8s ease forwards !important; }
+.lp-price-dir  { font-size: 1.2rem; font-weight: 700; }
+.lp-up { color: var(--accent-green); } .lp-dn { color: #ff4d4d; }
+.lp-price-sub  { font-size: 0.73rem; color: var(--text-muted); margin-top: 2px; font-family: monospace; }
+
+/* Bid / Ask */
+.lp-bask {
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 0.65rem 1.25rem; border-top: 1px solid var(--border);
+}
+.lp-bask-col     { flex: 2; }
+.lp-bask-right   { text-align: right; }
+.lp-spread-mid   { flex: 3; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.lp-bask-lbl     { font-size: 0.62rem; font-weight: 700; letter-spacing: 0.08em; color: var(--text-faint); text-transform: uppercase; }
+.lp-bid-lbl      { color: var(--accent-green-soft); }
+.lp-ask-lbl      { color: #ff4d4d55; }
+.lp-bask-val     { font-family: 'JetBrains Mono','Courier New',monospace; font-size: 0.82rem; font-weight: 600; margin-top: 1px; }
+.lp-bid-val      { color: var(--accent-green); }
+.lp-ask-val      { color: #ff4d4d; }
+.lp-spread-num   { font-family: monospace; font-size: 0.82rem; font-weight: 700; color: var(--text-secondary); }
+.lp-spread-lbl   { font-size: 0.58rem; letter-spacing: 0.08em; color: var(--text-faint); text-transform: uppercase; }
+.lp-spread-bar-wrap { display: flex; height: 3px; width: 100%; border-radius: 2px; overflow: hidden; gap: 0; margin-top: 2px; }
+.lp-spread-half  { height: 100%; flex: 1; }
+.lp-spread-left  { background: var(--accent-green); border-radius: 2px 0 0 2px; }
+.lp-spread-gap   { background: var(--bg-primary); height: 100%; flex-shrink: 0; transition: width 0.3s; }
+.lp-spread-right { background: #ff4d4d; border-radius: 0 2px 2px 0; }
+
+/* Sparkline */
+.lp-sparkwrap { padding: 0.5rem 1.25rem 0; border-top: 1px solid var(--border); }
+#lpSparkline  { width: 100%; display: block; }
+.lp-spark-labels {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 0.63rem; font-family: monospace; padding-bottom: 0.5rem; margin-top: 2px;
+}
+.lp-spark-lo    { color: #ff4d4d88; }
+.lp-spark-hi    { color: var(--accent-green-soft); }
+.lp-spark-title { color: var(--text-faint); font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.06em; }
+
+/* Footer */
+.lp-footer-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0.6rem 1.25rem; border-top: 1px solid var(--border);
+    background: var(--bg-input);
+}
+.lp-use-btn    { font-size: 0.72rem !important; padding: 0.22rem 0.75rem !important; }
+.lp-exchange-tag { display: flex; align-items: center; gap: 5px; font-size: 0.68rem; color: var(--text-muted); letter-spacing: 0.04em; }
+.lp-exchange-dot { color: var(--accent-green); animation: lp-blink 2s ease-in-out infinite; font-size: 0.55rem; }
+</style>
 {% endblock %}

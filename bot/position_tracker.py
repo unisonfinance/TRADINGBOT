@@ -86,6 +86,48 @@ class PositionTracker:
         )
         return pos
 
+    def add_to_position(
+        self,
+        token_id: str,
+        new_price: float,
+        new_size: float,
+    ) -> "Position":
+        """
+        Add to an existing position (scale-in) and recalculate the
+        weighted-average entry price.
+
+        Cost basis = (old_size * old_entry + new_size * new_price)
+                     / (old_size + new_size)
+
+        If no position exists yet, opens a fresh one (no SL/TP set here —
+        caller must update them separately if needed).
+        """
+        if token_id not in self.positions:
+            logger.warning(
+                "add_to_position called but no open position for %s — "
+                "opening fresh position instead", token_id[:8]
+            )
+            return self.open_position(
+                token_id=token_id,
+                side="BUY",
+                entry_price=new_price,
+                size=new_size,
+                stop_loss=0.0,
+                take_profit=0.0,
+                strategy="",
+            )
+
+        pos = self.positions[token_id]
+        total_size  = pos.size + new_size
+        avg_price   = (pos.size * pos.entry_price + new_size * new_price) / total_size
+        pos.size        = total_size
+        pos.entry_price = avg_price
+        logger.info(
+            "Scale-in: %s total_size=%.6f  new_avg_entry=$%.4f",
+            token_id[:8], total_size, avg_price,
+        )
+        return pos
+
     def close_position(self, token_id: str, exit_price: float) -> float:
         """
         Close a position and return realized P&L.

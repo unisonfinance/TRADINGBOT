@@ -17,3 +17,17 @@ data/cache/
 *.sqlite
 *.db
 logs/
+service_account.json
+*firebase-adminsdk*.json
+
+# Large data cache files — never commit to git
+data/*.csv
+data/*.parquet
+data/*.pkl
+scripts/*.csv
+
+# Firebase frontend config (contains project keys — use env vars in prod)
+web/static/firebase-config.js
+
+# Firestore client-side JS (auto-generated)
+web/static/firestore.js

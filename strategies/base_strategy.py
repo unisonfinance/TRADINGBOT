@@ -11,9 +11,10 @@ import pandas as pd
 
 class Signal(Enum):
     """Trading signal types."""
-    BUY = "BUY"
-    SELL = "SELL"
-    HOLD = "HOLD"
+    BUY      = "BUY"
+    BUY_MORE = "BUY_MORE"   # scale-in: add to existing position if balance allows
+    SELL     = "SELL"
+    HOLD     = "HOLD"
 
 
 @dataclass

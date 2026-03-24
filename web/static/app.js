@@ -74,7 +74,66 @@ async function updateExchangeBadge() {
     } catch (e) {}
 }
 
+// ─── Auto connection check ───────────────────────────────────
+async function autoCheckConnection() {
+    try {
+        const res = await fetch('/api/test-connection', {method: 'POST'});
+        const data = await res.json();
+        const ok = data.success === true;
+        updateConnectionStatus(ok);
+        // Update live banner if on settings page
+        if (typeof setLiveBannerConnected === 'function') setLiveBannerConnected(ok);
+    } catch (e) {
+        updateConnectionStatus(false);
+    }
+}
+
+// ─── Theme Toggle ────────────────────────────────────────────
+(function applyStoredTheme() {
+    const saved = localStorage.getItem('rbi-theme') || 'light';
+    document.documentElement.setAttribute('data-theme', saved);
+})();
+
+function toggleTheme() {
+    const html = document.documentElement;
+    const next = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    html.setAttribute('data-theme', next);
+    localStorage.setItem('rbi-theme', next);
+}
+
+// ─── Mobile Sidebar ──────────────────────────────────────────
+function openSidebar() {
+    document.getElementById('sidebar').classList.add('open');
+    document.getElementById('sidebarOverlay').classList.add('open');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeSidebar() {
+    const sb = document.getElementById('sidebar');
+    const ov = document.getElementById('sidebarOverlay');
+    if (sb) sb.classList.remove('open');
+    if (ov) ov.classList.remove('open');
+    document.body.style.overflow = '';
+}
+
+window.addEventListener('resize', () => {
+    if (window.innerWidth > 768) closeSidebar();
+});
+
+// ─── User Dropdown ───────────────────────────────────────────
+function toggleUserMenu() {
+    document.getElementById('userMenuWrap').classList.toggle('open');
+}
+
+document.addEventListener('click', (e) => {
+    const wrap = document.getElementById('userMenuWrap');
+    if (wrap && !wrap.contains(e.target)) {
+        wrap.classList.remove('open');
+    }
+});
+
 // ─── Init ────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
     updateExchangeBadge();
+    autoCheckConnection();
 });

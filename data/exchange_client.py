@@ -43,7 +43,11 @@ class ExchangeClient:
             "apiKey": api_key,
             "secret": api_secret,
             "enableRateLimit": True,
-            "options": {"defaultType": "spot"},
+            "options": {
+                "defaultType": "spot",
+                "adjustForTimeDifference": True,
+                "recvWindow": 10000,
+            },
         }
         if password:
             config["password"] = password
@@ -53,6 +57,12 @@ class ExchangeClient:
         if sandbox:
             self.exchange.set_sandbox_mode(True)
             logger.info("SANDBOX mode enabled for %s", exchange_id)
+
+        # Sync local clock with exchange server time to prevent -1021 timestamp errors
+        try:
+            self.exchange.load_time_difference()
+        except Exception as e:
+            logger.warning("Could not load time difference: %s", e)
 
         self.exchange_id = exchange_id
         logger.info("Exchange client initialized: %s", exchange_id)

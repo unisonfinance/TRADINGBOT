@@ -10,15 +10,45 @@ from strategies.base_strategy import BaseStrategy
 from strategies.macd_strategy import MACDStrategy
 from strategies.rsi_mean_reversion import RSIMeanReversionStrategy
 from strategies.cvd_strategy import CVDStrategy
+from strategies.supertrend_strategy import SupertrendStrategy
+from strategies.bb_squeeze_strategy import BBSqueezeStrategy
+from strategies.ema_ribbon_strategy import EMARibbonStrategy
+from strategies.stochrsi_strategy import StochRSIStrategy
+from strategies.vwap_reversion_strategy import VWAPReversionStrategy
+from strategies.funding_rate_meanrev_strategy import FundingRateMeanRevStrategy
+from strategies.ichimoku_strategy import IchimokuStrategy
+from strategies.adx_psar_strategy import ADXPSARStrategy
+from strategies.tema_strategy import TEMAStrategy
+from strategies.heikinashi_strategy import HeikinAshiStrategy
+from strategies.keltner_breakout_strategy import KeltnerBreakoutStrategy
+from strategies.arbitrage_ratio_strategy import ArbitrageRatioStrategy
+from strategies.rsi_swing_strategy import RSISwingStrategy
 from backtesting.engine import BacktestEngine, BacktestResult
 
 logger = logging.getLogger(__name__)
 
 # Strategy registry
 STRATEGY_MAP = {
-    "macd": MACDStrategy,
-    "rsi": RSIMeanReversionStrategy,
-    "cvd": CVDStrategy,
+    # ── Original strategies ────────────────────────────────────────────
+    "macd":         MACDStrategy,
+    "rsi":          RSIMeanReversionStrategy,
+    "cvd":          CVDStrategy,
+    "supertrend":   SupertrendStrategy,
+    # ── New research-backed strategies ────────────────────────────────
+    "bb_squeeze":       BBSqueezeStrategy,
+    "ema_ribbon":       EMARibbonStrategy,
+    "stochrsi":         StochRSIStrategy,
+    "vwap_reversion":   VWAPReversionStrategy,
+    "funding_meanrev":  FundingRateMeanRevStrategy,
+    "ichimoku":         IchimokuStrategy,
+    "adx_psar":         ADXPSARStrategy,
+    "tema":             TEMAStrategy,
+    "heikinashi":       HeikinAshiStrategy,
+    "keltner_breakout": KeltnerBreakoutStrategy,
+    # ── RSI Swing ──────────────────────────────────────────────────────
+    "rsi_swing":        RSISwingStrategy,
+    # ── Pair / Ratio strategies ───────────────────────────────────────
+    "arbitrage":        ArbitrageRatioStrategy,
 }
 
 

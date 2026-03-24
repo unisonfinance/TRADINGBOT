@@ -1,0 +1,30 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "wsgi.py",
+      "use": "@vercel/python",
+      "config": {
+        "maxLambdaSize": "50mb"
+      }
+    },
+    {
+      "src": "web/static/**",
+      "use": "@vercel/static"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/static/(.*)",
+      "dest": "/web/static/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/wsgi.py"
+    }
+  ],
+  "env": {
+    "FLASK_ENV": "production",
+    "FLASK_DEBUG": "false"
+  }
+}

@@ -83,11 +83,13 @@ class BacktestEngine:
 
             # Check stop-loss / take-profit on open trade
             if open_trade is not None:
+                # Units of asset bought (position_size USD / entry price)
+                units = self.position_size / open_trade.entry_price
                 if open_trade.side == "BUY":
                     # Stop-loss
                     sl_price = open_trade.entry_price * (1 - self.stop_loss_pct / 100)
                     if row["low"] <= sl_price:
-                        pnl = (sl_price - open_trade.entry_price) * self.position_size
+                        pnl = (sl_price - open_trade.entry_price) * units
                         open_trade.exit_idx = i
                         open_trade.exit_price = sl_price
                         open_trade.exit_time = timestamp
@@ -100,7 +102,7 @@ class BacktestEngine:
                     # Take-profit
                     tp_price = open_trade.entry_price * (1 + self.take_profit_pct / 100)
                     if row["high"] >= tp_price:
-                        pnl = (tp_price - open_trade.entry_price) * self.position_size
+                        pnl = (tp_price - open_trade.entry_price) * units
                         open_trade.exit_idx = i
                         open_trade.exit_price = tp_price
                         open_trade.exit_time = timestamp
@@ -113,7 +115,7 @@ class BacktestEngine:
                 elif open_trade.side == "SELL":
                     sl_price = open_trade.entry_price * (1 + self.stop_loss_pct / 100)
                     if row["high"] >= sl_price:
-                        pnl = (open_trade.entry_price - sl_price) * self.position_size
+                        pnl = (open_trade.entry_price - sl_price) * units
                         open_trade.exit_idx = i
                         open_trade.exit_price = sl_price
                         open_trade.exit_time = timestamp
@@ -125,7 +127,7 @@ class BacktestEngine:
 
                     tp_price = open_trade.entry_price * (1 - self.take_profit_pct / 100)
                     if row["low"] <= tp_price:
-                        pnl = (open_trade.entry_price - tp_price) * self.position_size
+                        pnl = (open_trade.entry_price - tp_price) * units
                         open_trade.exit_idx = i
                         open_trade.exit_price = tp_price
                         open_trade.exit_time = timestamp
@@ -146,7 +148,8 @@ class BacktestEngine:
             elif signal == Signal.SELL:
                 if open_trade is not None and open_trade.side == "BUY":
                     # Close long position
-                    pnl = (price - open_trade.entry_price) * self.position_size
+                    units = self.position_size / open_trade.entry_price
+                    pnl = (price - open_trade.entry_price) * units
                     open_trade.exit_idx = i
                     open_trade.exit_price = price
                     open_trade.exit_time = timestamp
@@ -166,10 +169,11 @@ class BacktestEngine:
         # Close any remaining open trade at last price
         if open_trade is not None:
             last = signals_df.iloc[-1]
+            units = self.position_size / open_trade.entry_price
             if open_trade.side == "BUY":
-                pnl = (last["close"] - open_trade.entry_price) * self.position_size
+                pnl = (last["close"] - open_trade.entry_price) * units
             else:
-                pnl = (open_trade.entry_price - last["close"]) * self.position_size
+                pnl = (open_trade.entry_price - last["close"]) * units
             open_trade.exit_idx = len(signals_df) - 1
             open_trade.exit_price = last["close"]
             open_trade.exit_time = str(last["timestamp"])

@@ -14,12 +14,13 @@ EXCHANGE_SANDBOX = os.getenv("EXCHANGE_SANDBOX", "false").lower() == "true"
 
 # ─── Trading defaults ────────────────────────────────────────────────
 DEFAULT_SYMBOL = os.getenv("DEFAULT_SYMBOL", "BTC/USDT")
-DEFAULT_POSITION_SIZE = float(os.getenv("DEFAULT_POSITION_SIZE", "10.0"))  # USD
+DEFAULT_POSITION_SIZE = float(os.getenv("DEFAULT_POSITION_SIZE", "5.0"))  # USD
 QUOTE_CURRENCY = os.getenv("QUOTE_CURRENCY", "USDT")  # Balance currency
 
 # ─── Timeframes ──────────────────────────────────────────────────────
-DEFAULT_TIMEFRAME = "5m"  # 5-minute candles
-CANDLE_HISTORY_LIMIT = 500  # How many candles to fetch for analysis
+DEFAULT_TIMEFRAME = os.getenv("DEFAULT_TIMEFRAME", "4h")  # Candle timeframe
+CANDLE_HISTORY_LIMIT = int(os.getenv("CANDLE_HISTORY_LIMIT", "200"))  # Candles to fetch
+DEFAULT_STRATEGY = os.getenv("DEFAULT_STRATEGY", "macd")
 
 # ─── Risk management ─────────────────────────────────────────────────
 MAX_POSITION_SIZE = float(os.getenv("MAX_POSITION_SIZE", "100.0"))
@@ -49,10 +50,11 @@ INCUBATION_MIN_WINRATE = 0.55 # Min win rate to scale up
 INCUBATION_PERIOD_DAYS = 14   # Min days per incubation level
 
 # ─── Backtest benchmarks (pass/fail) ─────────────────────────────────
-BACKTEST_MIN_WINRATE = 0.55
-BACKTEST_MIN_PROFIT_FACTOR = 1.5
-BACKTEST_MAX_DRAWDOWN = 0.20
-BACKTEST_MIN_TRADES = 100
+BACKTEST_MIN_WINRATE       = float(os.getenv("BACKTEST_MIN_WINRATE",       "0.55"))
+BACKTEST_MIN_PROFIT_FACTOR = float(os.getenv("BACKTEST_MIN_PROFIT_FACTOR", "1.5"))
+BACKTEST_MAX_DRAWDOWN      = float(os.getenv("BACKTEST_MAX_DRAWDOWN",      "0.20"))
+BACKTEST_MIN_TRADES        = int(os.getenv("BACKTEST_MIN_TRADES",          "100"))
+BACKTEST_MIN_SHARPE        = float(os.getenv("BACKTEST_MIN_SHARPE",        "1.0"))
 
 # ─── Logging ─────────────────────────────────────────────────────────
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
