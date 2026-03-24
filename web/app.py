@@ -59,6 +59,11 @@ def _get_firestore():
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
+_APP_VERSION = "2026.03.25.1"  # bump for deploy verification
+
+@app.route("/api/version")
+def api_version():
+    return jsonify({"version": _APP_VERSION})
 
 # ─── Global state ─────────────────────────────────────────────────
 active_bots: dict[str, dict] = {}  # name -> {trader, thread, started_at}
