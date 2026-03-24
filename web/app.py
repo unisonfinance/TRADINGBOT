@@ -32,12 +32,25 @@ def _get_firestore():
     if _firestore_db is not None:
         return _firestore_db
     try:
+        import json as _json
         import firebase_admin
         from firebase_admin import credentials, firestore as fs
+
         sa_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "service_account.json")
+
         if not firebase_admin._apps:
-            cred = credentials.Certificate(sa_path)
+            # 1) Try file on disk first
+            if os.path.isfile(sa_path):
+                cred = credentials.Certificate(sa_path)
+            # 2) Fall back to FIREBASE_SA_JSON env var (for Railway / cloud)
+            elif os.environ.get("FIREBASE_SA_JSON"):
+                sa_dict = _json.loads(os.environ["FIREBASE_SA_JSON"])
+                cred = credentials.Certificate(sa_dict)
+            else:
+                print("[Firestore] No service_account.json and no FIREBASE_SA_JSON env var.")
+                return None
             firebase_admin.initialize_app(cred)
+
         _firestore_db = fs.client()
         return _firestore_db
     except Exception as e:
@@ -594,6 +607,131 @@ def api_firestore_rules_deploy():
     _firestore_rules_status = {"deployed": False, "message": "Deploying..."}
     threading.Thread(target=_auto_deploy_firestore_rules, daemon=True).start()
     return jsonify({"message": "Deployment triggered"})
+
+
+# ─── Railway Token ────────────────────────────────────────────────
+
+@app.route("/api/railway-token", methods=["POST"])
+def api_save_railway_token():
+    """Save Railway API token to Firestore settings document."""
+    import datetime
+    data = request.get_json(silent=True) or {}
+    token = (data.get("token") or "").strip()
+    if not token:
+        return jsonify({"error": "token required"}), 400
+    db = _get_firestore()
+    firestore_ok = False
+    firestore_note = ""
+    if db:
+        try:
+            db.collection("settings").document("railway").set({
+                "token": token,
+                "updated_at": datetime.datetime.utcnow().isoformat()
+            })
+            firestore_ok = True
+        except Exception as e:
+            firestore_note = f"Firestore write failed: {e}"
+            print(f"[Railway] {firestore_note}")
+    else:
+        firestore_note = "service_account.json not found — token saved to browser storage only"
+        print(f"[Railway] {firestore_note}")
+    # Always return ok so the frontend saves to localStorage
+    return jsonify({"ok": True, "firestore": firestore_ok, "note": firestore_note})
+
+
+@app.route("/api/railway-token", methods=["GET"])
+def api_get_railway_token():
+    """Load Railway API token from Firestore."""
+    db = _get_firestore()
+    if not db:
+        # Firestore not available — frontend will use localStorage fallback
+        return jsonify({"token": "", "note": "Firestore unavailable"})
+    try:
+        doc = db.collection("settings").document("railway").get()
+        token = (doc.to_dict() or {}).get("token", "") if doc.exists else ""
+        return jsonify({"token": token})
+    except Exception as e:
+        return jsonify({"token": "", "note": str(e)})
+
+
+@app.route("/api/railway-token/test", methods=["POST"])
+def api_test_railway_token():
+    """Proxy Railway GraphQL whoami call to avoid browser CORS restrictions."""
+    import requests as _req
+    data = request.get_json(silent=True) or {}
+    token = (data.get("token") or "").strip()
+    if not token:
+        return jsonify({"error": "token required"}), 400
+
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {token}",
+    }
+
+    try:
+        # Primary: GraphQL v2
+        resp = _req.post(
+            "https://backboard.railway.app/graphql/v2",
+            json={"query": "{ me { name email } }"},
+            headers=headers,
+            timeout=10,
+        )
+        print(f"[Railway] GraphQL status={resp.status_code} body={resp.text[:500]}")
+
+        if resp.status_code == 403:
+            return jsonify({"ok": False, "error": "403 Forbidden — token rejected by Railway. Make sure you created an Account Token at railway.app/account/tokens (not a CLI session token)."}), 200
+
+        if resp.status_code == 200:
+            body = resp.json()
+            # Try me{} first
+            me = (body.get("data") or {}).get("me")
+            if me:
+                name = me.get("name") or me.get("username") or "Railway User"
+                email = me.get("email", "")
+                return jsonify({"ok": True, "name": name, "email": email})
+
+            gql_errors = body.get("errors") or []
+            print(f"[Railway] me{{}} errors: {gql_errors}")
+
+        # Fallback 1: viewer{} query (Railway's newer API)
+        resp_v = _req.post(
+            "https://backboard.railway.app/graphql/v2",
+            json={"query": "{ viewer { ... on User { name email } ... on Team { name } } }"},
+            headers=headers,
+            timeout=10,
+        )
+        print(f"[Railway] viewer status={resp_v.status_code} body={resp_v.text[:500]}")
+        if resp_v.status_code == 200:
+            body_v = resp_v.json()
+            viewer = (body_v.get("data") or {}).get("viewer")
+            if viewer:
+                name = viewer.get("name") or "Railway User"
+                email = viewer.get("email", "")
+                return jsonify({"ok": True, "name": name, "email": email})
+
+        # Fallback 2: projects list — proves token is valid even if identity queries are restricted
+        resp2 = _req.post(
+            "https://backboard.railway.app/graphql/v2",
+            json={"query": "{ projects { edges { node { id name } } } }"},
+            headers=headers,
+            timeout=10,
+        )
+        print(f"[Railway] projects status={resp2.status_code} body={resp2.text[:500]}")
+        if resp2.status_code == 200:
+            body2 = resp2.json()
+            projects = ((body2.get("data") or {}).get("projects") or {}).get("edges") or []
+            if projects is not None:  # empty list is still a valid response
+                proj_names = [e["node"]["name"] for e in projects[:3] if e.get("node")]
+                label = ", ".join(proj_names) if proj_names else "(no projects)"
+                return jsonify({"ok": True, "name": "Railway Account", "email": f"Token valid ✓ — projects: {label}"})
+            errs = (body2.get("errors") or [])
+            if errs:
+                return jsonify({"ok": False, "error": errs[0].get("message", "Not authorized")})
+
+        return jsonify({"ok": False, "error": f"HTTP {resp.status_code} — {resp.text[:200]}"})
+
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 502
 
 
 # ─── Run ──────────────────────────────────────────────────────────

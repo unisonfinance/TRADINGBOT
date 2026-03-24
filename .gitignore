@@ -31,3 +31,4 @@ web/static/firebase-config.js
 
 # Firestore client-side JS (auto-generated)
 web/static/firestore.js
+.vercel
