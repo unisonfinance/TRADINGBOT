@@ -170,6 +170,28 @@ def get_client():
     )
 
 
+_public_exchange_cache = {"ex": None, "ts": 0}
+
+def _get_public_exchange():
+    """Return an unauthenticated ccxt exchange, trying US-accessible fallbacks. Cached for 5 min."""
+    import ccxt, time as _time
+    now = _time.time()
+    if _public_exchange_cache["ex"] and now - _public_exchange_cache["ts"] < 300:
+        return _public_exchange_cache["ex"]
+    exchange_id = read_env().get("EXCHANGE_ID", "binance")
+    candidates = [exchange_id] + [x for x in ["binanceus", "bybit", "kraken"] if x != exchange_id]
+    for eid in candidates:
+        try:
+            ex = getattr(ccxt, eid)()
+            ex.fetch_ticker("BTC/USDT")  # quick connectivity test
+            _public_exchange_cache["ex"] = ex
+            _public_exchange_cache["ts"] = now
+            return ex
+        except Exception:
+            continue
+    return None
+
+
 # ─── Pages ────────────────────────────────────────────────────────
 @app.route("/login")
 def login():
@@ -225,15 +247,19 @@ def api_balance():
 def api_price(symbol):
     try:
         client = get_client()
-        if not client:
-            # Use unauthenticated client for public data
-            client = ExchangeClient(
-                exchange_id=read_env().get("EXCHANGE_ID", "binance"),
-                api_key="", api_secret="", sandbox=False,
-            )
-        price = client.get_price(symbol)
-        ba = client.get_bid_ask(symbol)
-        return jsonify({"symbol": symbol, "price": price, "bid": ba["bid"], "ask": ba["ask"]})
+        if client:
+            price = client.get_price(symbol)
+            ba = client.get_bid_ask(symbol)
+            return jsonify({"symbol": symbol, "price": price, "bid": ba["bid"], "ask": ba["ask"]})
+        # No authenticated client — use public exchange with geo-fallback
+        exchange = _get_public_exchange()
+        if not exchange:
+            return jsonify({"error": "No exchange reachable"}), 500
+        ticker = exchange.fetch_ticker(symbol)
+        price = float(ticker.get("last", 0))
+        bid = float(ticker.get("bid", 0))
+        ask = float(ticker.get("ask", 0))
+        return jsonify({"symbol": symbol, "price": price, "bid": bid, "ask": ask})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -241,9 +267,9 @@ def api_price(symbol):
 @app.route("/api/candles/<path:symbol>")
 def api_candles(symbol):
     try:
-        import ccxt
-        exchange_id = read_env().get("EXCHANGE_ID", "binance")
-        exchange = getattr(ccxt, exchange_id)()
+        exchange = _get_public_exchange()
+        if not exchange:
+            return jsonify({"error": "No exchange reachable"}), 500
         tf = request.args.get("timeframe", "1h")
         limit = int(request.args.get("limit", "100"))
         candles = exchange.fetch_ohlcv(symbol, timeframe=tf, limit=limit)
@@ -343,10 +369,10 @@ def api_run_backtest():
 
     try:
         # Fetch candles
-        import ccxt
         import pandas as pd
-        exchange_id = read_env().get("EXCHANGE_ID", "binance")
-        exchange = getattr(ccxt, exchange_id)()
+        exchange = _get_public_exchange()
+        if not exchange:
+            return jsonify({"error": "No exchange reachable"}), 500
         raw = exchange.fetch_ohlcv(symbol, timeframe=timeframe, limit=limit)
         df = pd.DataFrame(raw, columns=["timestamp", "open", "high", "low", "close", "volume"])
         df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
@@ -554,22 +580,12 @@ def api_test_connection():
 def api_arbitrage_ratio():
     """Return live BTC/ETH price ratio and basic stats."""
     try:
-        import ccxt
-        exchange_id = read_env().get("EXCHANGE_ID", "binance")
-        # Try configured exchange first, then US-accessible fallbacks
-        _candidates = [exchange_id] + [x for x in ["binanceus", "bybit", "kraken"] if x != exchange_id]
-        exchange = None
-        btc_ticker = eth_ticker = None
-        for eid in _candidates:
-            try:
-                exchange = getattr(ccxt, eid)()
-                btc_ticker = exchange.fetch_ticker("BTC/USDT")
-                eth_ticker = exchange.fetch_ticker("ETH/USDT")
-                break
-            except Exception:
-                continue
-        if btc_ticker is None or eth_ticker is None:
+        exchange = _get_public_exchange()
+        if not exchange:
             return jsonify({"error": "All exchanges unreachable"}), 500
+
+        btc_ticker = exchange.fetch_ticker("BTC/USDT")
+        eth_ticker = exchange.fetch_ticker("ETH/USDT")
 
         btc_price = float(btc_ticker.get("last", 0))
         eth_price = float(eth_ticker.get("last", 0))

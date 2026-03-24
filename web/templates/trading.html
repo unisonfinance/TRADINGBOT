@@ -333,6 +333,66 @@
                 <div class="qp-price" id="qp-DOGE">—</div>
                 <div class="qp-change" id="qp-DOGE-chg"></div>
             </div>
+            <div class="quick-price-card" onclick="setSymbol('ADA/USDT')">
+                <div class="qp-symbol"><span style="color:#0033AD;">⬡</span> ADA</div>
+                <div class="qp-price" id="qp-ADA">—</div>
+                <div class="qp-change" id="qp-ADA-chg"></div>
+            </div>
+            <div class="quick-price-card" onclick="setSymbol('AVAX/USDT')">
+                <div class="qp-symbol"><span style="color:#E84142;">▲</span> AVAX</div>
+                <div class="qp-price" id="qp-AVAX">—</div>
+                <div class="qp-change" id="qp-AVAX-chg"></div>
+            </div>
+            <div class="quick-price-card" onclick="setSymbol('DOT/USDT')">
+                <div class="qp-symbol"><span style="color:#E6007A;">●</span> DOT</div>
+                <div class="qp-price" id="qp-DOT">—</div>
+                <div class="qp-change" id="qp-DOT-chg"></div>
+            </div>
+            <div class="quick-price-card" onclick="setSymbol('LINK/USDT')">
+                <div class="qp-symbol"><span style="color:#2A5ADA;">⬡</span> LINK</div>
+                <div class="qp-price" id="qp-LINK">—</div>
+                <div class="qp-change" id="qp-LINK-chg"></div>
+            </div>
+            <div class="quick-price-card" onclick="setSymbol('MATIC/USDT')">
+                <div class="qp-symbol"><span style="color:#8247E5;">⬟</span> MATIC</div>
+                <div class="qp-price" id="qp-MATIC">—</div>
+                <div class="qp-change" id="qp-MATIC-chg"></div>
+            </div>
+            <div class="quick-price-card" onclick="setSymbol('SHIB/USDT')">
+                <div class="qp-symbol"><span style="color:#FFA409;">⬣</span> SHIB</div>
+                <div class="qp-price" id="qp-SHIB">—</div>
+                <div class="qp-change" id="qp-SHIB-chg"></div>
+            </div>
+            <div class="quick-price-card" onclick="setSymbol('LTC/USDT')">
+                <div class="qp-symbol"><span style="color:#BFBBBB;">Ł</span> LTC</div>
+                <div class="qp-price" id="qp-LTC">—</div>
+                <div class="qp-change" id="qp-LTC-chg"></div>
+            </div>
+            <div class="quick-price-card" onclick="setSymbol('UNI/USDT')">
+                <div class="qp-symbol"><span style="color:#FF007A;">🦄</span> UNI</div>
+                <div class="qp-price" id="qp-UNI">—</div>
+                <div class="qp-change" id="qp-UNI-chg"></div>
+            </div>
+            <div class="quick-price-card" onclick="setSymbol('ATOM/USDT')">
+                <div class="qp-symbol"><span style="color:#2E3148;">⚛</span> ATOM</div>
+                <div class="qp-price" id="qp-ATOM">—</div>
+                <div class="qp-change" id="qp-ATOM-chg"></div>
+            </div>
+            <div class="quick-price-card" onclick="setSymbol('TRX/USDT')">
+                <div class="qp-symbol"><span style="color:#EF0027;">◆</span> TRX</div>
+                <div class="qp-price" id="qp-TRX">—</div>
+                <div class="qp-change" id="qp-TRX-chg"></div>
+            </div>
+            <div class="quick-price-card" onclick="setSymbol('NEAR/USDT')">
+                <div class="qp-symbol"><span style="color:#00C08B;">◉</span> NEAR</div>
+                <div class="qp-price" id="qp-NEAR">—</div>
+                <div class="qp-change" id="qp-NEAR-chg"></div>
+            </div>
+            <div class="quick-price-card" onclick="setSymbol('APT/USDT')">
+                <div class="qp-symbol"><span style="color:#4ECDC4;">◇</span> APT</div>
+                <div class="qp-price" id="qp-APT">—</div>
+                <div class="qp-change" id="qp-APT-chg"></div>
+            </div>
         </div>
     </div>
 </div>
@@ -777,12 +837,24 @@ async function stopBot(name) {
 
 async function loadQuickPrices() {
     const pairs = [
-        {symbol: 'BTC/USDT',  id: 'qp-BTC',  chg: 'qp-BTC-chg'},
-        {symbol: 'ETH/USDT',  id: 'qp-ETH',  chg: 'qp-ETH-chg'},
-        {symbol: 'BNB/USDT',  id: 'qp-BNB',  chg: 'qp-BNB-chg'},
-        {symbol: 'SOL/USDT',  id: 'qp-SOL',  chg: 'qp-SOL-chg'},
-        {symbol: 'XRP/USDT',  id: 'qp-XRP',  chg: 'qp-XRP-chg'},
-        {symbol: 'DOGE/USDT', id: 'qp-DOGE', chg: 'qp-DOGE-chg'},
+        {symbol: 'BTC/USDT',   id: 'qp-BTC',   chg: 'qp-BTC-chg'},
+        {symbol: 'ETH/USDT',   id: 'qp-ETH',   chg: 'qp-ETH-chg'},
+        {symbol: 'BNB/USDT',   id: 'qp-BNB',   chg: 'qp-BNB-chg'},
+        {symbol: 'SOL/USDT',   id: 'qp-SOL',   chg: 'qp-SOL-chg'},
+        {symbol: 'XRP/USDT',   id: 'qp-XRP',   chg: 'qp-XRP-chg'},
+        {symbol: 'DOGE/USDT',  id: 'qp-DOGE',  chg: 'qp-DOGE-chg'},
+        {symbol: 'ADA/USDT',   id: 'qp-ADA',   chg: 'qp-ADA-chg'},
+        {symbol: 'AVAX/USDT',  id: 'qp-AVAX',  chg: 'qp-AVAX-chg'},
+        {symbol: 'DOT/USDT',   id: 'qp-DOT',   chg: 'qp-DOT-chg'},
+        {symbol: 'LINK/USDT',  id: 'qp-LINK',  chg: 'qp-LINK-chg'},
+        {symbol: 'MATIC/USDT', id: 'qp-MATIC', chg: 'qp-MATIC-chg'},
+        {symbol: 'SHIB/USDT',  id: 'qp-SHIB',  chg: 'qp-SHIB-chg'},
+        {symbol: 'LTC/USDT',   id: 'qp-LTC',   chg: 'qp-LTC-chg'},
+        {symbol: 'UNI/USDT',   id: 'qp-UNI',   chg: 'qp-UNI-chg'},
+        {symbol: 'ATOM/USDT',  id: 'qp-ATOM',  chg: 'qp-ATOM-chg'},
+        {symbol: 'TRX/USDT',   id: 'qp-TRX',   chg: 'qp-TRX-chg'},
+        {symbol: 'NEAR/USDT',  id: 'qp-NEAR',  chg: 'qp-NEAR-chg'},
+        {symbol: 'APT/USDT',   id: 'qp-APT',   chg: 'qp-APT-chg'},
     ];
     for (const p of pairs) {
         try {
