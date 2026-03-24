@@ -1,0 +1,257 @@
+{% extends "base.html" %}
+{% block title %}Settings — Crypto RBI Bot{% endblock %}
+{% block page_title %}Settings{% endblock %}
+
+{% block content %}
+<div class="grid-2col">
+    <!-- Exchange & API Keys -->
+    <div class="panel">
+        <div class="panel-header">
+            <h2>Exchange Configuration</h2>
+        </div>
+        <div class="panel-body">
+            <form id="settingsForm" onsubmit="saveSettings(event)">
+                <div class="form-group">
+                    <label>Exchange</label>
+                    <select id="sExchange" class="form-input">
+                        <option value="binance">Binance</option>
+                        <option value="bybit">Bybit</option>
+                        <option value="okx">OKX</option>
+                        <option value="kraken">Kraken</option>
+                        <option value="bitget">Bitget</option>
+                        <option value="kucoin">KuCoin</option>
+                        <option value="gateio">Gate.io</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>API Key</label>
+                    <input type="text" id="sApiKey" class="form-input mono" placeholder="Paste your API key">
+                </div>
+                <div class="form-group">
+                    <label>API Secret</label>
+                    <div class="input-group">
+                        <input type="password" id="sApiSecret" class="form-input mono" placeholder="Paste new secret (or leave to keep current)">
+                        <button type="button" class="btn btn-sm" onclick="toggleSecret()">Show</button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="sSandbox">
+                        <span>Sandbox / Testnet Mode</span>
+                    </label>
+                    <p class="form-hint">Use testnet for testing. No real money at risk.</p>
+                </div>
+                <button type="submit" class="btn btn-red btn-full">Save Exchange Settings</button>
+            </form>
+
+            <div style="margin-top: 1rem; border-top: 1px solid #333; padding-top: 1rem;">
+                <button class="btn btn-full" onclick="testConnection()">Test Connection</button>
+                <div id="connectionResult" style="margin-top: 0.5rem;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Trading & Risk Settings -->
+    <div class="panel">
+        <div class="panel-header">
+            <h2>Trading & Risk Settings</h2>
+        </div>
+        <div class="panel-body">
+            <form id="riskForm" onsubmit="saveSettings(event)">
+                <div class="form-group">
+                    <label>Default Trading Pair</label>
+                    <input type="text" id="sSymbol" class="form-input" value="LUNA/USDC" placeholder="e.g. BTC/USDT">
+                </div>
+                <div class="form-group">
+                    <label>Default Position Size (USD)</label>
+                    <input type="number" id="sSize" class="form-input" value="1" min="0.1" step="0.1">
+                </div>
+                <div class="form-group">
+                    <label>Quote Currency</label>
+                    <input type="text" id="sQuote" class="form-input" value="USDC" placeholder="USDT, USDC, etc.">
+                </div>
+
+                <h3 style="margin-top: 1.5rem; margin-bottom: 0.75rem; color: #fff;">Risk Limits</h3>
+
+                <div class="form-group">
+                    <label>Max Position Size (USD)</label>
+                    <input type="number" id="sMaxSize" class="form-input" value="5" min="1">
+                </div>
+                <div class="form-group">
+                    <label>Max Daily Loss (USD)</label>
+                    <input type="number" id="sMaxLoss" class="form-input" value="2" min="1">
+                </div>
+                <div class="form-group">
+                    <label>Max Drawdown (%)</label>
+                    <input type="number" id="sMaxDD" class="form-input" value="30" min="5" max="50">
+                </div>
+
+                <button type="submit" class="btn btn-red btn-full">Save Trading Settings</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Current Config Display -->
+<div class="panel" style="margin-top: 1.5rem;">
+    <div class="panel-header">
+        <h2>Current Configuration</h2>
+        <button class="btn btn-sm" onclick="loadSettings()">Refresh</button>
+    </div>
+    <div class="panel-body">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Setting</th>
+                    <th>Value</th>
+                </tr>
+            </thead>
+            <tbody id="configTable">
+                <tr><td colspan="2" class="text-center text-muted">Loading...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Danger Zone -->
+<div class="panel panel-danger" style="margin-top: 1.5rem;">
+    <div class="panel-header">
+        <h2 class="text-red">Danger Zone</h2>
+    </div>
+    <div class="panel-body">
+        <p class="text-muted">These actions are irreversible. Use with caution.</p>
+        <div style="display: flex; gap: 1rem; margin-top: 1rem;">
+            <button class="btn btn-red" onclick="stopAllBots()">Stop All Bots</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    loadSettings();
+});
+
+function toggleSecret() {
+    const input = document.getElementById('sApiSecret');
+    input.type = input.type === 'password' ? 'text' : 'password';
+}
+
+async function loadSettings() {
+    try {
+        const res = await fetch('/api/settings');
+        const data = await res.json();
+
+        document.getElementById('sExchange').value = data.exchange_id;
+        document.getElementById('sApiKey').value = data.api_key;
+        document.getElementById('sApiSecret').placeholder = `Current: ${data.api_secret_masked}`;
+        document.getElementById('sSandbox').checked = data.sandbox === 'true';
+        document.getElementById('sSymbol').value = data.default_symbol;
+        document.getElementById('sSize').value = data.position_size;
+        document.getElementById('sQuote').value = data.quote_currency;
+        document.getElementById('sMaxSize').value = data.max_position_size;
+        document.getElementById('sMaxLoss').value = data.max_daily_loss;
+        document.getElementById('sMaxDD').value = data.max_drawdown_pct;
+
+        // Config table
+        const rows = [
+            ['Exchange', data.exchange_id.toUpperCase()],
+            ['API Key', data.api_key ? data.api_key.substring(0, 8) + '...' : 'Not set'],
+            ['API Secret', data.api_secret_masked],
+            ['Sandbox Mode', data.sandbox],
+            ['Default Symbol', data.default_symbol],
+            ['Position Size', '$' + data.position_size],
+            ['Quote Currency', data.quote_currency],
+            ['Max Position Size', '$' + data.max_position_size],
+            ['Max Daily Loss', '$' + data.max_daily_loss],
+            ['Max Drawdown', data.max_drawdown_pct + '%'],
+        ];
+        let html = '';
+        rows.forEach(([k, v]) => {
+            html += `<tr><td>${k}</td><td class="mono">${v}</td></tr>`;
+        });
+        document.getElementById('configTable').innerHTML = html;
+    } catch (e) {
+        showToast('Failed to load settings', 'error');
+    }
+}
+
+async function saveSettings(e) {
+    e.preventDefault();
+
+    const payload = {
+        exchange_id: document.getElementById('sExchange').value,
+        api_key: document.getElementById('sApiKey').value,
+        sandbox: document.getElementById('sSandbox').checked ? 'true' : 'false',
+        default_symbol: document.getElementById('sSymbol').value,
+        position_size: document.getElementById('sSize').value,
+        quote_currency: document.getElementById('sQuote').value,
+        max_position_size: document.getElementById('sMaxSize').value,
+        max_daily_loss: document.getElementById('sMaxLoss').value,
+        max_drawdown_pct: document.getElementById('sMaxDD').value,
+    };
+
+    const secret = document.getElementById('sApiSecret').value;
+    if (secret) payload.api_secret = secret;
+
+    try {
+        const res = await fetch('/api/settings', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        showToast(data.message || 'Settings saved', 'success');
+        loadSettings();
+    } catch (e) {
+        showToast('Failed to save', 'error');
+    }
+}
+
+async function testConnection() {
+    const el = document.getElementById('connectionResult');
+    el.innerHTML = '<span class="text-muted">Testing connection...</span>';
+
+    try {
+        const res = await fetch('/api/test-connection', {method: 'POST'});
+        const data = await res.json();
+
+        if (data.success) {
+            let balText = Object.entries(data.balances)
+                .map(([k, v]) => `${k}: ${v}`).join(', ');
+            el.innerHTML = `
+                <div class="connection-ok">
+                    <strong class="text-green">✓ Connected!</strong><br>
+                    <span class="mono">BTC/USDT: $${formatNum(data.btc_price, 2)}</span><br>
+                    <span class="mono text-muted">${balText || 'No balances'}</span>
+                </div>`;
+            updateConnectionStatus(true);
+        } else {
+            el.innerHTML = `<span class="text-red">✗ Failed: ${data.error}</span>`;
+            updateConnectionStatus(false);
+        }
+    } catch (e) {
+        el.innerHTML = '<span class="text-red">✗ Connection error</span>';
+    }
+}
+
+async function stopAllBots() {
+    if (!confirm('Stop ALL running bots?')) return;
+    try {
+        const res = await fetch('/api/bot/status');
+        const data = await res.json();
+        for (const bot of data.bots) {
+            await fetch('/api/bot/stop', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({name: bot.name})
+            });
+        }
+        showToast('All bots stopped', 'success');
+    } catch (e) {
+        showToast('Failed', 'error');
+    }
+}
+</script>
+{% endblock %}

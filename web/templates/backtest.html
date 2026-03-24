@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+{% block title %}Backtest — Crypto RBI Bot{% endblock %}
+{% block page_title %}Backtest{% endblock %}
+
+{% block content %}
+<div class="grid-2col">
+    <!-- Backtest Form -->
+    <div class="panel">
+        <div class="panel-header">
+            <h2>Run Backtest</h2>
+        </div>
+        <div class="panel-body">
+            <form id="backtestForm" onsubmit="runBacktest(event)">
+                <div class="form-group">
+                    <label>Strategy</label>
+                    <select id="btStrategy" class="form-input">
+                        <option value="macd">MACD Histogram (3/15/3)</option>
+                        <option value="rsi">RSI Mean Reversion (14)</option>
+                        <option value="cvd">CVD Divergence (20)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Trading Pair</label>
+                    <input type="text" id="btSymbol" class="form-input" value="BTC/USDT">
+                </div>
+                <div class="form-group">
+                    <label>Timeframe</label>
+                    <select id="btTimeframe" class="form-input">
+                        <option value="1m">1 Minute</option>
+                        <option value="5m" selected>5 Minutes</option>
+                        <option value="15m">15 Minutes</option>
+                        <option value="1h">1 Hour</option>
+                        <option value="4h">4 Hours</option>
+                        <option value="1d">1 Day</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Candles (history)</label>
+                    <input type="number" id="btLimit" class="form-input" value="1000" min="100" max="5000">
+                </div>
+                <div class="form-group">
+                    <label>Position Size (USD)</label>
+                    <input type="number" id="btSize" class="form-input" value="10" min="1" step="1">
+                </div>
+                <button type="submit" class="btn btn-red btn-full" id="btRunBtn">Run Backtest</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Benchmarks -->
+    <div class="panel">
+        <div class="panel-header">
+            <h2>Strategy Benchmarks</h2>
+        </div>
+        <div class="panel-body">
+            <p class="text-muted" style="margin-bottom: 1rem;">A strategy must pass ALL benchmarks before live trading.</p>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Metric</th>
+                        <th class="text-right">Minimum</th>
+                        <th class="text-right">Result</th>
+                        <th>Pass?</th>
+                    </tr>
+                </thead>
+                <tbody id="benchmarksTable">
+                    <tr>
+                        <td>Win Rate</td>
+                        <td class="text-right mono">&gt; 55%</td>
+                        <td class="text-right mono" id="bm-wr">—</td>
+                        <td id="bm-wr-pass">—</td>
+                    </tr>
+                    <tr>
+                        <td>Profit Factor</td>
+                        <td class="text-right mono">&gt; 1.5</td>
+                        <td class="text-right mono" id="bm-pf">—</td>
+                        <td id="bm-pf-pass">—</td>
+                    </tr>
+                    <tr>
+                        <td>Max Drawdown</td>
+                        <td class="text-right mono">&lt; 20%</td>
+                        <td class="text-right mono" id="bm-dd">—</td>
+                        <td id="bm-dd-pass">—</td>
+                    </tr>
+                    <tr>
+                        <td>Sample Trades</td>
+                        <td class="text-right mono">≥ 100</td>
+                        <td class="text-right mono" id="bm-st">—</td>
+                        <td id="bm-st-pass">—</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Backtest Results -->
+<div class="panel" style="margin-top: 1.5rem;" id="resultsPanel" hidden>
+    <div class="panel-header">
+        <h2>Backtest Results</h2>
+        <span id="resultsBadge" class="badge"></span>
+    </div>
+    <div class="panel-body">
+        <div class="cards-row">
+            <div class="card card-sm">
+                <div class="card-label">Total Trades</div>
+                <div class="card-value" id="rTrades">—</div>
+            </div>
+            <div class="card card-sm">
+                <div class="card-label">Win Rate</div>
+                <div class="card-value" id="rWinRate">—</div>
+            </div>
+            <div class="card card-sm">
+                <div class="card-label">Profit Factor</div>
+                <div class="card-value" id="rPF">—</div>
+            </div>
+            <div class="card card-sm">
+                <div class="card-label">Total P&L</div>
+                <div class="card-value" id="rPnL">—</div>
+            </div>
+            <div class="card card-sm">
+                <div class="card-label">Max Drawdown</div>
+                <div class="card-value" id="rDD">—</div>
+            </div>
+            <div class="card card-sm">
+                <div class="card-label">Avg Win</div>
+                <div class="card-value" id="rAvgWin">—</div>
+            </div>
+            <div class="card card-sm">
+                <div class="card-label">Avg Loss</div>
+                <div class="card-value" id="rAvgLoss">—</div>
+            </div>
+        </div>
+        <div class="result-details" style="margin-top: 1rem;">
+            <p class="text-muted" id="resultSummary"></p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function runBacktest(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btRunBtn');
+    btn.disabled = true;
+    btn.textContent = 'Running...';
+
+    const strategy = document.getElementById('btStrategy').value;
+    const symbol = document.getElementById('btSymbol').value;
+    const timeframe = document.getElementById('btTimeframe').value;
+    const limit = parseInt(document.getElementById('btLimit').value);
+    const size = parseFloat(document.getElementById('btSize').value);
+
+    try {
+        const res = await fetch('/api/backtest', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({strategy, symbol, timeframe, limit, size})
+        });
+        const data = await res.json();
+
+        if (data.error) {
+            showToast('Backtest failed: ' + data.error, 'error');
+            return;
+        }
+
+        // Show results
+        document.getElementById('resultsPanel').hidden = false;
+        document.getElementById('rTrades').textContent = data.total_trades;
+        document.getElementById('rWinRate').textContent = data.win_rate + '%';
+        document.getElementById('rPF').textContent = data.profit_factor;
+        document.getElementById('rPnL').textContent = '$' + data.total_pnl;
+        document.getElementById('rDD').textContent = data.max_drawdown + '%';
+        document.getElementById('rAvgWin').textContent = '$' + data.avg_win;
+        document.getElementById('rAvgLoss').textContent = '$' + data.avg_loss;
+        document.getElementById('rPnL').className = data.total_pnl >= 0 ? 'card-value text-green' : 'card-value text-red';
+
+        // Update benchmarks
+        const wr = data.win_rate;
+        const pf = data.profit_factor;
+        const dd = data.max_drawdown;
+        const st = data.total_trades;
+
+        setBenchmark('bm-wr', wr + '%', wr > 55);
+        setBenchmark('bm-pf', pf, pf > 1.5);
+        setBenchmark('bm-dd', dd + '%', dd < 20);
+        setBenchmark('bm-st', st, st >= 100);
+
+        const badge = document.getElementById('resultsBadge');
+        if (data.passes) {
+            badge.textContent = 'PASS';
+            badge.className = 'badge badge-green';
+        } else {
+            badge.textContent = 'FAIL';
+            badge.className = 'badge badge-red';
+        }
+
+        document.getElementById('resultSummary').textContent =
+            `${data.strategy} on ${data.symbol} (${data.timeframe}) — ${data.total_trades} trades, ` +
+            `${data.winning_trades} wins, ${data.losing_trades} losses.`;
+
+        showToast('Backtest complete', 'success');
+    } catch (e) {
+        showToast('Backtest failed', 'error');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Run Backtest';
+    }
+}
+
+function setBenchmark(id, value, pass) {
+    document.getElementById(id).textContent = value;
+    const passEl = document.getElementById(id + '-pass');
+    if (pass) {
+        passEl.innerHTML = '<span class="badge badge-green">✓</span>';
+    } else {
+        passEl.innerHTML = '<span class="badge badge-red">✗</span>';
+    }
+}
+</script>
+{% endblock %}

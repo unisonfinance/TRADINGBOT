@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+{% block title %}Trading — Crypto RBI Bot{% endblock %}
+{% block page_title %}Trading{% endblock %}
+
+{% block content %}
+<div class="grid-2col">
+    <!-- Start a Bot -->
+    <div class="panel">
+        <div class="panel-header">
+            <h2>Launch Bot</h2>
+        </div>
+        <div class="panel-body">
+            <form id="botForm" onsubmit="startBot(event)">
+                <div class="form-group">
+                    <label>Strategy</label>
+                    <select id="strategySelect" class="form-input">
+                        <option value="macd">MACD Histogram (3/15/3)</option>
+                        <option value="rsi">RSI Mean Reversion (14)</option>
+                        <option value="cvd">CVD Divergence (20)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Trading Pair</label>
+                    <input type="text" id="symbolInput" class="form-input" value="LUNA/USDC" placeholder="e.g. BTC/USDT">
+                </div>
+                <div class="form-group">
+                    <label>Position Size (USD)</label>
+                    <input type="number" id="sizeInput" class="form-input" value="1" min="0.1" step="0.1">
+                </div>
+                <div class="form-info">
+                    <p>The bot will trade <strong id="previewSymbol">LUNA/USDC</strong> using the <strong id="previewStrategy">MACD</strong> strategy with <strong>$<span id="previewSize">1</span></strong> per trade.</p>
+                </div>
+                <button type="submit" class="btn btn-red btn-full">Start Bot</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Live Price -->
+    <div class="panel">
+        <div class="panel-header">
+            <h2>Live Price</h2>
+        </div>
+        <div class="panel-body">
+            <div class="price-display">
+                <div class="price-symbol" id="priceSymbol">—</div>
+                <div class="price-value" id="priceValue">—</div>
+                <div class="price-details">
+                    <span>Bid: <span id="priceBid" class="mono">—</span></span>
+                    <span>Ask: <span id="priceAsk" class="mono">—</span></span>
+                    <span>Spread: <span id="priceSpread" class="mono">—</span></span>
+                </div>
+            </div>
+            <button class="btn btn-sm" onclick="refreshPrice()" style="margin-top: 1rem;">Refresh Price</button>
+        </div>
+    </div>
+</div>
+
+<!-- Running Bots -->
+<div class="panel" style="margin-top: 1.5rem;">
+    <div class="panel-header">
+        <h2>Running Bots</h2>
+        <button class="btn btn-sm" onclick="loadRunningBots()">Refresh</button>
+    </div>
+    <div class="panel-body">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Strategy</th>
+                    <th>Symbol</th>
+                    <th>Size</th>
+                    <th>Cycles</th>
+                    <th>Positions</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="runningBotsTable">
+                <tr><td colspan="8" class="text-center text-muted">No bots running</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Quick Price Check -->
+<div class="panel" style="margin-top: 1.5rem;">
+    <div class="panel-header">
+        <h2>Quick Price Check</h2>
+    </div>
+    <div class="panel-body">
+        <div class="quick-prices" id="quickPrices">
+            <div class="quick-price-card" onclick="setSymbol('BTC/USDT')">
+                <div class="qp-symbol">BTC/USDT</div>
+                <div class="qp-price" id="qp-BTC">—</div>
+            </div>
+            <div class="quick-price-card" onclick="setSymbol('ETH/USDT')">
+                <div class="qp-symbol">ETH/USDT</div>
+                <div class="qp-price" id="qp-ETH">—</div>
+            </div>
+            <div class="quick-price-card" onclick="setSymbol('BNB/USDT')">
+                <div class="qp-symbol">BNB/USDT</div>
+                <div class="qp-price" id="qp-BNB">—</div>
+            </div>
+            <div class="quick-price-card" onclick="setSymbol('LUNA/USDC')">
+                <div class="qp-symbol">LUNA/USDC</div>
+                <div class="qp-price" id="qp-LUNA">—</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    loadRunningBots();
+    refreshPrice();
+    loadQuickPrices();
+
+    // Live preview
+    document.getElementById('symbolInput').addEventListener('input', updatePreview);
+    document.getElementById('strategySelect').addEventListener('change', updatePreview);
+    document.getElementById('sizeInput').addEventListener('input', updatePreview);
+
+    setInterval(loadRunningBots, 10000);
+});
+
+function updatePreview() {
+    document.getElementById('previewSymbol').textContent = document.getElementById('symbolInput').value || '—';
+    document.getElementById('previewStrategy').textContent = document.getElementById('strategySelect').value.toUpperCase();
+    document.getElementById('previewSize').textContent = document.getElementById('sizeInput').value || '0';
+}
+
+function setSymbol(symbol) {
+    document.getElementById('symbolInput').value = symbol;
+    updatePreview();
+    refreshPrice();
+}
+
+async function refreshPrice() {
+    const symbol = document.getElementById('symbolInput').value;
+    if (!symbol) return;
+    document.getElementById('priceSymbol').textContent = symbol;
+    try {
+        const res = await fetch(`/api/price/${symbol}`);
+        const data = await res.json();
+        if (data.price) {
+            document.getElementById('priceValue').textContent = '$' + formatNum(data.price, data.price > 1 ? 2 : 6);
+            document.getElementById('priceBid').textContent = '$' + formatNum(data.bid, data.bid > 1 ? 2 : 6);
+            document.getElementById('priceAsk').textContent = '$' + formatNum(data.ask, data.ask > 1 ? 2 : 6);
+            const spread = ((data.ask - data.bid) / data.price * 100).toFixed(3);
+            document.getElementById('priceSpread').textContent = spread + '%';
+        }
+    } catch (e) {
+        document.getElementById('priceValue').textContent = 'Error';
+    }
+}
+
+async function startBot(e) {
+    e.preventDefault();
+    const strategy = document.getElementById('strategySelect').value;
+    const symbol = document.getElementById('symbolInput').value;
+    const size = parseFloat(document.getElementById('sizeInput').value);
+
+    if (!symbol) { showToast('Enter a trading pair', 'error'); return; }
+    if (size <= 0) { showToast('Size must be positive', 'error'); return; }
+
+    try {
+        const res = await fetch('/api/bot/start', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({strategy, symbol, size})
+        });
+        const data = await res.json();
+        if (data.error) {
+            showToast(data.error, 'error');
+        } else {
+            showToast(`Bot started: ${data.name}`, 'success');
+            loadRunningBots();
+        }
+    } catch (e) {
+        showToast('Failed to start bot', 'error');
+    }
+}
+
+async function loadRunningBots() {
+    try {
+        const res = await fetch('/api/bot/status');
+        const data = await res.json();
+        const bots = data.bots;
+
+        if (bots.length === 0) {
+            document.getElementById('runningBotsTable').innerHTML =
+                '<tr><td colspan="8" class="text-center text-muted">No bots running</td></tr>';
+            return;
+        }
+
+        let html = '';
+        bots.forEach(bot => {
+            html += `<tr>
+                <td><strong>${bot.name}</strong></td>
+                <td>${bot.strategy.toUpperCase()}</td>
+                <td>${bot.symbol}</td>
+                <td class="mono">$${bot.size}</td>
+                <td class="mono">${bot.cycles}</td>
+                <td class="mono">${bot.positions}</td>
+                <td><span class="badge badge-green">Running</span></td>
+                <td><button class="btn btn-red btn-sm" onclick="stopBot('${bot.name}')">Stop</button></td>
+            </tr>`;
+        });
+        document.getElementById('runningBotsTable').innerHTML = html;
+    } catch (e) {}
+}
+
+async function stopBot(name) {
+    if (!confirm(`Stop bot "${name}"?`)) return;
+    await fetch('/api/bot/stop', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({name})
+    });
+    showToast('Bot stopped', 'success');
+    loadRunningBots();
+}
+
+async function loadQuickPrices() {
+    const pairs = [
+        {symbol: 'BTC/USDT', id: 'qp-BTC'},
+        {symbol: 'ETH/USDT', id: 'qp-ETH'},
+        {symbol: 'BNB/USDT', id: 'qp-BNB'},
+        {symbol: 'LUNA/USDC', id: 'qp-LUNA'},
+    ];
+    for (const p of pairs) {
+        try {
+            const res = await fetch(`/api/price/${p.symbol}`);
+            const data = await res.json();
+            if (data.price) {
+                document.getElementById(p.id).textContent = '$' + formatNum(data.price, data.price > 1 ? 2 : 6);
+            }
+        } catch (e) {}
+    }
+}
+</script>
+{% endblock %}

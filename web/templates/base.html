@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Crypto RBI Bot{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Sidebar -->
+    <nav class="sidebar">
+        <div class="sidebar-header">
+            <div class="logo">
+                <span class="logo-icon">◆</span>
+                <span class="logo-text">RBI BOT</span>
+            </div>
+        </div>
+        <ul class="nav-links">
+            <li>
+                <a href="/" class="{% if active_page == 'dashboard' %}active{% endif %}">
+                    <span class="nav-icon">▣</span>
+                    <span>Dashboard</span>
+                </a>
+            </li>
+            <li>
+                <a href="/trading" class="{% if active_page == 'trading' %}active{% endif %}">
+                    <span class="nav-icon">⇅</span>
+                    <span>Trading</span>
+                </a>
+            </li>
+            <li>
+                <a href="/backtest" class="{% if active_page == 'backtest' %}active{% endif %}">
+                    <span class="nav-icon">◷</span>
+                    <span>Backtest</span>
+                </a>
+            </li>
+            <li>
+                <a href="/settings" class="{% if active_page == 'settings' %}active{% endif %}">
+                    <span class="nav-icon">⚙</span>
+                    <span>Settings</span>
+                </a>
+            </li>
+        </ul>
+        <div class="sidebar-footer">
+            <div class="connection-status" id="connectionStatus">
+                <span class="status-dot offline"></span>
+                <span class="status-text">Disconnected</span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <header class="top-bar">
+            <h1 class="page-title">{% block page_title %}Dashboard{% endblock %}</h1>
+            <div class="top-bar-right">
+                <span class="exchange-badge" id="exchangeBadge">BINANCE</span>
+                <span class="clock" id="clock"></span>
+            </div>
+        </header>
+        <div class="content">
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+
+    <!-- Toast notifications -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

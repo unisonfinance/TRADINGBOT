@@ -1,0 +1,235 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Crypto RBI Bot{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+<!-- Balance Cards -->
+<div class="cards-row">
+    <div class="card">
+        <div class="card-label">Total Balance</div>
+        <div class="card-value" id="totalBalance">—</div>
+        <div class="card-sub" id="totalBalanceUsd">Loading...</div>
+    </div>
+    <div class="card">
+        <div class="card-label">Active Bots</div>
+        <div class="card-value" id="activeBots">0</div>
+        <div class="card-sub">Running strategies</div>
+    </div>
+    <div class="card">
+        <div class="card-label">Open Positions</div>
+        <div class="card-value" id="openPositions">0</div>
+        <div class="card-sub">Across all bots</div>
+    </div>
+    <div class="card">
+        <div class="card-label">BTC Price</div>
+        <div class="card-value" id="btcPrice">—</div>
+        <div class="card-sub" id="btcChange">Loading...</div>
+    </div>
+</div>
+
+<!-- Portfolio & Active Bots -->
+<div class="grid-2col">
+    <!-- Portfolio Holdings -->
+    <div class="panel">
+        <div class="panel-header">
+            <h2>Portfolio Holdings</h2>
+            <button class="btn btn-sm" onclick="loadBalance()">Refresh</button>
+        </div>
+        <div class="panel-body">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Coin</th>
+                        <th class="text-right">Amount</th>
+                        <th class="text-right">Free</th>
+                        <th class="text-right">In Use</th>
+                    </tr>
+                </thead>
+                <tbody id="holdingsTable">
+                    <tr><td colspan="4" class="text-center text-muted">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Active Bots -->
+    <div class="panel">
+        <div class="panel-header">
+            <h2>Active Bots</h2>
+            <a href="/trading" class="btn btn-red btn-sm">+ New Bot</a>
+        </div>
+        <div class="panel-body">
+            <div id="activeBotsList">
+                <p class="text-muted text-center">No bots running. <a href="/trading">Start one →</a></p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Trades -->
+<div class="panel" style="margin-top: 1.5rem;">
+    <div class="panel-header">
+        <h2>Recent Trades</h2>
+    </div>
+    <div class="panel-body">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Time</th>
+                    <th>Strategy</th>
+                    <th>Symbol</th>
+                    <th>Side</th>
+                    <th class="text-right">Price</th>
+                    <th class="text-right">Size</th>
+                    <th>Notes</th>
+                </tr>
+            </thead>
+            <tbody id="tradesTable">
+                <tr><td colspan="7" class="text-center text-muted">No trades yet</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    loadBalance();
+    loadBotStatus();
+    loadTrades();
+    loadBtcPrice();
+    // Auto-refresh every 30s
+    setInterval(loadBalance, 30000);
+    setInterval(loadBotStatus, 10000);
+    setInterval(loadBtcPrice, 15000);
+});
+
+async function loadBalance() {
+    try {
+        const res = await fetch('/api/balance');
+        const data = await res.json();
+        if (data.error) {
+            document.getElementById('totalBalance').textContent = '—';
+            document.getElementById('totalBalanceUsd').textContent = data.error;
+            document.getElementById('holdingsTable').innerHTML =
+                `<tr><td colspan="4" class="text-center text-muted">${data.error}</td></tr>`;
+            return;
+        }
+        const balances = data.balances;
+        const coins = Object.keys(balances);
+
+        if (coins.length === 0) {
+            document.getElementById('holdingsTable').innerHTML =
+                '<tr><td colspan="4" class="text-center text-muted">No holdings</td></tr>';
+            return;
+        }
+
+        let html = '';
+        coins.forEach(coin => {
+            const b = balances[coin];
+            html += `<tr>
+                <td><strong>${coin}</strong></td>
+                <td class="text-right mono">${formatNum(b.total, 8)}</td>
+                <td class="text-right mono">${formatNum(b.free, 8)}</td>
+                <td class="text-right mono">${formatNum(b.used, 8)}</td>
+            </tr>`;
+        });
+        document.getElementById('holdingsTable').innerHTML = html;
+        document.getElementById('totalBalance').textContent = coins.length + ' coins';
+        document.getElementById('totalBalanceUsd').textContent = 'Connected to Binance';
+
+        updateConnectionStatus(true);
+    } catch (e) {
+        document.getElementById('totalBalanceUsd').textContent = 'Connection failed';
+        updateConnectionStatus(false);
+    }
+}
+
+async function loadBotStatus() {
+    try {
+        const res = await fetch('/api/bot/status');
+        const data = await res.json();
+        const bots = data.bots;
+
+        document.getElementById('activeBots').textContent = bots.length;
+
+        let totalPositions = 0;
+        if (bots.length === 0) {
+            document.getElementById('activeBotsList').innerHTML =
+                '<p class="text-muted text-center">No bots running. <a href="/trading">Start one →</a></p>';
+        } else {
+            let html = '';
+            bots.forEach(bot => {
+                totalPositions += bot.positions;
+                html += `<div class="bot-card">
+                    <div class="bot-info">
+                        <span class="bot-name">${bot.name}</span>
+                        <span class="badge badge-green">Running</span>
+                    </div>
+                    <div class="bot-details">
+                        <span>Strategy: ${bot.strategy.toUpperCase()}</span>
+                        <span>Symbol: ${bot.symbol}</span>
+                        <span>Size: $${bot.size}</span>
+                        <span>Cycles: ${bot.cycles}</span>
+                    </div>
+                    <button class="btn btn-red btn-sm" onclick="stopBot('${bot.name}')">Stop</button>
+                </div>`;
+            });
+            document.getElementById('activeBotsList').innerHTML = html;
+        }
+        document.getElementById('openPositions').textContent = totalPositions;
+    } catch (e) {}
+}
+
+async function loadTrades() {
+    try {
+        const res = await fetch('/api/trades');
+        const data = await res.json();
+        if (data.trades && data.trades.length > 0) {
+            let html = '';
+            data.trades.forEach(t => {
+                const sideClass = t.side === 'BUY' ? 'text-green' : 'text-red';
+                html += `<tr>
+                    <td class="mono">${t.timestamp || '—'}</td>
+                    <td>${t.strategy || '—'}</td>
+                    <td>${t.token_id || '—'}</td>
+                    <td class="${sideClass}"><strong>${t.side}</strong></td>
+                    <td class="text-right mono">$${formatNum(t.price, 4)}</td>
+                    <td class="text-right mono">${formatNum(t.size, 6)}</td>
+                    <td class="text-muted">${t.notes || ''}</td>
+                </tr>`;
+            });
+            document.getElementById('tradesTable').innerHTML = html;
+        }
+    } catch (e) {}
+}
+
+async function loadBtcPrice() {
+    try {
+        const res = await fetch('/api/price/BTC/USDT');
+        const data = await res.json();
+        if (data.price) {
+            document.getElementById('btcPrice').textContent = '$' + formatNum(data.price, 2);
+            document.getElementById('btcChange').textContent = `Bid: $${formatNum(data.bid, 2)} | Ask: $${formatNum(data.ask, 2)}`;
+        }
+    } catch (e) {}
+}
+
+async function stopBot(name) {
+    if (!confirm(`Stop bot "${name}"?`)) return;
+    try {
+        await fetch('/api/bot/stop', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({name})
+        });
+        showToast('Bot stopped', 'success');
+        loadBotStatus();
+    } catch (e) {
+        showToast('Failed to stop bot', 'error');
+    }
+}
+</script>
+{% endblock %}
