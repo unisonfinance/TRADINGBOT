@@ -246,12 +246,16 @@ def api_balance():
 @app.route("/api/price/<path:symbol>")
 def api_price(symbol):
     try:
+        # Try authenticated client first
         client = get_client()
         if client:
-            price = client.get_price(symbol)
-            ba = client.get_bid_ask(symbol)
-            return jsonify({"symbol": symbol, "price": price, "bid": ba["bid"], "ask": ba["ask"]})
-        # No authenticated client — use public exchange with geo-fallback
+            try:
+                price = client.get_price(symbol)
+                ba = client.get_bid_ask(symbol)
+                return jsonify({"symbol": symbol, "price": price, "bid": ba["bid"], "ask": ba["ask"]})
+            except Exception:
+                pass  # fall through to public exchange
+        # Use public exchange with geo-fallback
         exchange = _get_public_exchange()
         if not exchange:
             return jsonify({"error": "No exchange reachable"}), 500
