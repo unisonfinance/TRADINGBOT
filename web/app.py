@@ -551,10 +551,20 @@ def api_arbitrage_ratio():
     try:
         import ccxt
         exchange_id = read_env().get("EXCHANGE_ID", "binance")
-        exchange = getattr(ccxt, exchange_id)()
-
-        btc_ticker = exchange.fetch_ticker("BTC/USDT")
-        eth_ticker = exchange.fetch_ticker("ETH/USDT")
+        # Try configured exchange first, then US-accessible fallbacks
+        _candidates = [exchange_id] + [x for x in ["binanceus", "bybit", "kraken"] if x != exchange_id]
+        exchange = None
+        btc_ticker = eth_ticker = None
+        for eid in _candidates:
+            try:
+                exchange = getattr(ccxt, eid)()
+                btc_ticker = exchange.fetch_ticker("BTC/USDT")
+                eth_ticker = exchange.fetch_ticker("ETH/USDT")
+                break
+            except Exception:
+                continue
+        if btc_ticker is None or eth_ticker is None:
+            return jsonify({"error": "All exchanges unreachable"}), 500
 
         btc_price = float(btc_ticker.get("last", 0))
         eth_price = float(eth_ticker.get("last", 0))
