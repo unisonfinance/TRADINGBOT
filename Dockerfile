@@ -12,13 +12,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# If FIREBASE_SA_JSON env var is set, write it to service_account.json
-# (so we don't have to commit secrets to git)
-RUN echo '#!/bin/sh\n\
-if [ -n "$FIREBASE_SA_JSON" ]; then\n\
-  echo "$FIREBASE_SA_JSON" > /app/service_account.json;\n\
-fi\n\
-exec "$@"' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
+# Entrypoint: write service_account.json from env var if present, then run CMD
+RUN printf '#!/bin/sh\nif [ -n "$FIREBASE_SA_JSON" ]; then\n  echo "$FIREBASE_SA_JSON" > /app/service_account.json\nfi\nexec "$@"\n' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
 
 ENTRYPOINT ["/app/entrypoint.sh"]
-CMD sh -c "gunicorn wsgi:app --bind 0.0.0.0:${PORT:-5050} --workers 1 --threads 4 --timeout 120"
+CMD ["sh", "-c", "gunicorn wsgi:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120"]
