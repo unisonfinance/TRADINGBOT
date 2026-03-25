@@ -78,7 +78,7 @@ def _save_bot_config(bot_name: str, config: dict):
     """Save a running bot's config to Firestore so it survives restarts."""
     db = _get_firestore()
     if not db:
-        print(f"[BotPersist] No Firestore — cannot persist bot '{bot_name}'")
+        print(f"[BotPersist] No Firestore — cannot persist bot '{bot_name}'", flush=True)
         return
     try:
         doc = {
@@ -92,9 +92,9 @@ def _save_bot_config(bot_name: str, config: dict):
             "persisted_at": datetime.utcnow().isoformat(),
         }
         db.collection(_PERSISTENT_BOTS_COLLECTION).document(bot_name).set(doc)
-        print(f"[BotPersist] Saved bot config: {bot_name}")
+        print(f"[BotPersist] Saved bot config: {bot_name}", flush=True)
     except Exception as e:
-        print(f"[BotPersist] Error saving '{bot_name}': {e}")
+        print(f"[BotPersist] Error saving '{bot_name}': {e}", flush=True)
 
 
 def _remove_bot_config(bot_name: str):
@@ -104,9 +104,9 @@ def _remove_bot_config(bot_name: str):
         return
     try:
         db.collection(_PERSISTENT_BOTS_COLLECTION).document(bot_name).delete()
-        print(f"[BotPersist] Removed bot config: {bot_name}")
+        print(f"[BotPersist] Removed bot config: {bot_name}", flush=True)
     except Exception as e:
-        print(f"[BotPersist] Error removing '{bot_name}': {e}")
+        print(f"[BotPersist] Error removing '{bot_name}': {e}", flush=True)
 
 
 def _load_persistent_bots() -> list[dict]:
@@ -123,22 +123,38 @@ def _load_persistent_bots() -> list[dict]:
             bots.append(d)
         return bots
     except Exception as e:
-        print(f"[BotPersist] Error loading configs: {e}")
+        print(f"[BotPersist] Error loading configs: {e}", flush=True)
         return []
 
 
 def _auto_restart_bots():
     """On startup, re-launch any bots that were running before the deploy."""
     time.sleep(5)  # Wait for app to settle
+    print("[BotPersist] Auto-restart check starting...", flush=True)
+
+    # Verify Firestore is reachable first
+    db = _get_firestore()
+    if not db:
+        print("[BotPersist] WARN: Firestore unreachable — cannot check for bots to restart.", flush=True)
+        # Retry once after 10 more seconds
+        time.sleep(10)
+        db = _get_firestore()
+        if not db:
+            print("[BotPersist] FATAL: Firestore still unreachable after retry. Giving up.", flush=True)
+            return
+        print("[BotPersist] Firestore connected on retry.", flush=True)
+    else:
+        print("[BotPersist] Firestore connected OK.", flush=True)
+
     configs = _load_persistent_bots()
     if not configs:
-        print("[BotPersist] No bots to restart.")
+        print("[BotPersist] No bots to restart (collection empty).", flush=True)
         return
-    print(f"[BotPersist] Found {len(configs)} bot(s) to restart after deploy...")
+    print(f"[BotPersist] Found {len(configs)} bot(s) to restart after deploy...", flush=True)
     for cfg in configs:
         bot_name = cfg.get("name", cfg.get("id", "unknown"))
         if bot_name in active_bots:
-            print(f"[BotPersist] '{bot_name}' already running, skip.")
+            print(f"[BotPersist] '{bot_name}' already running, skip.", flush=True)
             continue
         try:
             strategy = cfg["strategy"]
@@ -150,6 +166,7 @@ def _auto_restart_bots():
             _NON_STRATEGY_KEYS = {"size", "symbol", "timeframe", "name"}
             strategy_kwargs = {k: v for k, v in params.items() if k not in _NON_STRATEGY_KEYS}
 
+            print(f"[BotPersist] Creating Trader for '{bot_name}': {strategy} {symbol} {timeframe} size={size}", flush=True)
             trader = Trader(
                 strategy_name=strategy,
                 symbol=symbol,
@@ -169,10 +186,12 @@ def _auto_restart_bots():
                 "timeframe": timeframe,
                 "size": size,
             }
-            print(f"[BotPersist] ✓ Restarted '{bot_name}' ({strategy} {symbol} {timeframe})")
+            print(f"[BotPersist] ✓ Restarted '{bot_name}' ({strategy} {symbol} {timeframe})", flush=True)
         except Exception as e:
-            print(f"[BotPersist] ✗ Failed to restart '{bot_name}': {e}")
-    print(f"[BotPersist] Auto-restart complete. {len(active_bots)} bot(s) running.")
+            import traceback
+            print(f"[BotPersist] ✗ Failed to restart '{bot_name}': {e}", flush=True)
+            traceback.print_exc()
+    print(f"[BotPersist] Auto-restart complete. {len(active_bots)} bot(s) running.", flush=True)
 
 
 def _auto_deploy_firestore_rules():
@@ -513,6 +532,18 @@ def api_bot_stop():
     del active_bots[bot_name]
     _remove_bot_config(bot_name)  # Remove from Firestore so it won't auto-restart
     return jsonify({"message": f"Bot '{bot_name}' stopped"})
+
+
+@app.route("/api/bot/persistence")
+def api_bot_persistence():
+    """Debug endpoint: show what's saved in the persistent_bots Firestore collection."""
+    saved = _load_persistent_bots()
+    running = list(active_bots.keys())
+    return jsonify({
+        "saved_configs": saved,
+        "running_bots": running,
+        "firestore_available": _get_firestore() is not None,
+    })
 
 
 @app.route("/api/bot/status")

@@ -19,6 +19,7 @@ ENTRYPOINT ["/app/entrypoint.sh"]
 
 # Railway injects PORT env var; default to 5050 if not set
 ENV PORT=5050
+ENV PYTHONUNBUFFERED=1
 EXPOSE 5050
 
 CMD ["sh", "-c", "gunicorn wsgi:app --bind 0.0.0.0:${PORT:-5050} --workers 1 --threads 4 --timeout 120"]
