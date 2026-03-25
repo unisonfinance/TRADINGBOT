@@ -177,25 +177,29 @@ def _sanitize_exchange_error(e: Exception) -> str:
     """Return a clean, short error message — strips raw URLs, timestamps, and signatures."""
     import re as _re
     err = str(e)
-    # Extract JSON 'msg' field (ccxt typically includes this)
-    m = _re.search(r'"msg"\s*:\s*"([^"]+)"', err)
-    if m:
-        return m.group(1)
-    m = _re.search(r'"message"\s*:\s*"([^"]+)"', err)
-    if m:
-        return m.group(1)
-    # Known error patterns
-    if '451' in err or 'restricted location' in err.lower():
-        return 'Service unavailable from a restricted location'
+    # ── Geo / restriction check FIRST (highest priority) ──────────
+    if ('451' in err or 'restricted location' in err.lower()
+            or 'eligibility' in err.lower() or 'not available in your region' in err.lower()):
+        return 'Service unavailable from a restricted location. Use Bybit, OKX or Kraken instead.'
+    # ── Known error patterns ───────────────────────────────────────
     if 'api-key' in err.lower() or 'apikey' in err.lower() or 'api key' in err.lower():
-        return 'Invalid API key'
+        return 'Invalid API key — check your credentials in Settings'
     if 'invalid signature' in err.lower() or 'signature' in err.lower():
         return 'Invalid API signature — check your secret key'
     if 'network' in err.lower() or 'connectionerror' in err.lower():
         return 'Network connection error'
     if 'timed out' in err.lower() or 'timeout' in err.lower():
         return 'Exchange request timed out'
-    # Strip URLs and shorten
+    # ── Extract JSON 'msg' / 'message' field (ccxt) ───────────────
+    m = _re.search(r'"msg"\s*:\s*"([^"]+)"', err)
+    if m:
+        msg = _re.sub(r'https?://\S+', '', m.group(1)).strip()
+        return msg[:120] + ('\u2026' if len(msg) > 120 else '')
+    m = _re.search(r'"message"\s*:\s*"([^"]+)"', err)
+    if m:
+        msg = _re.sub(r'https?://\S+', '', m.group(1)).strip()
+        return msg[:120] + ('\u2026' if len(msg) > 120 else '')
+    # ── Fallback: strip URLs and shorten ──────────────────────────
     err = _re.sub(r'https?://\S+', '', err).strip()
     err = _re.sub(r'\s+', ' ', err).strip()
     return err[:120] + ('\u2026' if len(err) > 120 else '')
