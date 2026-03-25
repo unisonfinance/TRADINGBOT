@@ -70,6 +70,110 @@ active_bots: dict[str, dict] = {}  # name -> {trader, thread, started_at}
 storage = DataStorage()
 _firestore_rules_status: dict = {"deployed": False, "message": "Pending..."}
 
+# ─── Bot Persistence (survive deploys) ────────────────────────────
+_PERSISTENT_BOTS_COLLECTION = "persistent_bots"
+
+
+def _save_bot_config(bot_name: str, config: dict):
+    """Save a running bot's config to Firestore so it survives restarts."""
+    db = _get_firestore()
+    if not db:
+        print(f"[BotPersist] No Firestore — cannot persist bot '{bot_name}'")
+        return
+    try:
+        doc = {
+            "name": bot_name,
+            "strategy": config["strategy"],
+            "symbol": config["symbol"],
+            "timeframe": config["timeframe"],
+            "size": config["size"],
+            "params": config.get("params", {}),
+            "started_at": config.get("started_at", datetime.utcnow().isoformat()),
+            "persisted_at": datetime.utcnow().isoformat(),
+        }
+        db.collection(_PERSISTENT_BOTS_COLLECTION).document(bot_name).set(doc)
+        print(f"[BotPersist] Saved bot config: {bot_name}")
+    except Exception as e:
+        print(f"[BotPersist] Error saving '{bot_name}': {e}")
+
+
+def _remove_bot_config(bot_name: str):
+    """Remove a bot config from Firestore when it's stopped by the user."""
+    db = _get_firestore()
+    if not db:
+        return
+    try:
+        db.collection(_PERSISTENT_BOTS_COLLECTION).document(bot_name).delete()
+        print(f"[BotPersist] Removed bot config: {bot_name}")
+    except Exception as e:
+        print(f"[BotPersist] Error removing '{bot_name}': {e}")
+
+
+def _load_persistent_bots() -> list[dict]:
+    """Load all bot configs that should be restarted after a deploy."""
+    db = _get_firestore()
+    if not db:
+        return []
+    try:
+        docs = db.collection(_PERSISTENT_BOTS_COLLECTION).stream()
+        bots = []
+        for doc in docs:
+            d = doc.to_dict()
+            d["id"] = doc.id
+            bots.append(d)
+        return bots
+    except Exception as e:
+        print(f"[BotPersist] Error loading configs: {e}")
+        return []
+
+
+def _auto_restart_bots():
+    """On startup, re-launch any bots that were running before the deploy."""
+    time.sleep(5)  # Wait for app to settle
+    configs = _load_persistent_bots()
+    if not configs:
+        print("[BotPersist] No bots to restart.")
+        return
+    print(f"[BotPersist] Found {len(configs)} bot(s) to restart after deploy...")
+    for cfg in configs:
+        bot_name = cfg.get("name", cfg.get("id", "unknown"))
+        if bot_name in active_bots:
+            print(f"[BotPersist] '{bot_name}' already running, skip.")
+            continue
+        try:
+            strategy = cfg["strategy"]
+            symbol = cfg["symbol"]
+            timeframe = cfg.get("timeframe", settings.DEFAULT_TIMEFRAME)
+            size = float(cfg.get("size", settings.DEFAULT_POSITION_SIZE))
+            params = cfg.get("params", {}) or {}
+
+            _NON_STRATEGY_KEYS = {"size", "symbol", "timeframe", "name"}
+            strategy_kwargs = {k: v for k, v in params.items() if k not in _NON_STRATEGY_KEYS}
+
+            trader = Trader(
+                strategy_name=strategy,
+                symbol=symbol,
+                position_size=size,
+                timeframe=timeframe,
+                strategy_kwargs=strategy_kwargs,
+            )
+            thread = threading.Thread(target=trader.run, daemon=True)
+            thread.start()
+
+            active_bots[bot_name] = {
+                "trader": trader,
+                "thread": thread,
+                "started_at": cfg.get("started_at", datetime.utcnow().isoformat()),
+                "strategy": strategy,
+                "symbol": symbol,
+                "timeframe": timeframe,
+                "size": size,
+            }
+            print(f"[BotPersist] ✓ Restarted '{bot_name}' ({strategy} {symbol} {timeframe})")
+        except Exception as e:
+            print(f"[BotPersist] ✗ Failed to restart '{bot_name}': {e}")
+    print(f"[BotPersist] Auto-restart complete. {len(active_bots)} bot(s) running.")
+
 
 def _auto_deploy_firestore_rules():
     """Deploy Firestore security rules in a background thread on startup."""
@@ -86,6 +190,9 @@ def _auto_deploy_firestore_rules():
 
 # Launch rules deploy in background so server starts immediately
 threading.Thread(target=_auto_deploy_firestore_rules, daemon=True).start()
+
+# Auto-restart bots that were running before the last deploy
+threading.Thread(target=_auto_restart_bots, daemon=True).start()
 
 
 # ─── Helper: read/write .env ─────────────────────────────────────
@@ -371,7 +478,7 @@ def api_bot_start():
         thread = threading.Thread(target=run_bot, daemon=True)
         thread.start()
 
-        active_bots[bot_name] = {
+        bot_info = {
             "trader": trader,
             "thread": thread,
             "started_at": datetime.utcnow().isoformat(),
@@ -380,6 +487,14 @@ def api_bot_start():
             "timeframe": timeframe,
             "size": size,
         }
+        active_bots[bot_name] = bot_info
+
+        # Persist to Firestore so bot auto-restarts after deploy
+        _save_bot_config(bot_name, {
+            "strategy": strategy, "symbol": symbol,
+            "timeframe": timeframe, "size": size,
+            "params": extras, "started_at": bot_info["started_at"],
+        })
 
         return jsonify({"message": f"Bot '{bot_name}' started", "name": bot_name})
     except Exception as e:
@@ -396,6 +511,7 @@ def api_bot_stop():
 
     active_bots[bot_name]["trader"].stop()
     del active_bots[bot_name]
+    _remove_bot_config(bot_name)  # Remove from Firestore so it won't auto-restart
     return jsonify({"message": f"Bot '{bot_name}' stopped"})
 
 
@@ -1859,6 +1975,7 @@ def api_stop_all_bots():
     stopped = []
     for name, info in list(active_bots.items()):
         info["trader"].stop()
+        _remove_bot_config(name)  # Remove from Firestore
         stopped.append(name)
     active_bots.clear()
 
