@@ -240,6 +240,13 @@
                         {% if active_page == 'settings' %}<span class="nav-active-dot"></span>{% endif %}
                     </a>
                 </li>
+                <li>
+                    <a href="/integrations" class="{% if active_page == 'integrations' %}active{% endif %}" onclick="closeSidebar()">
+                        <span class="nav-icon-wrap" style="background:#8b5cf622;color:#8b5cf6;">🔌</span>
+                        <span class="nav-label">Integrations</span>
+                        {% if active_page == 'integrations' %}<span class="nav-active-dot"></span>{% endif %}
+                    </a>
+                </li>
             </ul>
         </div>
 

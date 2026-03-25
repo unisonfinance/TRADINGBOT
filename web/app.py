@@ -1105,6 +1105,91 @@ def copy_trading_page():
 def tax_report_page():
     return render_template("tax_report.html", active_page="tax_report")
 
+@app.route("/integrations")
+def integrations_page():
+    return render_template("integrations.html", active_page="integrations")
+
+
+# ─── API: Integrations (Test & Sync) ─────────────────────────────
+@app.route("/api/integrations/test_exchange", methods=["POST"])
+def api_test_exchange():
+    """Test exchange API connection."""
+    data = request.json or {}
+    try:
+        import ccxt
+        ex_id = data.get("exchange", "binance")
+        ex_class = getattr(ccxt, ex_id)
+        config = {"apiKey": data.get("key"), "secret": data.get("secret")}
+        if data.get("password"):
+            config["password"] = data["password"]
+        ex = ex_class(config)
+        if data.get("sandbox"):
+            ex.set_sandbox_mode(True)
+        balance = ex.fetch_balance()
+        total_usd = balance.get("total", {}).get("USDT", 0) or 0
+        return jsonify({"ok": True, "balance": total_usd})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+
+@app.route("/api/integrations/test_telegram", methods=["POST"])
+def api_test_telegram():
+    """Send a test Telegram message."""
+    data = request.json or {}
+    try:
+        import urllib.request
+        token = data.get("token", "")
+        chat_id = data.get("chatId", "")
+        msg = "✅ TrekBot Integration Test — Telegram is connected!"
+        url = f"https://api.telegram.org/bot{token}/sendMessage"
+        payload = json.dumps({"chat_id": chat_id, "text": msg}).encode()
+        req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
+        urllib.request.urlopen(req, timeout=10)
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+
+@app.route("/api/integrations/test_smtp", methods=["POST"])
+def api_test_smtp():
+    """Send a test email via SMTP."""
+    data = request.json or {}
+    try:
+        import smtplib
+        from email.mime.text import MIMEText
+        host = data.get("host", "smtp.gmail.com")
+        port = int(data.get("port", 587))
+        user = data.get("user", "")
+        pw = data.get("pass", "")
+        to_email = data.get("email", user)
+        msg = MIMEText("✅ TrekBot Integration Test — Email alerts are connected!")
+        msg["Subject"] = "TrekBot — SMTP Test"
+        msg["From"] = user
+        msg["To"] = to_email
+        with smtplib.SMTP(host, port, timeout=10) as srv:
+            srv.starttls()
+            srv.login(user, pw)
+            srv.send_message(msg)
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+
+@app.route("/api/integrations/sync", methods=["POST"])
+def api_integrations_sync():
+    """Sync integration keys to server-side (optional env var override)."""
+    data = request.json or {}
+    section = data.get("section", "")
+    values = data.get("data", {})
+    # Store in Firestore server-side for bot processes to read
+    try:
+        db = _get_firestore()
+        if db and data.get("uid"):
+            db.collection("users").document(data["uid"]).collection("integrations").document(section).set(values, merge=True)
+        return jsonify({"ok": True, "synced": section})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
 
 # ─── API: Whale Alerts ───────────────────────────────────────────
 @app.route("/api/whales")
