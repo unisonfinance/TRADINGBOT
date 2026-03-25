@@ -246,6 +246,11 @@ def backtest():
     return render_template("backtest.html", active_page="backtest")
 
 
+@app.route("/dca")
+def dca():
+    return render_template("dca.html", active_page="dca")
+
+
 @app.route("/strategies")
 def strategies():
     return render_template("strategies.html", active_page="strategies")
