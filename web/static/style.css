@@ -299,6 +299,31 @@ html, body {
     font-size: 0.78rem;
     color: var(--text-muted);
 }
+.tb-connection {
+    padding: 0.3rem 0.7rem;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+}
+.sb-logout-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.6rem;
+    background: #e6394622;
+    color: #e63946;
+    border: 1px solid #e6394644;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+.sb-logout-btn:hover {
+    background: #e6394644;
+}
 
 .status-dot {
     width: 8px; height: 8px;
