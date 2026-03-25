@@ -3,241 +3,796 @@
 {% block page_title %}Dashboard{% endblock %}
 
 {% block content %}
-<!-- Balance Cards -->
-<div class="cards-row">
-    <div class="card">
-        <div class="card-label">Total Balance</div>
-        <div class="card-value" id="totalBalance">—</div>
-        <div class="card-sub" id="totalBalanceUsd">Loading...</div>
-    </div>
-    <div class="card">
-        <div class="card-label">Active Bots</div>
-        <div class="card-value" id="activeBots">0</div>
-        <div class="card-sub">Running strategies</div>
-    </div>
-    <div class="card">
-        <div class="card-label">Open Positions</div>
-        <div class="card-value" id="openPositions">0</div>
-        <div class="card-sub">Across all bots</div>
-    </div>
-    <div class="card">
-        <div class="card-label">BTC Price</div>
-        <div class="card-value" id="btcPrice">—</div>
-        <div class="card-sub" id="btcChange">Loading...</div>
-    </div>
-</div>
+<style>
+/* ── DASHBOARD ANIMATIONS ─────────────────────────── */
+@keyframes fadeInUp{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeInScale{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:scale(1)}}
+@keyframes pulse-ring{0%{transform:scale(.8);opacity:1}100%{transform:scale(2.2);opacity:0}}
+@keyframes spin-slow{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
+@keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+@keyframes orbit{0%{transform:rotate(0) translateX(22px) rotate(0)}100%{transform:rotate(360deg) translateX(22px) rotate(-360deg)}}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+@keyframes gradient-shift{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+@keyframes countUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes bar-grow{from{width:0}to{width:var(--bar-w)}}
 
-<!-- Portfolio & Active Bots -->
-<div class="grid-2col">
-    <!-- Portfolio Holdings -->
-    <div class="panel">
-        <div class="panel-header">
-            <h2>Portfolio Holdings</h2>
-            <button class="btn btn-sm" onclick="loadBalance()">Refresh</button>
+.dash-animate{animation:fadeInUp .5s ease both}
+.dash-animate:nth-child(2){animation-delay:.08s}
+.dash-animate:nth-child(3){animation-delay:.16s}
+.dash-animate:nth-child(4){animation-delay:.24s}
+.dash-animate:nth-child(5){animation-delay:.32s}
+.dash-animate:nth-child(6){animation-delay:.4s}
+
+/* ── HERO STAT CARDS ──────────────────────────────── */
+.dash-stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:1rem;margin-bottom:1.5rem}
+.dash-stat-card{
+    background:var(--bg-card);border:1px solid var(--border);border-radius:14px;
+    padding:1.2rem 1.4rem;position:relative;overflow:hidden;
+    transition:transform .2s,box-shadow .2s;
+}
+.dash-stat-card:hover{transform:translateY(-3px);box-shadow:var(--shadow-lg)}
+.dash-stat-card::before{
+    content:'';position:absolute;top:0;left:0;right:0;height:3px;
+    border-radius:14px 14px 0 0;
+}
+.dash-stat-card.s-purple::before{background:linear-gradient(90deg,#8b5cf6,#a78bfa)}
+.dash-stat-card.s-green::before{background:linear-gradient(90deg,#10b981,#34d399)}
+.dash-stat-card.s-blue::before{background:linear-gradient(90deg,#3b82f6,#60a5fa)}
+.dash-stat-card.s-orange::before{background:linear-gradient(90deg,#f59e0b,#fbbf24)}
+.dash-stat-card.s-red::before{background:linear-gradient(90deg,#ef4444,#f87171)}
+.dash-stat-card.s-teal::before{background:linear-gradient(90deg,#14b8a6,#2dd4bf)}
+.dash-stat-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem}
+.dash-stat-icon{
+    width:40px;height:40px;border-radius:10px;
+    display:flex;align-items:center;justify-content:center;font-size:1.1rem;
+}
+.s-purple .dash-stat-icon{background:#8b5cf622;color:#a78bfa}
+.s-green .dash-stat-icon{background:#10b98122;color:#34d399}
+.s-blue .dash-stat-icon{background:#3b82f622;color:#60a5fa}
+.s-orange .dash-stat-icon{background:#f59e0b22;color:#fbbf24}
+.s-red .dash-stat-icon{background:#ef444422;color:#f87171}
+.s-teal .dash-stat-icon{background:#14b8a622;color:#2dd4bf}
+.dash-stat-badge{font-size:.62rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-faint)}
+.dash-stat-value{font-size:1.7rem;font-weight:800;color:var(--text-primary);font-family:'JetBrains Mono',monospace;line-height:1.1;animation:countUp .6s ease both}
+.dash-stat-sub{font-size:.75rem;color:var(--text-muted);margin-top:.25rem}
+.dash-stat-change{font-size:.72rem;font-weight:700;display:inline-flex;align-items:center;gap:.2rem;padding:.15rem .5rem;border-radius:20px;margin-top:.4rem}
+.dash-stat-change.up{color:#10b981;background:#10b98115}
+.dash-stat-change.down{color:#ef4444;background:#ef444415}
+.dash-stat-change.neutral{color:var(--text-muted);background:var(--bg-hover)}
+
+/* ── LIVE BOT ORBITAL ANIMATION ──────────────────── */
+.bot-orb-wrap{position:relative;width:60px;height:60px;margin:0 auto 1rem}
+.bot-orb-core{
+    width:36px;height:36px;border-radius:50%;
+    background:linear-gradient(135deg,#8b5cf6,#6d28d9);
+    position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+    display:flex;align-items:center;justify-content:center;color:#fff;font-size:1rem;
+    box-shadow:0 0 20px #8b5cf644;z-index:2;
+}
+.bot-orb-ring{
+    width:60px;height:60px;border-radius:50%;
+    border:2px dashed #8b5cf644;position:absolute;top:0;left:0;
+    animation:spin-slow 8s linear infinite;
+}
+.bot-orb-dot{
+    width:8px;height:8px;border-radius:50%;background:#a78bfa;
+    position:absolute;top:0;left:50%;transform:translateX(-50%);
+    box-shadow:0 0 8px #a78bfa;
+}
+.bot-orb-satellite{
+    position:absolute;top:50%;left:50%;width:6px;height:6px;
+    margin:-3px 0 0 -3px;border-radius:50%;background:#34d399;
+    animation:orbit 3s linear infinite;box-shadow:0 0 6px #34d399;
+}
+.bot-orb-satellite:nth-child(4){animation-duration:4.5s;background:#60a5fa;box-shadow:0 0 6px #60a5fa}
+.bot-orb-satellite:nth-child(5){animation-duration:6s;animation-direction:reverse;background:#fbbf24;box-shadow:0 0 6px #fbbf24}
+
+/* No-bot idle state */
+.bot-idle-wrap{text-align:center;padding:2rem 1rem}
+.bot-idle-icon{font-size:2.5rem;opacity:.4;animation:float 3s ease-in-out infinite;margin-bottom:.5rem}
+.bot-idle-text{color:var(--text-muted);font-size:.85rem}
+.bot-idle-link{color:#8b5cf6;font-weight:600;text-decoration:none}
+.bot-idle-link:hover{text-decoration:underline}
+
+/* ── LIVE BOT CARDS ──────────────────────────────── */
+.dash-bot-card{
+    background:var(--bg-secondary);border:1px solid var(--border);border-radius:12px;
+    padding:1rem 1.2rem;margin-bottom:.8rem;transition:border-color .2s,transform .2s;
+    animation:fadeInScale .4s ease both;
+}
+.dash-bot-card:hover{border-color:var(--border-light);transform:translateY(-2px)}
+.dash-bot-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem}
+.dash-bot-name{font-size:.9rem;font-weight:700;color:var(--text-primary);display:flex;align-items:center;gap:.5rem}
+.dash-bot-pulse{width:8px;height:8px;border-radius:50%;background:#10b981;position:relative}
+.dash-bot-pulse::after{content:'';position:absolute;inset:-4px;border-radius:50%;background:#10b981;animation:pulse-ring 1.5s ease-out infinite}
+.dash-bot-pnl{font-size:.95rem;font-weight:800;font-family:'JetBrains Mono',monospace}
+.dash-bot-pnl.positive{color:#10b981}
+.dash-bot-pnl.negative{color:#ef4444}
+.dash-bot-pnl.zero{color:var(--text-muted)}
+.dash-bot-meta{display:flex;flex-wrap:wrap;gap:.6rem;font-size:.72rem;color:var(--text-muted)}
+.dash-bot-meta span{display:flex;align-items:center;gap:.25rem}
+.dash-bot-actions{display:flex;gap:.4rem;margin-top:.6rem}
+.dash-bot-btn{
+    padding:.3rem .7rem;font-size:.7rem;font-weight:600;border-radius:6px;
+    border:1px solid var(--border);background:var(--bg-hover);color:var(--text-muted);
+    cursor:pointer;transition:all .2s;
+}
+.dash-bot-btn:hover{color:var(--text-primary);border-color:var(--border-light)}
+.dash-bot-btn.danger{color:#ef4444;border-color:#ef444433}
+.dash-bot-btn.danger:hover{background:#ef444418;border-color:#ef4444}
+
+/* ── PANELS ──────────────────────────────────────── */
+.dash-panel{
+    background:var(--bg-card);border:1px solid var(--border);border-radius:14px;
+    overflow:hidden;
+}
+.dash-panel-head{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:1rem 1.4rem;border-bottom:1px solid var(--border);
+}
+.dash-panel-title{font-size:.95rem;font-weight:700;color:var(--text-primary);display:flex;align-items:center;gap:.5rem}
+.dash-panel-title svg{width:18px;height:18px}
+.dash-panel-body{padding:1.2rem 1.4rem}
+.dash-panel-badge{
+    font-size:.6rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--text-muted);background:var(--bg-hover);padding:.2rem .6rem;border-radius:20px;
+}
+
+/* ── GRID ────────────────────────────────────────── */
+.dash-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+.dash-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem}
+@media(max-width:1024px){.dash-grid-3{grid-template-columns:1fr}}
+@media(max-width:768px){.dash-grid-2{grid-template-columns:1fr}}
+
+/* ── PERIOD TABS ─────────────────────────────────── */
+.dash-period-tabs{display:flex;gap:.3rem}
+.dash-period-btn{
+    padding:.3rem .7rem;font-size:.68rem;font-weight:700;border-radius:6px;
+    border:1px solid var(--border);background:transparent;color:var(--text-muted);
+    cursor:pointer;transition:all .2s;text-transform:uppercase;letter-spacing:.06em;
+}
+.dash-period-btn.active{background:#8b5cf6;color:#fff;border-color:#8b5cf6}
+.dash-period-btn:hover:not(.active){color:var(--text-primary);border-color:var(--border-light)}
+
+/* ── TRADE TABLE ─────────────────────────────────── */
+.dash-trade-row{
+    display:grid;grid-template-columns:1fr 1fr 80px .8fr .8fr .8fr;
+    gap:.5rem;padding:.6rem 1rem;align-items:center;
+    border-bottom:1px solid var(--border-light);font-size:.78rem;
+    transition:background .15s;
+}
+.dash-trade-row:hover{background:var(--bg-hover)}
+.dash-trade-header{
+    font-size:.65rem;font-weight:700;color:var(--text-faint);text-transform:uppercase;
+    letter-spacing:.08em;border-bottom:1px solid var(--border);padding:.5rem 1rem;
+}
+.dash-trade-side{font-weight:700;display:inline-flex;align-items:center;gap:.3rem;padding:.15rem .5rem;border-radius:4px;font-size:.7rem}
+.dash-trade-side.buy{color:#10b981;background:#10b98115}
+.dash-trade-side.sell{color:#ef4444;background:#ef444415}
+.dash-trade-pnl{font-weight:700;font-family:'JetBrains Mono',monospace;font-size:.78rem}
+.dash-trade-pnl.win{color:#10b981}
+.dash-trade-pnl.loss{color:#ef4444}
+
+/* ── BEST BOT TROPHY CARD ────────────────────────── */
+.dash-trophy{
+    background:linear-gradient(135deg,var(--bg-card) 0%,var(--bg-secondary) 100%);
+    border:1px solid var(--border);border-radius:14px;padding:1.5rem;
+    text-align:center;position:relative;overflow:hidden;
+}
+.dash-trophy::before{
+    content:'';position:absolute;top:0;left:0;right:0;height:3px;
+    background:linear-gradient(90deg,#f59e0b,#fbbf24,#f59e0b);
+    background-size:200% 100%;animation:shimmer 3s linear infinite;
+}
+.dash-trophy-icon{font-size:2.2rem;margin-bottom:.5rem;animation:float 2.5s ease-in-out infinite}
+.dash-trophy-label{font-size:.62rem;font-weight:700;color:#fbbf24;text-transform:uppercase;letter-spacing:.14em;margin-bottom:.3rem}
+.dash-trophy-name{font-size:1.1rem;font-weight:800;color:var(--text-primary);margin-bottom:.2rem}
+.dash-trophy-stat{font-size:.78rem;color:var(--text-muted)}
+
+/* ── PERFORMANCE BAR ─────────────────────────────── */
+.dash-perf-row{display:flex;align-items:center;gap:.8rem;margin-bottom:.6rem}
+.dash-perf-label{font-size:.72rem;color:var(--text-muted);min-width:90px;text-align:right;font-weight:600}
+.dash-perf-bar-bg{flex:1;height:22px;background:var(--bg-input);border-radius:6px;overflow:hidden;position:relative}
+.dash-perf-bar{height:100%;border-radius:6px;animation:bar-grow .8s ease both;position:relative}
+.dash-perf-val{
+    position:absolute;right:8px;top:50%;transform:translateY(-50%);
+    font-size:.65rem;font-weight:700;color:#fff;white-space:nowrap;
+}
+
+/* ── HOLDINGS TABLE ──────────────────────────────── */
+.dash-holding-row{
+    display:grid;grid-template-columns:1.2fr 1fr 1fr 1fr;gap:.5rem;
+    padding:.55rem 1rem;align-items:center;border-bottom:1px solid var(--border-light);
+    font-size:.78rem;transition:background .15s;
+}
+.dash-holding-row:hover{background:var(--bg-hover)}
+.dash-holding-header{font-size:.65rem;font-weight:700;color:var(--text-faint);text-transform:uppercase;letter-spacing:.08em;border-bottom:1px solid var(--border)}
+.dash-holding-coin{display:flex;align-items:center;gap:.5rem;font-weight:700;color:var(--text-primary)}
+.dash-coin-dot{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:800;color:#fff}
+
+/* ── LOADING SKELETON ────────────────────────────── */
+.dash-skeleton{
+    background:linear-gradient(90deg,var(--bg-hover) 25%,var(--bg-input) 50%,var(--bg-hover) 75%);
+    background-size:200% 100%;animation:shimmer 1.5s ease-in-out infinite;
+    border-radius:6px;height:20px;
+}
+</style>
+
+<!-- ═══════════════════════════════════════════════════
+     ROW 1 — HERO STAT CARDS
+     ═══════════════════════════════════════════════════ -->
+<div class="dash-stats">
+    <!-- Total Balance -->
+    <div class="dash-stat-card s-purple dash-animate">
+        <div class="dash-stat-top">
+            <div class="dash-stat-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12V7H5a2 2 0 010-4h14v4"/><path d="M3 5v14a2 2 0 002 2h16v-5"/><path d="M18 12a2 2 0 100 4 2 2 0 000-4z"/></svg>
+            </div>
+            <span class="dash-stat-badge">PORTFOLIO</span>
         </div>
-        <div class="panel-body">
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Coin</th>
-                        <th class="text-right">Amount</th>
-                        <th class="text-right">Free</th>
-                        <th class="text-right">In Use</th>
-                    </tr>
-                </thead>
-                <tbody id="holdingsTable">
-                    <tr><td colspan="4" class="text-center text-muted">Loading...</td></tr>
-                </tbody>
-            </table>
-        </div>
+        <div class="dash-stat-value" id="totalBalance">—</div>
+        <div class="dash-stat-sub" id="totalBalanceSub">Connecting...</div>
     </div>
 
     <!-- Active Bots -->
-    <div class="panel">
-        <div class="panel-header">
-            <h2>Active Bots</h2>
-            <a href="/trading" class="btn btn-red btn-sm">+ New Bot</a>
+    <div class="dash-stat-card s-green dash-animate">
+        <div class="dash-stat-top">
+            <div class="dash-stat-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/><circle cx="12" cy="16" r="1"/></svg>
+            </div>
+            <span class="dash-stat-badge">BOTS</span>
         </div>
-        <div class="panel-body">
-            <div id="activeBotsList">
-                <p class="text-muted text-center">No bots running. <a href="/trading">Start one →</a></p>
+        <div class="dash-stat-value" id="activeBots">0</div>
+        <div class="dash-stat-sub">Active strategies</div>
+    </div>
+
+    <!-- Session P&L -->
+    <div class="dash-stat-card s-blue dash-animate">
+        <div class="dash-stat-top">
+            <div class="dash-stat-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            </div>
+            <span class="dash-stat-badge">SESSION P&L</span>
+        </div>
+        <div class="dash-stat-value" id="sessionPnl">$0.00</div>
+        <div id="sessionPnlChange" class="dash-stat-change neutral">● Waiting for data</div>
+    </div>
+
+    <!-- Total Trades Today -->
+    <div class="dash-stat-card s-orange dash-animate">
+        <div class="dash-stat-top">
+            <div class="dash-stat-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+            </div>
+            <span class="dash-stat-badge">TRADES TODAY</span>
+        </div>
+        <div class="dash-stat-value" id="tradesToday">0</div>
+        <div class="dash-stat-sub" id="tradesTodaySub">No trades yet</div>
+    </div>
+
+    <!-- Win Rate -->
+    <div class="dash-stat-card s-teal dash-animate">
+        <div class="dash-stat-top">
+            <div class="dash-stat-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            </div>
+            <span class="dash-stat-badge">WIN RATE</span>
+        </div>
+        <div class="dash-stat-value" id="winRate">—</div>
+        <div class="dash-stat-sub" id="winRateSub">Across all bots</div>
+    </div>
+
+    <!-- BTC Price -->
+    <div class="dash-stat-card s-red dash-animate">
+        <div class="dash-stat-top">
+            <div class="dash-stat-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+            </div>
+            <span class="dash-stat-badge">BTC / USDT</span>
+        </div>
+        <div class="dash-stat-value" id="btcPrice">—</div>
+        <div id="btcPriceSub" class="dash-stat-sub">Loading...</div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     ROW 2 — LIVE BOTS + BEST BOT + PERFORMANCE
+     ═══════════════════════════════════════════════════ -->
+<div class="dash-grid-3 dash-animate" style="margin-bottom:1rem">
+
+    <!-- ── Live Bots Panel ────────────────────────── -->
+    <div class="dash-panel">
+        <div class="dash-panel-head">
+            <div class="dash-panel-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                Live Bots
+            </div>
+            <a href="/trading" class="dash-bot-btn" style="text-decoration:none">+ New</a>
+        </div>
+        <div class="dash-panel-body" id="liveBotsList" style="max-height:360px;overflow-y:auto">
+            <div class="bot-idle-wrap">
+                <div class="bot-idle-icon">🤖</div>
+                <div class="bot-idle-text">No bots running. <a href="/trading" class="bot-idle-link">Start one →</a></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Best Bot Trophy Panel ─────────────────── -->
+    <div class="dash-panel">
+        <div class="dash-panel-head">
+            <div class="dash-panel-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9H4.5a2.5 2.5 0 010-5H6"/><path d="M18 9h1.5a2.5 2.5 0 000-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20 17 22"/><path d="M18 2H6v7a6 6 0 0012 0V2z"/></svg>
+                Top Performer
+            </div>
+            <span class="dash-panel-badge">ALL TIME</span>
+        </div>
+        <div class="dash-panel-body" id="bestBotPanel">
+            <div class="dash-trophy" id="bestBotCard">
+                <div class="dash-trophy-icon">🏆</div>
+                <div class="dash-trophy-label">BEST BOT</div>
+                <div class="dash-trophy-name" id="bestBotName">—</div>
+                <div class="dash-trophy-stat" id="bestBotStat">Start bots to see performance</div>
+            </div>
+            <!-- Bot Performance Ranking will be injected here -->
+            <div id="botRanking" style="margin-top:1rem"></div>
+        </div>
+    </div>
+
+    <!-- ── Portfolio Holdings ────────────────────── -->
+    <div class="dash-panel">
+        <div class="dash-panel-head">
+            <div class="dash-panel-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v12M6 12h12"/></svg>
+                Portfolio Holdings
+            </div>
+            <button class="dash-bot-btn" onclick="loadBalance()">↻ Refresh</button>
+        </div>
+        <div style="max-height:360px;overflow-y:auto">
+            <div class="dash-holding-row dash-holding-header">
+                <span>COIN</span><span style="text-align:right">TOTAL</span><span style="text-align:right">FREE</span><span style="text-align:right">IN USE</span>
+            </div>
+            <div id="holdingsTable">
+                <div style="padding:2rem;text-align:center;color:var(--text-muted);font-size:.82rem;">Loading...</div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Recent Trades -->
-<div class="panel" style="margin-top: 1.5rem;">
-    <div class="panel-header">
-        <h2>Recent Trades</h2>
+<!-- ═══════════════════════════════════════════════════
+     ROW 3 — RECENT TRADES (with period tabs)
+     ═══════════════════════════════════════════════════ -->
+<div class="dash-panel dash-animate" style="margin-bottom:1rem">
+    <div class="dash-panel-head">
+        <div class="dash-panel-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 12 5 12 9 21 15 3 19 12 23 12"/></svg>
+            Trade History
+        </div>
+        <div class="dash-period-tabs">
+            <button class="dash-period-btn active" data-period="today" onclick="filterTrades('today',this)">Today</button>
+            <button class="dash-period-btn" data-period="week" onclick="filterTrades('week',this)">7D</button>
+            <button class="dash-period-btn" data-period="month" onclick="filterTrades('month',this)">30D</button>
+            <button class="dash-period-btn" data-period="all" onclick="filterTrades('all',this)">All</button>
+        </div>
     </div>
-    <div class="panel-body">
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>Time</th>
-                    <th>Strategy</th>
-                    <th>Symbol</th>
-                    <th>Side</th>
-                    <th class="text-right">Price</th>
-                    <th class="text-right">Size</th>
-                    <th>Notes</th>
-                </tr>
-            </thead>
-            <tbody id="tradesTable">
-                <tr><td colspan="7" class="text-center text-muted">No trades yet</td></tr>
-            </tbody>
-        </table>
+    <div class="dash-trade-row dash-trade-header">
+        <span>BOT / TIME</span><span>STRATEGY</span><span>SIDE</span><span style="text-align:right">SYMBOL</span><span style="text-align:right">PRICE</span><span style="text-align:right">P&L</span>
+    </div>
+    <div id="tradesList" style="max-height:400px;overflow-y:auto">
+        <div style="padding:2rem;text-align:center;color:var(--text-muted);font-size:.82rem">
+            <span style="font-size:1.5rem;display:block;margin-bottom:.5rem;opacity:.4">📊</span>
+            No trades yet — start a bot to begin trading
+        </div>
+    </div>
+    <div style="padding:.6rem 1.4rem;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+        <span id="tradeCount" style="font-size:.7rem;color:var(--text-faint)">0 trades</span>
+        <span id="tradePnlSummary" style="font-size:.75rem;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--text-muted)">$0.00</span>
     </div>
 </div>
+
+<!-- ═══════════════════════════════════════════════════
+     ROW 4 — BOT PERFORMANCE BARS + QUICK STATS
+     ═══════════════════════════════════════════════════ -->
+<div class="dash-grid-2 dash-animate">
+    <!-- Bot Performance Bars -->
+    <div class="dash-panel">
+        <div class="dash-panel-head">
+            <div class="dash-panel-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="12" width="4" height="9" rx="1"/><rect x="10" y="7" width="4" height="14" rx="1"/><rect x="17" y="3" width="4" height="18" rx="1"/></svg>
+                Bot Performance
+            </div>
+            <span class="dash-panel-badge">BY P&L</span>
+        </div>
+        <div class="dash-panel-body" id="perfBarsPanel">
+            <div style="text-align:center;color:var(--text-muted);font-size:.82rem;padding:1.5rem">
+                <span style="font-size:1.5rem;display:block;margin-bottom:.5rem;opacity:.4">📈</span>
+                Performance data appears when bots trade
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Stats Grid -->
+    <div class="dash-panel">
+        <div class="dash-panel-head">
+            <div class="dash-panel-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                Session Summary
+            </div>
+        </div>
+        <div class="dash-panel-body" id="quickStatsPanel">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.8rem" id="quickStatsGrid">
+                <div class="qs-item"><div class="qs-label">Total P&L</div><div class="qs-val" id="qsTotalPnl">$0.00</div></div>
+                <div class="qs-item"><div class="qs-label">Unrealized</div><div class="qs-val" id="qsUnrealized">$0.00</div></div>
+                <div class="qs-item"><div class="qs-label">Trades</div><div class="qs-val" id="qsTotalTrades">0</div></div>
+                <div class="qs-item"><div class="qs-label">Wins / Losses</div><div class="qs-val" id="qsWinLoss">0 / 0</div></div>
+                <div class="qs-item"><div class="qs-label">Best Trade</div><div class="qs-val" id="qsBestTrade">—</div></div>
+                <div class="qs-item"><div class="qs-label">Worst Trade</div><div class="qs-val" id="qsWorstTrade">—</div></div>
+                <div class="qs-item"><div class="qs-label">Avg Trade</div><div class="qs-val" id="qsAvgTrade">—</div></div>
+                <div class="qs-item"><div class="qs-label">Active Since</div><div class="qs-val" id="qsActiveSince">—</div></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.qs-item{background:var(--bg-secondary);border:1px solid var(--border);border-radius:10px;padding:.8rem 1rem}
+.qs-label{font-size:.65rem;font-weight:700;color:var(--text-faint);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.25rem}
+.qs-val{font-size:1rem;font-weight:700;color:var(--text-primary);font-family:'JetBrains Mono',monospace}
+</style>
 
 {% endblock %}
 
 {% block scripts %}
 <script>
+// ─── State ───────────────────────────────────────────
+let allTrades = [];
+let allBots = [];
+let currentPeriod = 'today';
+
 document.addEventListener('DOMContentLoaded', () => {
     loadBalance();
     loadBotStatus();
-    loadTrades();
+    loadLiveTrades();
     loadBtcPrice();
-    // Auto-refresh every 30s
+    loadPnlRealtime();
+
     setInterval(loadBalance, 30000);
-    setInterval(loadBotStatus, 10000);
+    setInterval(loadBotStatus, 8000);
+    setInterval(loadLiveTrades, 6000);
     setInterval(loadBtcPrice, 15000);
+    setInterval(loadPnlRealtime, 10000);
 });
 
-async function loadBalance() {
+// ─── Helpers ─────────────────────────────────────────
+function formatNum(n, d=2){ return n != null ? Number(n).toFixed(d) : '—'; }
+function formatPnl(n){
+    if(n==null) return '—';
+    const v = Number(n);
+    const s = v >= 0 ? '+$' + v.toFixed(4) : '-$' + Math.abs(v).toFixed(4);
+    return s;
+}
+function pnlClass(n){return n > 0 ? 'positive' : n < 0 ? 'negative' : 'zero';}
+function timeSince(iso){
+    if(!iso) return '—';
+    const ms = Date.now() - new Date(iso+'Z').getTime();
+    const m = Math.floor(ms/60000);
+    if(m < 60) return m + 'm ago';
+    const h = Math.floor(m/60);
+    if(h < 24) return h + 'h ' + (m%60) + 'm';
+    return Math.floor(h/24) + 'd ' + (h%24) + 'h';
+}
+function coinColor(coin){
+    const colors = {BTC:'#f7931a',ETH:'#627eea',SOL:'#9945ff',BNB:'#f3ba2f',XRP:'#00aae4',DOGE:'#c2a633',ADA:'#0033ad',USDT:'#26a17b',USDC:'#2775ca'};
+    return colors[coin] || '#8b5cf6';
+}
+
+// ─── Load Balance ────────────────────────────────────
+async function loadBalance(){
     try {
         const res = await fetch('/api/balance');
         const data = await res.json();
-        if (data.error) {
-            const shortErr = data.error.length > 55 ? data.error.slice(0, 55) + '…' : data.error;
+        if(data.error){
             document.getElementById('totalBalance').textContent = '—';
-            document.getElementById('totalBalanceUsd').textContent = shortErr;
-            document.getElementById('holdingsTable').innerHTML =
-                `<tr><td colspan="4" class="text-center text-muted" style="word-break:break-word;white-space:normal;">${shortErr}</td></tr>`;
+            document.getElementById('totalBalanceSub').textContent = data.error.length > 40 ? data.error.slice(0,40)+'…' : data.error;
+            document.getElementById('holdingsTable').innerHTML = '<div style="padding:1.5rem;text-align:center;color:var(--text-muted);font-size:.8rem">'+data.error+'</div>';
             return;
         }
         const balances = data.balances;
         const coins = Object.keys(balances);
-
-        if (coins.length === 0) {
-            document.getElementById('holdingsTable').innerHTML =
-                '<tr><td colspan="4" class="text-center text-muted">No holdings</td></tr>';
+        if(!coins.length){
+            document.getElementById('holdingsTable').innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text-muted);font-size:.82rem">No holdings found</div>';
+            document.getElementById('totalBalance').textContent = '0 coins';
+            document.getElementById('totalBalanceSub').textContent = 'Connected ✓';
             return;
         }
-
         let html = '';
         coins.forEach(coin => {
             const b = balances[coin];
-            html += `<tr>
-                <td><strong>${coin}</strong></td>
-                <td class="text-right mono">${formatNum(b.total, 8)}</td>
-                <td class="text-right mono">${formatNum(b.free, 8)}</td>
-                <td class="text-right mono">${formatNum(b.used, 8)}</td>
-            </tr>`;
+            const bg = coinColor(coin);
+            html += `<div class="dash-holding-row">
+                <div class="dash-holding-coin">
+                    <div class="dash-coin-dot" style="background:${bg}">${coin.slice(0,2)}</div>
+                    ${coin}
+                </div>
+                <div style="text-align:right;font-family:'JetBrains Mono',monospace;color:var(--text-primary)">${formatNum(b.total, 6)}</div>
+                <div style="text-align:right;font-family:'JetBrains Mono',monospace;color:var(--text-secondary)">${formatNum(b.free, 6)}</div>
+                <div style="text-align:right;font-family:'JetBrains Mono',monospace;color:var(--text-muted)">${formatNum(b.used, 6)}</div>
+            </div>`;
         });
         document.getElementById('holdingsTable').innerHTML = html;
         document.getElementById('totalBalance').textContent = coins.length + ' coins';
-        document.getElementById('totalBalanceUsd').textContent = 'Connected to Binance';
-
+        document.getElementById('totalBalanceSub').textContent = 'Connected to Binance ✓';
         updateConnectionStatus(true);
-    } catch (e) {
-        document.getElementById('totalBalanceUsd').textContent = 'Connection failed';
+    } catch(e){
+        document.getElementById('totalBalanceSub').textContent = 'Connection failed';
         updateConnectionStatus(false);
     }
 }
 
-async function loadBotStatus() {
+// ─── Load Bot Status ─────────────────────────────────
+async function loadBotStatus(){
     try {
         const res = await fetch('/api/bot/status');
         const data = await res.json();
-        const bots = data.bots;
+        const bots = data.bots || [];
+        allBots = bots;
 
         document.getElementById('activeBots').textContent = bots.length;
 
-        let totalPositions = 0;
-        if (bots.length === 0) {
-            document.getElementById('activeBotsList').innerHTML =
-                '<p class="text-muted text-center">No bots running. <a href="/trading">Start one →</a></p>';
-        } else {
-            let html = '';
-            bots.forEach(bot => {
-                totalPositions += bot.positions;
-                html += `<div class="bot-card">
-                    <div class="bot-info">
-                        <span class="bot-name">${bot.name}</span>
-                        <span class="badge badge-green">Running</span>
+        // Compute stats
+        let totalPositions = 0, totalTrades = 0, totalWins = 0, sessionPnl = 0, unrealized = 0;
+        let bestBot = null, bestPnl = -Infinity;
+        let earliestStart = null;
+
+        bots.forEach(b => {
+            totalPositions += b.positions || 0;
+            totalTrades += b.total_trades || 0;
+            totalWins += b.winning_trades || 0;
+            sessionPnl += b.session_pnl || 0;
+            unrealized += b.unrealized_pnl || 0;
+            if(b.session_pnl > bestPnl){ bestPnl = b.session_pnl; bestBot = b; }
+            if(!earliestStart || b.started_at < earliestStart) earliestStart = b.started_at;
+        });
+
+        document.getElementById('openPositions'). textContent = totalPositions;
+
+        // Session P&L card
+        const pnlEl = document.getElementById('sessionPnl');
+        pnlEl.textContent = (sessionPnl >= 0 ? '+$' : '-$') + Math.abs(sessionPnl).toFixed(4);
+        pnlEl.style.color = sessionPnl > 0 ? '#10b981' : sessionPnl < 0 ? '#ef4444' : '';
+        const changeEl = document.getElementById('sessionPnlChange');
+        if(bots.length > 0){
+            changeEl.className = 'dash-stat-change ' + (sessionPnl > 0 ? 'up' : sessionPnl < 0 ? 'down' : 'neutral');
+            changeEl.textContent = (sessionPnl >= 0 ? '▲' : '▼') + ' ' + Math.abs(sessionPnl).toFixed(4) + ' USDT';
+        }
+
+        // Win rate
+        if(totalTrades > 0){
+            const wr = ((totalWins / totalTrades) * 100).toFixed(1);
+            document.getElementById('winRate').textContent = wr + '%';
+            document.getElementById('winRateSub').textContent = totalWins + 'W / ' + (totalTrades - totalWins) + 'L of ' + totalTrades;
+        }
+
+        // Quick Stats
+        document.getElementById('qsTotalPnl').textContent = (sessionPnl >= 0 ? '+$' : '-$') + Math.abs(sessionPnl).toFixed(4);
+        document.getElementById('qsTotalPnl').style.color = sessionPnl > 0 ? '#10b981' : sessionPnl < 0 ? '#ef4444' : '';
+        document.getElementById('qsUnrealized').textContent = (unrealized >= 0 ? '+$' : '-$') + Math.abs(unrealized).toFixed(4);
+        document.getElementById('qsUnrealized').style.color = unrealized > 0 ? '#10b981' : unrealized < 0 ? '#ef4444' : '';
+        document.getElementById('qsTotalTrades').textContent = totalTrades;
+        document.getElementById('qsWinLoss').textContent = totalWins + ' / ' + (totalTrades - totalWins);
+        document.getElementById('qsActiveSince').textContent = earliestStart ? timeSince(earliestStart) : '—';
+
+        // Best bot trophy
+        if(bestBot){
+            document.getElementById('bestBotName').textContent = bestBot.name;
+            document.getElementById('bestBotStat').innerHTML =
+                `P&L: <strong style="color:${bestPnl >= 0 ? '#10b981' : '#ef4444'}">${formatPnl(bestPnl)}</strong> · ${bestBot.total_trades} trades · ${bestBot.strategy.toUpperCase()}`;
+        }
+
+        // Bot performance bars
+        if(bots.length > 0){
+            const sorted = [...bots].sort((a,b) => (b.session_pnl||0) - (a.session_pnl||0));
+            const maxAbs = Math.max(...sorted.map(b => Math.abs(b.session_pnl||0)), 0.01);
+            let perfHtml = '';
+            sorted.forEach(b => {
+                const pnl = b.session_pnl || 0;
+                const pct = Math.min(Math.abs(pnl) / maxAbs * 100, 100);
+                const color = pnl >= 0 ? '#10b981' : '#ef4444';
+                perfHtml += `<div class="dash-perf-row">
+                    <div class="dash-perf-label">${b.name.length > 12 ? b.name.slice(0,12)+'…' : b.name}</div>
+                    <div class="dash-perf-bar-bg">
+                        <div class="dash-perf-bar" style="width:${pct}%;--bar-w:${pct}%;background:${color}">
+                            <span class="dash-perf-val">${formatPnl(pnl)}</span>
+                        </div>
                     </div>
-                    <div class="bot-details">
-                        <span>Strategy: ${bot.strategy.toUpperCase()}</span>
-                        <span>Symbol: ${bot.symbol}</span>
-                        <span>Size: $${bot.size}</span>
-                        <span>Cycles: ${bot.cycles}</span>
-                    </div>
-                    <button class="btn btn-red btn-sm" onclick="stopBot('${bot.name}')">🔴 Stop</button>
                 </div>`;
             });
-            document.getElementById('activeBotsList').innerHTML = html;
-        }
-        document.getElementById('openPositions').textContent = totalPositions;
-    } catch (e) {}
-}
+            document.getElementById('perfBarsPanel').innerHTML = perfHtml;
 
-async function loadTrades() {
-    try {
-        const res = await fetch('/api/trades');
-        const data = await res.json();
-        if (data.trades && data.trades.length > 0) {
-            let html = '';
-            data.trades.forEach(t => {
-                const sideClass = t.side === 'BUY' ? 'text-green' : 'text-red';
-                html += `<tr>
-                    <td class="mono">${t.timestamp || '—'}</td>
-                    <td>${t.strategy || '—'}</td>
-                    <td>${t.token_id || '—'}</td>
-                    <td class="${sideClass}"><strong>${t.side}</strong></td>
-                    <td class="text-right mono">$${formatNum(t.price, 4)}</td>
-                    <td class="text-right mono">${formatNum(t.size, 6)}</td>
-                    <td class="text-muted">${t.notes || ''}</td>
-                </tr>`;
+            // Bot ranking under trophy
+            let rankHtml = '';
+            sorted.forEach((b, i) => {
+                const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i+1)+'.';
+                const pnl = b.session_pnl || 0;
+                rankHtml += `<div style="display:flex;justify-content:space-between;align-items:center;padding:.4rem 0;border-bottom:1px solid var(--border-light);font-size:.78rem">
+                    <span style="color:var(--text-primary);font-weight:600">${medal} ${b.name}</span>
+                    <span style="font-family:'JetBrains Mono',monospace;font-weight:700;color:${pnl >= 0 ? '#10b981' : '#ef4444'}">${formatPnl(pnl)}</span>
+                </div>`;
             });
-            document.getElementById('tradesTable').innerHTML = html;
+            document.getElementById('botRanking').innerHTML = rankHtml;
         }
-    } catch (e) {}
+
+        // Live bots list
+        if(!bots.length){
+            document.getElementById('liveBotsList').innerHTML =
+                `<div class="bot-idle-wrap"><div class="bot-idle-icon">🤖</div><div class="bot-idle-text">No bots running. <a href="/trading" class="bot-idle-link">Start one →</a></div></div>`;
+            return;
+        }
+
+        let botsHtml = '';
+        bots.forEach(b => {
+            const pnl = (b.session_pnl || 0) + (b.unrealized_pnl || 0);
+            botsHtml += `<div class="dash-bot-card">
+                <div class="dash-bot-top">
+                    <div class="dash-bot-name">
+                        <div class="dash-bot-pulse"></div>
+                        ${b.name}
+                    </div>
+                    <div class="dash-bot-pnl ${pnlClass(pnl)}">${formatPnl(pnl)}</div>
+                </div>
+                <div class="dash-bot-meta">
+                    <span>📊 ${b.strategy.toUpperCase()}</span>
+                    <span>💹 ${b.symbol}</span>
+                    <span>⏱ ${b.timeframe}</span>
+                    <span>💰 $${b.size}</span>
+                    <span>🔄 ${b.cycles} cycles</span>
+                    <span>📈 ${b.total_trades} trades</span>
+                </div>
+                <div class="dash-bot-actions">
+                    <a href="/trading" class="dash-bot-btn" style="text-decoration:none">View</a>
+                    <button class="dash-bot-btn danger" onclick="stopBot('${b.name}')">⬤ Stop</button>
+                </div>
+            </div>`;
+        });
+        // Prepend animated orbital
+        const orbHtml = `<div class="bot-orb-wrap">
+            <div class="bot-orb-ring"><div class="bot-orb-dot"></div></div>
+            <div class="bot-orb-core">🤖</div>
+            <div class="bot-orb-satellite"></div>
+            <div class="bot-orb-satellite"></div>
+            <div class="bot-orb-satellite"></div>
+        </div>
+        <div style="text-align:center;font-size:.72rem;color:var(--text-muted);margin-bottom:1rem">${bots.length} bot${bots.length>1?'s':''} actively trading</div>`;
+
+        document.getElementById('liveBotsList').innerHTML = orbHtml + botsHtml;
+
+    } catch(e){}
 }
 
-async function loadBtcPrice() {
+// ─── Load Live Trades ────────────────────────────────
+async function loadLiveTrades(){
+    try {
+        const res = await fetch('/api/bot/trades');
+        const data = await res.json();
+        allTrades = data.trades || [];
+        renderTrades();
+    } catch(e){}
+}
+
+function filterTrades(period, btn){
+    currentPeriod = period;
+    document.querySelectorAll('.dash-period-btn').forEach(b => b.classList.remove('active'));
+    if(btn) btn.classList.add('active');
+    renderTrades();
+}
+
+function renderTrades(){
+    const now = new Date();
+    let filtered = allTrades;
+    if(currentPeriod === 'today'){
+        const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+        filtered = allTrades.filter(t => (t.time||'') >= start);
+    } else if(currentPeriod === 'week'){
+        const d = new Date(now); d.setDate(d.getDate()-7);
+        filtered = allTrades.filter(t => (t.time||'') >= d.toISOString());
+    } else if(currentPeriod === 'month'){
+        const d = new Date(now); d.setMonth(d.getMonth()-1);
+        filtered = allTrades.filter(t => (t.time||'') >= d.toISOString());
+    }
+
+    // Update trades today stat card
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+    const todayTrades = allTrades.filter(t => (t.time||'') >= todayStart);
+    document.getElementById('tradesToday').textContent = todayTrades.length;
+    const todayBuys = todayTrades.filter(t => t.side === 'BUY').length;
+    const todaySells = todayTrades.filter(t => t.side === 'SELL').length;
+    document.getElementById('tradesTodaySub').textContent = todayTrades.length ? todayBuys + ' buys / ' + todaySells + ' sells' : 'No trades yet';
+
+    if(!filtered.length){
+        document.getElementById('tradesList').innerHTML =
+            `<div style="padding:2rem;text-align:center;color:var(--text-muted);font-size:.82rem"><span style="font-size:1.5rem;display:block;margin-bottom:.5rem;opacity:.4">📊</span>No trades for this period</div>`;
+        document.getElementById('tradeCount').textContent = '0 trades';
+        document.getElementById('tradePnlSummary').textContent = '$0.00';
+        return;
+    }
+
+    let html = '';
+    let totalPnl = 0;
+    let bestTrade = -Infinity, worstTrade = Infinity;
+    filtered.forEach(t => {
+        const pnl = t.pnl != null ? Number(t.pnl) : null;
+        if(pnl != null){ totalPnl += pnl; if(pnl > bestTrade) bestTrade = pnl; if(pnl < worstTrade) worstTrade = pnl; }
+        const timeStr = t.time ? new Date(t.time).toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '—';
+        html += `<div class="dash-trade-row">
+            <div>
+                <div style="font-weight:600;color:var(--text-primary);font-size:.78rem">${t.bot || '—'}</div>
+                <div style="font-size:.65rem;color:var(--text-faint)">${timeStr}</div>
+            </div>
+            <div style="color:var(--text-secondary);font-size:.78rem">${(t.strategy||'—').toUpperCase()}</div>
+            <div><span class="dash-trade-side ${(t.side||'').toLowerCase()}">${t.side === 'BUY' ? '▲ BUY' : '▼ SELL'}</span></div>
+            <div style="text-align:right;color:var(--text-primary);font-family:'JetBrains Mono',monospace;font-size:.78rem">${t.symbol||'—'}</div>
+            <div style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:.78rem;color:var(--text-secondary)">$${formatNum(t.price,4)}</div>
+            <div style="text-align:right" class="dash-trade-pnl ${pnl != null ? (pnl >= 0 ? 'win' : 'loss') : ''}">${pnl != null ? formatPnl(pnl) : '—'}</div>
+        </div>`;
+    });
+    document.getElementById('tradesList').innerHTML = html;
+    document.getElementById('tradeCount').textContent = filtered.length + ' trade' + (filtered.length !== 1 ? 's' : '');
+
+    const summaryEl = document.getElementById('tradePnlSummary');
+    summaryEl.textContent = (totalPnl >= 0 ? '+$' : '-$') + Math.abs(totalPnl).toFixed(4);
+    summaryEl.style.color = totalPnl > 0 ? '#10b981' : totalPnl < 0 ? '#ef4444' : '';
+
+    // Update quick stats best/worst/avg
+    if(bestTrade !== -Infinity) document.getElementById('qsBestTrade').textContent = formatPnl(bestTrade);
+    if(worstTrade !== Infinity) document.getElementById('qsWorstTrade').textContent = formatPnl(worstTrade);
+    const tradesWithPnl = filtered.filter(t => t.pnl != null);
+    if(tradesWithPnl.length){
+        const avg = totalPnl / tradesWithPnl.length;
+        document.getElementById('qsAvgTrade').textContent = formatPnl(avg);
+    }
+}
+
+// ─── Load BTC Price ──────────────────────────────────
+let lastBtcPrice = null;
+async function loadBtcPrice(){
     try {
         const res = await fetch('/api/price/BTC/USDT');
         const data = await res.json();
-        if (data.price) {
-            document.getElementById('btcPrice').textContent = '$' + formatNum(data.price, 2);
-            document.getElementById('btcChange').textContent = `Bid: $${formatNum(data.bid, 2)} | Ask: $${formatNum(data.ask, 2)}`;
+        if(data.price){
+            const p = Number(data.price);
+            const el = document.getElementById('btcPrice');
+            el.textContent = '$' + formatNum(p, 2);
+            if(lastBtcPrice != null){
+                el.style.color = p > lastBtcPrice ? '#10b981' : p < lastBtcPrice ? '#ef4444' : '';
+                setTimeout(() => el.style.color = '', 2000);
+            }
+            lastBtcPrice = p;
+            document.getElementById('btcPriceSub').textContent =
+                'Bid: $' + formatNum(data.bid,2) + ' · Ask: $' + formatNum(data.ask,2);
         }
-    } catch (e) {}
+    } catch(e){}
 }
 
-async function stopBot(name) {
-    const ok = await botConfirm(`Stop bot "${name}"?`, {
-        title: '⛔ STOP BOT',
-        icon: '🤖',
-        variant: 'danger',
-        okLabel: '🔴 STOP IT',
-        cancelLabel: '✕ KEEP RUNNING'
-    });
-    if (!ok) return;
+// ─── Load P&L Realtime ───────────────────────────────
+async function loadPnlRealtime(){
     try {
-        await fetch('/api/bot/stop', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({name})
-        });
-        showToast('Bot stopped', 'success');
+        const res = await fetch('/api/pnl/realtime');
+        const data = await res.json();
+        // Already handled by bot status, but can cross-reference
+    } catch(e){}
+}
+
+// ─── Stop Bot ────────────────────────────────────────
+async function stopBot(name){
+    const ok = await botConfirm('Stop bot "'+name+'"?', {
+        title: '⛔ STOP BOT', icon: '🤖', variant: 'danger',
+        okLabel: '🔴 STOP IT', cancelLabel: '✕ KEEP RUNNING'
+    });
+    if(!ok) return;
+    try {
+        await fetch('/api/bot/stop',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
+        showToast('Bot stopped','success');
         loadBotStatus();
-    } catch (e) {
-        showToast('Failed to stop bot', 'error');
-    }
+    } catch(e){ showToast('Failed to stop bot','error'); }
 }
 </script>
 {% endblock %}
