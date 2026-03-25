@@ -981,7 +981,7 @@ async function clearUserPresets() {
     let raf = null;
     let canvas, ctx;
     let W, H;
-    const NODE_R = 44;
+    let NODE_R = 44;  // dynamic — scaled down on mobile in resize()
 
     function nodePos(node) {
         return { x: node.x * W, y: node.y * H };
@@ -1314,7 +1314,17 @@ async function clearUserPresets() {
         if (!canvas) return;
         const rect = canvas.parentElement.getBoundingClientRect();
         W = rect.width;
-        H = Math.max(300, Math.min(380, rect.width * 0.36));
+        const isMobile = W < 500;
+        if (isMobile) {
+            // Scale canvas taller on mobile so top/bottom nodes have room
+            H = Math.max(340, Math.min(400, W * 0.90));
+            // Scale node radius so edge nodes (x=0.08, x=0.92) don't clip
+            // Constraint: NODE_R * 0.74 <= 0.08 * W  →  NODE_R <= W * 0.108
+            NODE_R = Math.min(44, Math.floor(W * 0.108));
+        } else {
+            H = Math.max(300, Math.min(380, W * 0.36));
+            NODE_R = 44;
+        }
         canvas.width  = W * devicePixelRatio;
         canvas.height = H * devicePixelRatio;
         canvas.style.height = H + 'px';
