@@ -4,6 +4,7 @@ Fetches live data from exchange, runs strategy, checks risk, places orders.
 Works with any exchange supported by ccxt (Binance, Bybit, OKX, Kraken, etc.)
 """
 import logging
+import math
 import time
 from dataclasses import replace as dc_replace
 from datetime import datetime
@@ -155,11 +156,29 @@ class Trader:
         return df
 
     def _calculate_amount(self, price: float) -> float:
-        """Convert USD position size to base currency amount."""
+        """Convert USD position size to base currency amount.
+        Rounds UP when truncation would drop below MIN_NOTIONAL ($5).
+        """
         if price <= 0:
             return 0
-        amount = self.position_size_usd / price
-        return self.client.amount_to_precision(self.symbol, amount)
+        raw = self.position_size_usd / price
+        amount = self.client.amount_to_precision(self.symbol, raw)
+
+        # If truncation dropped notional below Binance MIN_NOTIONAL, round up
+        min_notional = 5.0
+        if amount * price < min_notional:
+            try:
+                mkt = self.client.exchange.market(self.symbol)
+                prec = mkt.get("precision", {}).get("amount", 0)
+                # ccxt precision can be decimal places (int) or step size (float)
+                step = 10 ** (-prec) if isinstance(prec, int) and prec > 0 else prec
+                if step and step > 0:
+                    amount = math.ceil(raw / step) * step
+                    amount = round(amount, 8)
+            except Exception:
+                pass
+
+        return amount
 
     def _run_cycle(self):
         """Single iteration of the trading loop."""
