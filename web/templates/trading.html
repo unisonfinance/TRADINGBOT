@@ -1502,5 +1502,94 @@ async function clearUserPresets() {
 .lp-use-btn    { font-size: 0.72rem !important; padding: 0.22rem 0.75rem !important; }
 .lp-exchange-tag { display: flex; align-items: center; gap: 5px; font-size: 0.68rem; color: var(--text-muted); letter-spacing: 0.04em; }
 .lp-exchange-dot { color: var(--accent-green); animation: lp-blink 2s ease-in-out infinite; font-size: 0.55rem; }
+
+/* ═══════════════════════════════════════════════════════════════
+   TRADING PAGE — Mobile overrides only (≤768px)
+   Desktop is NOT touched.
+═══════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+
+    /* ── Preset strategy buttons: 2-column grid ──────────── */
+    #presetBtns {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.4rem;
+    }
+    #presetBtns .preset-btn {
+        font-size: 0.64rem !important;
+        padding: 0.3rem 0.45rem !important;
+        white-space: normal;
+        word-break: break-word;
+        line-height: 1.35;
+        text-align: center;
+        width: 100%;
+    }
+
+    /* ── My Strategies (user saved): also 2-col ──────────── */
+    #myStrategyBtns {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.4rem;
+    }
+    #myStrategyBtns > div {
+        display: flex !important;
+        width: 100%;
+    }
+    #myStrategyBtns .preset-btn {
+        font-size: 0.64rem !important;
+        padding: 0.3rem 0.4rem !important;
+        white-space: normal;
+        word-break: break-word;
+        line-height: 1.35;
+        flex: 1;
+    }
+
+    /* ── Arbitrage Ratio widget: scale down large numbers ─ */
+    #arbBtcPrice { font-size: 1rem   !important; letter-spacing: -0.02em; }
+    #arbRatioVal { font-size: 1.35rem !important; letter-spacing: -0.02em; }
+    #arbEthPrice { font-size: 1rem   !important; letter-spacing: -0.02em; }
+
+    #arbSma, #arbZscore, #arbDevPct, #arbAction {
+        font-size: 0.8rem !important;
+    }
+
+    /* ── Arb panel body: no overflow clipping ─────────────── */
+    #arbRatioPanel .panel-body { overflow: visible; }
+
+    /* ── Running bots table: enough width to scroll ──────── */
+    .data-table { min-width: 660px; }
+
+    /* ── Quick prices: 3-column on mobile, scroll sideways ─ */
+    .quick-prices {
+        grid-template-columns: repeat(3, 1fr) !important;
+    }
+
+    /* ── Live price: smaller BTC price number ─────────────── */
+    .lp-price-num { font-size: 1.35rem !important; }
+
+    /* ── Top panel toggle button: full-width easier tap ───── */
+    #topPanelToggle {
+        padding: 0.35rem 1.2rem !important;
+        font-size: 0.85rem !important;
+    }
+}
+
+@media (max-width: 480px) {
+    /* ── Ratio widget prices: even smaller on tiny screens ── */
+    #arbBtcPrice { font-size: 0.88rem !important; }
+    #arbRatioVal { font-size: 1.15rem !important; }
+    #arbEthPrice { font-size: 0.88rem !important; }
+
+    /* ── Preset buttons stay 2-col but even tighter ─────── */
+    #presetBtns .preset-btn {
+        font-size: 0.6rem  !important;
+        padding: 0.28rem 0.35rem !important;
+    }
+
+    /* ── Quick prices: 2-col on tiny screens ─────────────── */
+    .quick-prices {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+}
 </style>
 {% endblock %}

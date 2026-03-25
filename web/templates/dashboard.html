@@ -111,10 +111,11 @@ async function loadBalance() {
         const res = await fetch('/api/balance');
         const data = await res.json();
         if (data.error) {
+            const shortErr = data.error.length > 55 ? data.error.slice(0, 55) + '…' : data.error;
             document.getElementById('totalBalance').textContent = '—';
-            document.getElementById('totalBalanceUsd').textContent = data.error;
+            document.getElementById('totalBalanceUsd').textContent = shortErr;
             document.getElementById('holdingsTable').innerHTML =
-                `<tr><td colspan="4" class="text-center text-muted">${data.error}</td></tr>`;
+                `<tr><td colspan="4" class="text-center text-muted" style="word-break:break-word;white-space:normal;">${shortErr}</td></tr>`;
             return;
         }
         const balances = data.balances;

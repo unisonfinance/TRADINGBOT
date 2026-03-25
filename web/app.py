@@ -172,6 +172,35 @@ def get_client():
 
 _public_exchange_cache = {"ex": None, "ts": 0}
 
+
+def _sanitize_exchange_error(e: Exception) -> str:
+    """Return a clean, short error message — strips raw URLs, timestamps, and signatures."""
+    import re as _re
+    err = str(e)
+    # Extract JSON 'msg' field (ccxt typically includes this)
+    m = _re.search(r'"msg"\s*:\s*"([^"]+)"', err)
+    if m:
+        return m.group(1)
+    m = _re.search(r'"message"\s*:\s*"([^"]+)"', err)
+    if m:
+        return m.group(1)
+    # Known error patterns
+    if '451' in err or 'restricted location' in err.lower():
+        return 'Service unavailable from a restricted location'
+    if 'api-key' in err.lower() or 'apikey' in err.lower() or 'api key' in err.lower():
+        return 'Invalid API key'
+    if 'invalid signature' in err.lower() or 'signature' in err.lower():
+        return 'Invalid API signature — check your secret key'
+    if 'network' in err.lower() or 'connectionerror' in err.lower():
+        return 'Network connection error'
+    if 'timed out' in err.lower() or 'timeout' in err.lower():
+        return 'Exchange request timed out'
+    # Strip URLs and shorten
+    err = _re.sub(r'https?://\S+', '', err).strip()
+    err = _re.sub(r'\s+', ' ', err).strip()
+    return err[:120] + ('\u2026' if len(err) > 120 else '')
+
+
 def _get_public_exchange():
     """Return an unauthenticated ccxt exchange, trying US-accessible fallbacks. Cached for 5 min."""
     import ccxt, time as _time
@@ -240,7 +269,7 @@ def api_balance():
                 }
         return jsonify({"balances": non_zero})
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": _sanitize_exchange_error(e)}), 500
 
 
 @app.route("/api/price/<path:symbol>")
@@ -265,7 +294,7 @@ def api_price(symbol):
         ask = float(ticker.get("ask", 0))
         return jsonify({"symbol": symbol, "price": price, "bid": bid, "ask": ask})
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": _sanitize_exchange_error(e)}), 500
 
 
 @app.route("/api/candles/<path:symbol>")
@@ -279,7 +308,7 @@ def api_candles(symbol):
         candles = exchange.fetch_ohlcv(symbol, timeframe=tf, limit=limit)
         return jsonify({"symbol": symbol, "timeframe": tf, "candles": candles})
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": _sanitize_exchange_error(e)}), 500
 
 
 # ─── API: Trading Bot Control ───────────────────────────────────
@@ -576,7 +605,7 @@ def api_test_connection():
             "balances": non_zero,
         })
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": _sanitize_exchange_error(e)}), 500
 
 
 # ─── API: Arbitrage Ratio ─────────────────────────────────────────
