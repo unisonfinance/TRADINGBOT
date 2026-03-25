@@ -1,0 +1,394 @@
+{% extends "base.html" %}
+{% block title %}Advanced Analysis — TrekBot{% endblock %}
+{% block page_title %}Advanced Analysis{% endblock %}
+
+{% block content %}
+<!-- Sub-tab strip -->
+<div class="subtab-strip">
+    <button class="subtab-btn active" id="tabChart"  onclick="switchAdvTab('chart')">📈 Chart Overlay</button>
+    <button class="subtab-btn"        id="tabWF"     onclick="switchAdvTab('wf')">🔄 Walk-Forward</button>
+    <button class="subtab-btn"        id="tabMC"     onclick="switchAdvTab('mc')">🎲 Monte Carlo</button>
+    <button class="subtab-btn"        id="tabHM"     onclick="switchAdvTab('hm')">🗺️ Risk Heatmap</button>
+</div>
+
+<!-- ═══ TAB: CHART OVERLAY ═══ -->
+<div id="panelChart">
+    <div class="panel">
+        <div class="panel-header">
+            <h2>Backtest Chart Overlay</h2>
+            <button class="btn btn-purple btn-sm" onclick="loadChartOverlay()">Generate</button>
+        </div>
+        <div class="panel-body">
+            <div class="form-grid-4" style="margin-bottom:1rem;">
+                <div class="form-group">
+                    <label>Strategy</label>
+                    <select id="coStrategy" class="form-input">
+                        <option value="macd">MACD</option>
+                        <option value="rsi">RSI</option>
+                        <option value="supertrend">Supertrend</option>
+                        <option value="ema_ribbon">EMA Ribbon</option>
+                        <option value="bb_squeeze">BB Squeeze</option>
+                        <option value="stochrsi">Stoch RSI</option>
+                        <option value="rsi_swing">RSI Swing Pro</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Pair</label>
+                    <input type="text" id="coSymbol" class="form-input" value="BTC/USDT">
+                </div>
+                <div class="form-group">
+                    <label>Timeframe</label>
+                    <select id="coTimeframe" class="form-input">
+                        <option value="1h">1h</option>
+                        <option value="4h" selected>4h</option>
+                        <option value="1d">1d</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Candles</label>
+                    <input type="number" id="coLimit" class="form-input" value="500" min="100" max="3000">
+                </div>
+            </div>
+            <canvas id="chartOverlayCanvas" height="400"></canvas>
+            <p class="text-muted text-center" id="chartOverlayMsg">Configure and click Generate</p>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ TAB: WALK-FORWARD ═══ -->
+<div id="panelWF" style="display:none;">
+    <div class="panel">
+        <div class="panel-header">
+            <h2>Walk-Forward Optimization</h2>
+            <button class="btn btn-purple btn-sm" onclick="runWalkForward()">Run</button>
+        </div>
+        <div class="panel-body">
+            <p class="text-muted" style="margin-bottom:1rem;">Split data into rolling train/test windows to validate strategy robustness and detect overfitting.</p>
+            <div class="form-grid-4" style="margin-bottom:1rem;">
+                <div class="form-group">
+                    <label>Strategy</label>
+                    <select id="wfStrategy" class="form-input">
+                        <option value="macd">MACD</option>
+                        <option value="rsi">RSI</option>
+                        <option value="supertrend">Supertrend</option>
+                        <option value="ema_ribbon">EMA Ribbon</option>
+                        <option value="bb_squeeze">BB Squeeze</option>
+                        <option value="rsi_swing">RSI Swing Pro</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Pair</label>
+                    <input type="text" id="wfSymbol" class="form-input" value="BTC/USDT">
+                </div>
+                <div class="form-group">
+                    <label>Folds</label>
+                    <input type="number" id="wfFolds" class="form-input" value="5" min="2" max="20">
+                </div>
+                <div class="form-group">
+                    <label>Candles</label>
+                    <input type="number" id="wfLimit" class="form-input" value="2000" min="500">
+                </div>
+            </div>
+            <div id="wfLoading" style="display:none;text-align:center;padding:2rem;"><div class="spinner"></div><p class="text-muted">Running walk-forward...</p></div>
+            <div id="wfResults" style="display:none;">
+                <canvas id="wfChart" height="300"></canvas>
+                <table class="data-table" style="margin-top:1rem;">
+                    <thead>
+                        <tr><th>Fold</th><th class="text-right">Train P&L</th><th class="text-right">Test P&L</th><th class="text-right">Win Rate</th><th class="text-right">Sharpe</th></tr>
+                    </thead>
+                    <tbody id="wfTable"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ TAB: MONTE CARLO ═══ -->
+<div id="panelMC" style="display:none;">
+    <div class="panel">
+        <div class="panel-header">
+            <h2>Monte Carlo Simulation</h2>
+            <button class="btn btn-purple btn-sm" onclick="runMonteCarlo()">Simulate</button>
+        </div>
+        <div class="panel-body">
+            <p class="text-muted" style="margin-bottom:1rem;">Shuffle trade outcomes to estimate P&L distribution and confidence intervals.</p>
+            <div class="form-grid-4" style="margin-bottom:1rem;">
+                <div class="form-group">
+                    <label>Strategy</label>
+                    <select id="mcStrategy" class="form-input">
+                        <option value="macd">MACD</option>
+                        <option value="rsi">RSI</option>
+                        <option value="supertrend">Supertrend</option>
+                        <option value="ema_ribbon">EMA Ribbon</option>
+                        <option value="bb_squeeze">BB Squeeze</option>
+                        <option value="rsi_swing">RSI Swing Pro</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Pair</label>
+                    <input type="text" id="mcSymbol" class="form-input" value="BTC/USDT">
+                </div>
+                <div class="form-group">
+                    <label>Simulations</label>
+                    <input type="number" id="mcSims" class="form-input" value="1000" min="100" max="10000">
+                </div>
+                <div class="form-group">
+                    <label>Candles</label>
+                    <input type="number" id="mcLimit" class="form-input" value="1000" min="200">
+                </div>
+            </div>
+            <div id="mcLoading" style="display:none;text-align:center;padding:2rem;"><div class="spinner"></div><p class="text-muted">Running simulations...</p></div>
+            <div id="mcResults" style="display:none;">
+                <div class="cards-row" style="margin-bottom:1rem;">
+                    <div class="card"><div class="card-label">Median P&L</div><div class="card-value" id="mcMedian">—</div></div>
+                    <div class="card"><div class="card-label">5th Percentile</div><div class="card-value text-red" id="mcP5">—</div></div>
+                    <div class="card"><div class="card-label">95th Percentile</div><div class="card-value text-green" id="mcP95">—</div></div>
+                    <div class="card"><div class="card-label">Risk of Ruin</div><div class="card-value text-red" id="mcRuin">—</div></div>
+                </div>
+                <canvas id="mcChart" height="350"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ TAB: RISK HEATMAP ═══ -->
+<div id="panelHM" style="display:none;">
+    <div class="panel">
+        <div class="panel-header">
+            <h2>Portfolio Risk Heatmap</h2>
+            <button class="btn btn-purple btn-sm" onclick="loadHeatmap()">Generate</button>
+        </div>
+        <div class="panel-body">
+            <p class="text-muted" style="margin-bottom:1rem;">Correlation matrix between portfolio assets. Helps diversify risk across uncorrelated pairs.</p>
+            <div class="form-group" style="margin-bottom:1rem;">
+                <label>Symbols (comma-separated)</label>
+                <input type="text" id="hmSymbols" class="form-input" value="BTC/USDT, ETH/USDT, SOL/USDT, XRP/USDT, ADA/USDT, DOGE/USDT">
+            </div>
+            <div id="hmLoading" style="display:none;text-align:center;padding:2rem;"><div class="spinner"></div><p class="text-muted">Computing correlations...</p></div>
+            <div id="heatmapGrid" style="display:none;overflow-x:auto;"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+let chartOverlayInst = null, wfChartInst = null, mcChartInst = null;
+
+function switchAdvTab(tab) {
+    ['chart','wf','mc','hm'].forEach(t => {
+        document.getElementById('panel' + t.charAt(0).toUpperCase() + t.slice(1)).style.display = t === tab ? 'block' : 'none';
+        document.getElementById('tab' + {chart:'Chart',wf:'WF',mc:'MC',hm:'HM'}[t]).classList.toggle('active', t === tab);
+    });
+}
+
+// ── Chart Overlay ──
+async function loadChartOverlay() {
+    const params = {
+        strategy: document.getElementById('coStrategy').value,
+        symbol: document.getElementById('coSymbol').value,
+        timeframe: document.getElementById('coTimeframe').value,
+        limit: parseInt(document.getElementById('coLimit').value),
+    };
+    document.getElementById('chartOverlayMsg').textContent = 'Loading...';
+    try {
+        const res = await fetch('/api/backtest/chart', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify(params),
+        });
+        const data = await res.json();
+        if (!data.candles) { document.getElementById('chartOverlayMsg').textContent = data.error || 'No data'; return; }
+        document.getElementById('chartOverlayMsg').style.display = 'none';
+
+        const labels = data.candles.map(c => c.time);
+        const closes = data.candles.map(c => c.close);
+
+        if (chartOverlayInst) chartOverlayInst.destroy();
+        const ctx = document.getElementById('chartOverlayCanvas').getContext('2d');
+
+        // Trade markers
+        const buyPts = [], sellPts = [];
+        (data.trades||[]).forEach(t => {
+            const idx = labels.indexOf(t.time);
+            if (idx === -1) return;
+            if (t.side === 'BUY') buyPts.push({x: idx, y: t.price});
+            else sellPts.push({x: idx, y: t.price});
+        });
+
+        chartOverlayInst = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [
+                    { label: 'Close', data: closes, borderColor: '#A855F7', borderWidth: 1.5, pointRadius: 0, fill: false },
+                    { label: 'BUY', data: buyPts.map(p => ({x: p.x, y: p.y})), type: 'scatter', pointRadius: 7, pointStyle: 'triangle', backgroundColor: '#22c55e', showLine: false },
+                    { label: 'SELL', data: sellPts.map(p => ({x: p.x, y: p.y})), type: 'scatter', pointRadius: 7, pointStyle: 'triangle', rotation: 180, backgroundColor: '#ef4444', showLine: false },
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { labels: { color: getComputedStyle(document.body).getPropertyValue('--text-primary') } } },
+                scales: {
+                    x: { display: false },
+                    y: { ticks: { color: '#999' }, grid: { color: 'rgba(255,255,255,0.06)' } }
+                }
+            }
+        });
+    } catch(e) { document.getElementById('chartOverlayMsg').textContent = 'Error: ' + e.message; }
+}
+
+// ── Walk-Forward ──
+async function runWalkForward() {
+    document.getElementById('wfLoading').style.display = 'block';
+    document.getElementById('wfResults').style.display = 'none';
+    try {
+        const res = await fetch('/api/backtest/walkforward', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({
+                strategy: document.getElementById('wfStrategy').value,
+                symbol: document.getElementById('wfSymbol').value,
+                folds: parseInt(document.getElementById('wfFolds').value),
+                limit: parseInt(document.getElementById('wfLimit').value),
+            }),
+        });
+        const data = await res.json();
+        document.getElementById('wfLoading').style.display = 'none';
+        document.getElementById('wfResults').style.display = 'block';
+
+        let html = '';
+        const trainPnls = [], testPnls = [];
+        (data.folds||[]).forEach((f, i) => {
+            trainPnls.push(f.train_pnl||0);
+            testPnls.push(f.test_pnl||0);
+            html += `<tr>
+                <td>Fold ${i+1}</td>
+                <td class="text-right mono ${(f.train_pnl||0)>=0?'text-green':'text-red'}">$${formatNum(f.train_pnl, 2)}</td>
+                <td class="text-right mono ${(f.test_pnl||0)>=0?'text-green':'text-red'}">$${formatNum(f.test_pnl, 2)}</td>
+                <td class="text-right mono">${formatNum(f.win_rate, 1)}%</td>
+                <td class="text-right mono">${formatNum(f.sharpe, 2)}</td>
+            </tr>`;
+        });
+        document.getElementById('wfTable').innerHTML = html;
+
+        if (wfChartInst) wfChartInst.destroy();
+        const ctx = document.getElementById('wfChart').getContext('2d');
+        wfChartInst = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: (data.folds||[]).map((_, i) => 'Fold ' + (i+1)),
+                datasets: [
+                    { label: 'Train P&L', data: trainPnls, backgroundColor: '#A855F780' },
+                    { label: 'Test P&L', data: testPnls, backgroundColor: '#22c55e80' },
+                ]
+            },
+            options: { responsive: true, scales: { y: { grid: { color: 'rgba(255,255,255,0.06)' } } } }
+        });
+    } catch(e) {
+        document.getElementById('wfLoading').style.display = 'none';
+        showToast('Walk-forward failed: ' + e.message, 'error');
+    }
+}
+
+// ── Monte Carlo ──
+async function runMonteCarlo() {
+    document.getElementById('mcLoading').style.display = 'block';
+    document.getElementById('mcResults').style.display = 'none';
+    try {
+        const res = await fetch('/api/backtest/montecarlo', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({
+                strategy: document.getElementById('mcStrategy').value,
+                symbol: document.getElementById('mcSymbol').value,
+                simulations: parseInt(document.getElementById('mcSims').value),
+                limit: parseInt(document.getElementById('mcLimit').value),
+            }),
+        });
+        const data = await res.json();
+        document.getElementById('mcLoading').style.display = 'none';
+        document.getElementById('mcResults').style.display = 'block';
+
+        document.getElementById('mcMedian').textContent = '$' + formatNum(data.median||0, 2);
+        document.getElementById('mcP5').textContent = '$' + formatNum(data.p5||0, 2);
+        document.getElementById('mcP95').textContent = '$' + formatNum(data.p95||0, 2);
+        document.getElementById('mcRuin').textContent = formatNum((data.risk_of_ruin||0)*100, 1) + '%';
+
+        // Render equity curves (sample 50 paths)
+        if (mcChartInst) mcChartInst.destroy();
+        const ctx = document.getElementById('mcChart').getContext('2d');
+        const curves = (data.equity_curves||[]).slice(0, 50);
+        const maxLen = Math.max(...curves.map(c => c.length), 0);
+        const labels = Array.from({length: maxLen}, (_, i) => i+1);
+
+        const datasets = curves.map((c, i) => ({
+            data: c,
+            borderColor: `hsla(${(i * 7) % 360}, 70%, 60%, 0.3)`,
+            borderWidth: 1,
+            pointRadius: 0,
+            fill: false,
+        }));
+
+        mcChartInst = new Chart(ctx, {
+            type: 'line',
+            data: { labels, datasets },
+            options: {
+                responsive: true,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { display: false },
+                    y: { ticks: { color: '#999' }, grid: { color: 'rgba(255,255,255,0.06)' } }
+                }
+            }
+        });
+    } catch(e) {
+        document.getElementById('mcLoading').style.display = 'none';
+        showToast('Monte Carlo failed: ' + e.message, 'error');
+    }
+}
+
+// ── Risk Heatmap ──
+async function loadHeatmap() {
+    const symbols = document.getElementById('hmSymbols').value.split(',').map(s => s.trim()).filter(Boolean);
+    document.getElementById('hmLoading').style.display = 'block';
+    document.getElementById('heatmapGrid').style.display = 'none';
+    try {
+        const res = await fetch('/api/risk/heatmap', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ symbols }),
+        });
+        const data = await res.json();
+        document.getElementById('hmLoading').style.display = 'none';
+        document.getElementById('heatmapGrid').style.display = 'block';
+
+        const labels = data.symbols || symbols;
+        const matrix = data.correlation || [];
+
+        let html = '<table class="data-table heatmap-table"><thead><tr><th></th>';
+        labels.forEach(l => { html += `<th style="font-size:.75rem;writing-mode:vertical-rl;transform:rotate(180deg);padding:4px;">${l.replace('/USDT','')}</th>`; });
+        html += '</tr></thead><tbody>';
+
+        matrix.forEach((row, i) => {
+            html += `<tr><td style="font-weight:600;font-size:.82rem;">${labels[i].replace('/USDT','')}</td>`;
+            row.forEach((val, j) => {
+                const v = parseFloat(val) || 0;
+                const color = v >= 0.7 ? '#ef444480' : v >= 0.3 ? '#f9731680' : v >= -0.3 ? '#64748b40' : v >= -0.7 ? '#3b82f680' : '#22c55e80';
+                html += `<td style="background:${color};text-align:center;font-size:.78rem;min-width:50px;padding:8px;">${v.toFixed(2)}</td>`;
+            });
+            html += '</tr>';
+        });
+        html += '</tbody></table>';
+        document.getElementById('heatmapGrid').innerHTML = html;
+    } catch(e) {
+        document.getElementById('hmLoading').style.display = 'none';
+        showToast('Heatmap failed: ' + e.message, 'error');
+    }
+}
+</script>
+<style>
+.heatmap-table td, .heatmap-table th { border: 1px solid var(--border); }
+</style>
+{% endblock %}

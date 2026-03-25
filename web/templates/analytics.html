@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+{% block title %}Analytics — TrekBot{% endblock %}
+{% block page_title %}Analytics{% endblock %}
+
+{% block content %}
+<!-- Summary Cards -->
+<div class="cards-row">
+    <div class="card">
+        <div class="card-label">Total P&L</div>
+        <div class="card-value" id="totalPnl">$0.00</div>
+        <div class="card-sub" id="totalPnlPct">0%</div>
+    </div>
+    <div class="card">
+        <div class="card-label">Unrealized P&L</div>
+        <div class="card-value" id="unrealizedPnl">$0.00</div>
+        <div class="card-sub">Open positions</div>
+    </div>
+    <div class="card">
+        <div class="card-label">Total Fees</div>
+        <div class="card-value" id="totalFees">$0.00</div>
+        <div class="card-sub" id="feeRate">0.1% rate</div>
+    </div>
+    <div class="card">
+        <div class="card-label">Net P&L</div>
+        <div class="card-value" id="netPnl">$0.00</div>
+        <div class="card-sub">After fees</div>
+    </div>
+</div>
+
+<!-- Equity Curve -->
+<div class="panel" style="margin-top:1.5rem;">
+    <div class="panel-header">
+        <h2>Equity Curve</h2>
+        <div style="display:flex;gap:.5rem;">
+            <select id="equityRange" class="input-sm" onchange="loadEquity()">
+                <option value="7">7 Days</option>
+                <option value="30" selected>30 Days</option>
+                <option value="90">90 Days</option>
+                <option value="365">1 Year</option>
+            </select>
+            <button class="btn btn-sm" onclick="saveEquitySnapshot()">📸 Snapshot</button>
+        </div>
+    </div>
+    <div class="panel-body">
+        <canvas id="equityChart" height="300"></canvas>
+        <p class="text-muted text-center" id="equityEmpty" style="display:none;">No P&L data yet. Start trading or take snapshots to build your equity curve.</p>
+    </div>
+</div>
+
+<!-- Bot P&L Breakdown -->
+<div class="panel" style="margin-top:1.5rem;">
+    <div class="panel-header">
+        <h2>Real-Time Bot P&L</h2>
+        <button class="btn btn-sm" onclick="loadRealtimePnl()">Refresh</button>
+    </div>
+    <div class="panel-body">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Bot</th>
+                    <th>Symbol</th>
+                    <th>Strategy</th>
+                    <th class="text-right">Unrealized</th>
+                    <th class="text-right">Realized</th>
+                    <th>Type</th>
+                </tr>
+            </thead>
+            <tbody id="pnlTable">
+                <tr><td colspan="6" class="text-center text-muted">Loading...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Fee-Adjusted Trades -->
+<div class="panel" style="margin-top:1.5rem;">
+    <div class="panel-header">
+        <h2>Fee-Adjusted P&L</h2>
+        <div style="display:flex;gap:.5rem;align-items:center;">
+            <label class="text-muted" style="font-size:.85rem;">Fee Rate:</label>
+            <select id="feeRateSelect" class="input-sm" onchange="loadFeeAdjusted()">
+                <option value="0.0004">0.04% (Binance VIP)</option>
+                <option value="0.001" selected>0.1% (Standard)</option>
+                <option value="0.002">0.2% (High)</option>
+                <option value="0.005">0.5% (DEX)</option>
+            </select>
+        </div>
+    </div>
+    <div class="panel-body">
+        <div id="feeBreakdown" class="cards-row" style="margin-bottom:1rem;">
+            <div class="card"><div class="card-label">Gross P&L</div><div class="card-value" id="feeGross">—</div></div>
+            <div class="card"><div class="card-label">Total Fees</div><div class="card-value" id="feeTotalFees">—</div></div>
+            <div class="card"><div class="card-label">Net P&L</div><div class="card-value" id="feeNet">—</div></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script>
+let equityChart = null;
+
+document.addEventListener('DOMContentLoaded', () => {
+    loadRealtimePnl();
+    loadEquity();
+    loadFeeAdjusted();
+    setInterval(loadRealtimePnl, 15000);
+});
+
+async function loadRealtimePnl() {
+    try {
+        const res = await fetch('/api/pnl/realtime');
+        const data = await res.json();
+        document.getElementById('totalPnl').textContent = '$' + formatNum(data.total_pnl, 4);
+        document.getElementById('unrealizedPnl').textContent = '$' + formatNum(data.total_unrealized, 4);
+        const c = data.total_pnl >= 0 ? 'text-green' : 'text-red';
+        document.getElementById('totalPnl').className = 'card-value ' + c;
+
+        if (data.bots.length === 0) {
+            document.getElementById('pnlTable').innerHTML = '<tr><td colspan="6" class="text-center text-muted">No active bots</td></tr>';
+            return;
+        }
+        let html = '';
+        data.bots.forEach(b => {
+            const uClass = (b.unrealized||0) >= 0 ? 'text-green' : 'text-red';
+            const rClass = (b.realized||0) >= 0 ? 'text-green' : 'text-red';
+            html += `<tr>
+                <td><strong>${b.name}</strong></td>
+                <td>${b.symbol||'—'}</td>
+                <td>${b.strategy||'—'}</td>
+                <td class="text-right mono ${uClass}">$${formatNum(b.unrealized||0, 4)}</td>
+                <td class="text-right mono ${rClass}">$${formatNum(b.realized||0, 4)}</td>
+                <td><span class="badge ${b.paper ? 'badge-yellow' : 'badge-green'}">${b.type||'strategy'}</span></td>
+            </tr>`;
+        });
+        document.getElementById('pnlTable').innerHTML = html;
+    } catch(e) {}
+}
+
+async function loadEquity() {
+    if (!currentUser) return;
+    try {
+        const res = await fetch(`/api/pnl/history?uid=${currentUser.uid}`);
+        const data = await res.json();
+        if (!data.history || data.history.length === 0) {
+            document.getElementById('equityEmpty').style.display = 'block';
+            return;
+        }
+        document.getElementById('equityEmpty').style.display = 'none';
+        const labels = data.history.map(h => h.created_at ? h.created_at.split('T')[0] : '');
+        const values = data.history.map(h => h.equity || h.balance || 0);
+
+        if (equityChart) equityChart.destroy();
+        equityChart = new Chart(document.getElementById('equityChart'), {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [{
+                    label: 'Equity ($)',
+                    data: values,
+                    borderColor: '#8b5cf6',
+                    backgroundColor: 'rgba(139,92,246,0.1)',
+                    fill: true, tension: 0.3, pointRadius: 2,
+                }],
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { grid: { color: 'rgba(255,255,255,0.05)' } },
+                    x: { grid: { display: false } },
+                },
+            },
+        });
+    } catch(e) {}
+}
+
+async function saveEquitySnapshot() {
+    if (!currentUser) { showToast('Sign in first', 'error'); return; }
+    try {
+        const res = await fetch('/api/pnl/realtime');
+        const data = await res.json();
+        await fetch('/api/pnl/snapshot', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                uid: currentUser.uid,
+                equity: data.total_pnl + data.total_unrealized,
+                realized: data.total_pnl,
+                unrealized: data.total_unrealized,
+                bots_count: data.bots.length,
+            }),
+        });
+        showToast('Equity snapshot saved!', 'success');
+        loadEquity();
+    } catch(e) { showToast('Failed to save snapshot', 'error'); }
+}
+
+async function loadFeeAdjusted() {
+    if (!currentUser) return;
+    const rate = document.getElementById('feeRateSelect').value;
+    try {
+        const res = await fetch(`/api/pnl/fee-adjusted?uid=${currentUser.uid}&fee_rate=${rate}`);
+        const data = await res.json();
+        document.getElementById('feeGross').textContent = '$' + formatNum(data.total_gross_pnl, 4);
+        document.getElementById('feeTotalFees').textContent = '$' + formatNum(data.total_fees, 4);
+        document.getElementById('feeNet').textContent = '$' + formatNum(data.total_net_pnl, 4);
+        document.getElementById('totalFees').textContent = '$' + formatNum(data.total_fees, 2);
+        document.getElementById('netPnl').textContent = '$' + formatNum(data.total_net_pnl, 2);
+    } catch(e) {}
+}
+</script>
+{% endblock %}

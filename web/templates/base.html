@@ -6,9 +6,11 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+    <meta name="theme-color" content="#A855F7">
     <title>{% block title %}TrekBot{% endblock %}</title>
     <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -78,6 +80,13 @@
                     </a>
                 </li>
                 <li>
+                    <a href="/strategies" class="{% if active_page == 'strategies' %}active{% endif %}" onclick="closeSidebar()">
+                        <span class="nav-icon-wrap" style="background:#A855F722;color:#A855F7;">🤖</span>
+                        <span class="nav-label">Strategy</span>
+                        {% if active_page == 'strategies' %}<span class="nav-active-dot"></span>{% endif %}
+                    </a>
+                </li>
+                <li>
                     <a href="/backtest" class="{% if active_page == 'backtest' %}active{% endif %}" onclick="closeSidebar()">
                         <span class="nav-icon-wrap nav-col-purple">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -86,6 +95,48 @@
                         </span>
                         <span class="nav-label">Backtest</span>
                         {% if active_page == 'backtest' %}<span class="nav-active-dot"></span>{% endif %}
+                    </a>
+                </li>
+                <li>
+                    <a href="/scanner" class="{% if active_page == 'scanner' %}active{% endif %}" onclick="closeSidebar()">
+                        <span class="nav-icon-wrap" style="background:#3b82f622;color:#3b82f6;">🔍</span>
+                        <span class="nav-label">Scanner</span>
+                        {% if active_page == 'scanner' %}<span class="nav-active-dot"></span>{% endif %}
+                    </a>
+                </li>
+            </ul>
+        </div>
+
+        <!-- Section: Analytics -->
+        <div class="nav-section">
+            <span class="nav-section-label">ANALYTICS</span>
+            <ul class="nav-links">
+                <li>
+                    <a href="/analytics" class="{% if active_page == 'analytics' %}active{% endif %}" onclick="closeSidebar()">
+                        <span class="nav-icon-wrap" style="background:#22c55e22;color:#22c55e;">📊</span>
+                        <span class="nav-label">P&L Analytics</span>
+                        {% if active_page == 'analytics' %}<span class="nav-active-dot"></span>{% endif %}
+                    </a>
+                </li>
+                <li>
+                    <a href="/journal" class="{% if active_page == 'journal' %}active{% endif %}" onclick="closeSidebar()">
+                        <span class="nav-icon-wrap" style="background:#eab30822;color:#eab308;">📓</span>
+                        <span class="nav-label">Trade Journal</span>
+                        {% if active_page == 'journal' %}<span class="nav-active-dot"></span>{% endif %}
+                    </a>
+                </li>
+                <li>
+                    <a href="/advanced" class="{% if active_page == 'advanced' %}active{% endif %}" onclick="closeSidebar()">
+                        <span class="nav-icon-wrap" style="background:#ec489922;color:#ec4899;">🧪</span>
+                        <span class="nav-label">Advanced Analysis</span>
+                        {% if active_page == 'advanced' %}<span class="nav-active-dot"></span>{% endif %}
+                    </a>
+                </li>
+                <li>
+                    <a href="/leaderboard" class="{% if active_page == 'leaderboard' %}active{% endif %}" onclick="closeSidebar()">
+                        <span class="nav-icon-wrap" style="background:#f59e0b22;color:#f59e0b;">🏆</span>
+                        <span class="nav-label">Leaderboard</span>
+                        {% if active_page == 'leaderboard' %}<span class="nav-active-dot"></span>{% endif %}
                     </a>
                 </li>
             </ul>
@@ -276,6 +327,11 @@ function botConfirm(msg, opts) {
 <script src="{{ url_for('static', filename='app.js') }}"></script>
 <script src="{{ url_for('static', filename='firebase-config.js') }}"></script>
 <script src="{{ url_for('static', filename='firestore.js') }}"></script>
+<script>
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/static/sw.js').catch(() => {});
+}
+</script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

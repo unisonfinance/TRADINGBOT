@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+{% block title %}Multi-Pair Scanner — TrekBot{% endblock %}
+{% block page_title %}Multi-Pair Scanner{% endblock %}
+
+{% block content %}
+<!-- Scanner Config -->
+<div class="panel">
+    <div class="panel-header">
+        <h2>Scanner Configuration</h2>
+        <button class="btn btn-purple btn-sm" onclick="runScan()">🔍 Scan Now</button>
+    </div>
+    <div class="panel-body">
+        <div class="form-grid-4">
+            <div class="form-group">
+                <label>Strategy</label>
+                <select id="scanStrategy" class="form-input">
+                    <option value="rsi">RSI Mean Reversion</option>
+                    <option value="macd">MACD</option>
+                    <option value="supertrend">Supertrend</option>
+                    <option value="ema_ribbon">EMA Ribbon</option>
+                    <option value="bb_squeeze">Bollinger Squeeze</option>
+                    <option value="stochrsi">Stoch RSI</option>
+                    <option value="vwap_reversion">VWAP Reversion</option>
+                    <option value="rsi_swing">RSI Swing Pro</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Timeframe</label>
+                <select id="scanTimeframe" class="form-input">
+                    <option value="5m">5m</option>
+                    <option value="15m">15m</option>
+                    <option value="1h" selected>1h</option>
+                    <option value="4h">4h</option>
+                    <option value="1d">1d</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-group" style="margin-top:.75rem;">
+            <label>Watchlist (comma-separated pairs)</label>
+            <input type="text" id="scanPairs" class="form-input"
+                   value="BTC/USDT, ETH/USDT, SOL/USDT, XRP/USDT, ADA/USDT, DOGE/USDT, AVAX/USDT, DOT/USDT, MATIC/USDT, LINK/USDT">
+            <div style="margin-top:.5rem;display:flex;gap:.5rem;">
+                <button class="btn btn-sm" onclick="saveWatchlist()">💾 Save Watchlist</button>
+                <button class="btn btn-sm" onclick="loadWatchlist()">📂 Load Saved</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Scan Results -->
+<div class="panel" style="margin-top:1.5rem;">
+    <div class="panel-header">
+        <h2>Scan Results</h2>
+        <span class="text-muted" id="scanTimestamp"></span>
+    </div>
+    <div class="panel-body">
+        <div id="scanLoading" style="display:none;text-align:center;padding:2rem;">
+            <div class="spinner"></div>
+            <p class="text-muted">Scanning pairs...</p>
+        </div>
+        <table class="data-table" id="scanResultsTable" style="display:none;">
+            <thead>
+                <tr>
+                    <th>Pair</th>
+                    <th class="text-right">Price</th>
+                    <th class="text-right">24h Change</th>
+                    <th>Signal</th>
+                    <th class="text-right">Confidence</th>
+                    <th>Reason</th>
+                </tr>
+            </thead>
+            <tbody id="scanResults"></tbody>
+        </table>
+        <p class="text-muted text-center" id="scanEmpty">Configure pairs above and click "Scan Now"</p>
+    </div>
+</div>
+
+<!-- Signal Summary -->
+<div class="cards-row" style="margin-top:1.5rem;" id="signalSummary" style="display:none;">
+    <div class="card">
+        <div class="card-label">BUY Signals</div>
+        <div class="card-value text-green" id="buyCount">0</div>
+    </div>
+    <div class="card">
+        <div class="card-label">SELL Signals</div>
+        <div class="card-value text-red" id="sellCount">0</div>
+    </div>
+    <div class="card">
+        <div class="card-label">HOLD</div>
+        <div class="card-value" id="holdCount">0</div>
+    </div>
+    <div class="card">
+        <div class="card-label">Strongest Signal</div>
+        <div class="card-value" id="strongestSignal">—</div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => { loadWatchlist(); });
+
+async function runScan() {
+    const pairs = document.getElementById('scanPairs').value.split(',').map(p => p.trim()).filter(Boolean);
+    const strategy = document.getElementById('scanStrategy').value;
+    const timeframe = document.getElementById('scanTimeframe').value;
+
+    document.getElementById('scanLoading').style.display = 'block';
+    document.getElementById('scanResultsTable').style.display = 'none';
+    document.getElementById('scanEmpty').style.display = 'none';
+
+    try {
+        const res = await fetch('/api/scanner/scan', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ pairs, strategy, timeframe }),
+        });
+        const data = await res.json();
+        document.getElementById('scanLoading').style.display = 'none';
+
+        if (data.results && data.results.length > 0) {
+            document.getElementById('scanResultsTable').style.display = 'table';
+            document.getElementById('scanTimestamp').textContent = 'Scanned: ' + new Date().toLocaleTimeString();
+
+            let html = '';
+            let buys = 0, sells = 0, holds = 0, strongest = null;
+
+            data.results.forEach(r => {
+                if (r.error) {
+                    html += `<tr><td>${r.symbol}</td><td colspan="5" class="text-muted">${r.error}</td></tr>`;
+                    return;
+                }
+                const sigClass = r.signal === 'BUY' ? 'text-green' : r.signal === 'SELL' ? 'text-red' : 'text-muted';
+                const changeClass = r.change_24h >= 0 ? 'text-green' : 'text-red';
+                const sigBadge = r.signal === 'BUY' ? 'badge-green' : r.signal === 'SELL' ? 'badge-red' : 'badge-gray';
+
+                if (r.signal === 'BUY') buys++;
+                else if (r.signal === 'SELL') sells++;
+                else holds++;
+
+                if (!strongest || r.confidence > strongest.confidence) strongest = r;
+
+                html += `<tr>
+                    <td><strong>${r.symbol}</strong></td>
+                    <td class="text-right mono">$${formatNum(r.price, 4)}</td>
+                    <td class="text-right mono ${changeClass}">${r.change_24h >= 0 ? '+' : ''}${formatNum(r.change_24h, 2)}%</td>
+                    <td><span class="badge ${sigBadge}">${r.signal}</span></td>
+                    <td class="text-right mono">${formatNum(r.confidence * 100, 0)}%</td>
+                    <td class="text-muted" style="font-size:.82rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;">${r.reason||''}</td>
+                </tr>`;
+            });
+
+            document.getElementById('scanResults').innerHTML = html;
+            document.getElementById('buyCount').textContent = buys;
+            document.getElementById('sellCount').textContent = sells;
+            document.getElementById('holdCount').textContent = holds;
+            document.getElementById('strongestSignal').textContent = strongest ? `${strongest.symbol} (${strongest.signal})` : '—';
+            document.getElementById('signalSummary').style.display = 'flex';
+        } else {
+            document.getElementById('scanEmpty').style.display = 'block';
+            document.getElementById('scanEmpty').textContent = 'No results returned';
+        }
+    } catch(e) {
+        document.getElementById('scanLoading').style.display = 'none';
+        showToast('Scan failed: ' + e.message, 'error');
+    }
+}
+
+async function saveWatchlist() {
+    if (!currentUser) { showToast('Sign in first', 'error'); return; }
+    const pairs = document.getElementById('scanPairs').value.split(',').map(p => p.trim()).filter(Boolean);
+    try {
+        await fetch('/api/scanner/watchlist', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ uid: currentUser.uid, pairs }),
+        });
+        showToast('Watchlist saved!', 'success');
+    } catch(e) { showToast('Failed to save', 'error'); }
+}
+
+async function loadWatchlist() {
+    if (!currentUser) return;
+    try {
+        const res = await fetch(`/api/scanner/watchlist?uid=${currentUser.uid}`);
+        const data = await res.json();
+        if (data.pairs && data.pairs.length > 0) {
+            document.getElementById('scanPairs').value = data.pairs.join(', ');
+        }
+    } catch(e) {}
+}
+</script>
+{% endblock %}

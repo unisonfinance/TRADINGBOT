@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+{% block title %}Trade Journal — TrekBot{% endblock %}
+{% block page_title %}Trade Journal{% endblock %}
+
+{% block content %}
+<!-- Summary -->
+<div class="cards-row">
+    <div class="card">
+        <div class="card-label">Total Entries</div>
+        <div class="card-value" id="journalCount">0</div>
+        <div class="card-sub">journal entries</div>
+    </div>
+    <div class="card">
+        <div class="card-label">Total P&L</div>
+        <div class="card-value" id="journalPnl">$0.00</div>
+        <div class="card-sub">from logged trades</div>
+    </div>
+    <div class="card">
+        <div class="card-label">Win Rate</div>
+        <div class="card-value" id="journalWinRate">0%</div>
+        <div class="card-sub">of journal trades</div>
+    </div>
+    <div class="card">
+        <div class="card-label">Best Trade</div>
+        <div class="card-value" id="journalBest">—</div>
+        <div class="card-sub">highest P&L</div>
+    </div>
+</div>
+
+<!-- Add Entry Form -->
+<div class="panel" style="margin-top:1.5rem;">
+    <div class="panel-header">
+        <h2>New Journal Entry</h2>
+        <div style="display:flex;gap:.5rem;">
+            <button class="btn btn-sm" onclick="exportJournal('csv')">📄 Export CSV</button>
+        </div>
+    </div>
+    <div class="panel-body">
+        <form id="journalForm" onsubmit="saveJournalEntry(event)">
+            <div class="form-grid-4">
+                <div class="form-group">
+                    <label>Symbol</label>
+                    <input type="text" id="jSymbol" class="form-input" value="BTC/USDT" required>
+                </div>
+                <div class="form-group">
+                    <label>Side</label>
+                    <select id="jSide" class="form-input">
+                        <option value="BUY">BUY</option>
+                        <option value="SELL">SELL</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Entry Price</label>
+                    <input type="number" step="any" id="jEntry" class="form-input" required>
+                </div>
+                <div class="form-group">
+                    <label>Exit Price</label>
+                    <input type="number" step="any" id="jExit" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label>Size</label>
+                    <input type="number" step="any" id="jSize" class="form-input" value="1">
+                </div>
+                <div class="form-group">
+                    <label>Strategy</label>
+                    <input type="text" id="jStrategy" class="form-input" placeholder="e.g. rsi_swing">
+                </div>
+                <div class="form-group">
+                    <label>Emotion</label>
+                    <select id="jEmotion" class="form-input">
+                        <option value="neutral">😐 Neutral</option>
+                        <option value="confident">😎 Confident</option>
+                        <option value="fearful">😰 Fearful</option>
+                        <option value="greedy">🤑 Greedy</option>
+                        <option value="regret">😞 Regret</option>
+                        <option value="disciplined">🎯 Disciplined</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Rating</label>
+                    <select id="jRating" class="form-input">
+                        <option value="5">⭐⭐⭐⭐⭐</option>
+                        <option value="4">⭐⭐⭐⭐</option>
+                        <option value="3" selected>⭐⭐⭐</option>
+                        <option value="2">⭐⭐</option>
+                        <option value="1">⭐</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-group" style="margin-top:.75rem;">
+                <label>Notes / Lessons</label>
+                <textarea id="jNotes" class="form-input" rows="3" placeholder="What did you learn from this trade?"></textarea>
+            </div>
+            <div class="form-group" style="margin-top:.75rem;">
+                <label>Tags</label>
+                <input type="text" id="jTags" class="form-input" placeholder="e.g. breakout, momentum, reversal (comma-separated)">
+            </div>
+            <button type="submit" class="btn btn-purple" style="margin-top:.75rem;">Save Entry</button>
+        </form>
+    </div>
+</div>
+
+<!-- Journal Entries -->
+<div class="panel" style="margin-top:1.5rem;">
+    <div class="panel-header">
+        <h2>Journal Entries</h2>
+        <input type="text" id="journalSearch" class="form-input input-sm" placeholder="🔍 Search..." oninput="filterJournal()" style="width:200px;">
+    </div>
+    <div class="panel-body">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Symbol</th>
+                    <th>Side</th>
+                    <th class="text-right">Entry</th>
+                    <th class="text-right">Exit</th>
+                    <th class="text-right">P&L</th>
+                    <th>Emotion</th>
+                    <th>Rating</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="journalTable">
+                <tr><td colspan="9" class="text-center text-muted">Loading...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let journalEntries = [];
+
+document.addEventListener('DOMContentLoaded', () => { loadJournal(); });
+
+async function loadJournal() {
+    if (!currentUser) return;
+    try {
+        const res = await fetch(`/api/journal?uid=${currentUser.uid}`);
+        const data = await res.json();
+        journalEntries = data.entries || [];
+        renderJournal(journalEntries);
+        updateJournalStats();
+    } catch(e) {}
+}
+
+function renderJournal(entries) {
+    if (!entries.length) {
+        document.getElementById('journalTable').innerHTML = '<tr><td colspan="9" class="text-center text-muted">No journal entries yet</td></tr>';
+        return;
+    }
+    const emotions = {neutral:'😐', confident:'😎', fearful:'😰', greedy:'🤑', regret:'😞', disciplined:'🎯'};
+    let html = '';
+    entries.forEach(e => {
+        const pnl = e.pnl != null ? e.pnl : ((e.exit_price||0) - (e.entry_price||0)) * (e.size||1) * (e.side==='SELL'?-1:1);
+        const pClass = pnl >= 0 ? 'text-green' : 'text-red';
+        const sClass = e.side === 'BUY' ? 'text-green' : 'text-red';
+        const stars = '⭐'.repeat(e.rating || 3);
+        const date = (e.created_at || '').split('T')[0] || '—';
+        html += `<tr>
+            <td class="mono">${date}</td>
+            <td><strong>${e.symbol||'—'}</strong></td>
+            <td class="${sClass}"><strong>${e.side||'—'}</strong></td>
+            <td class="text-right mono">$${formatNum(e.entry_price, 4)}</td>
+            <td class="text-right mono">${e.exit_price ? '$'+formatNum(e.exit_price, 4) : '—'}</td>
+            <td class="text-right mono ${pClass}">$${formatNum(pnl, 4)}</td>
+            <td>${emotions[e.emotion] || '😐'}</td>
+            <td style="font-size:.75rem;">${stars}</td>
+            <td>
+                <button class="btn btn-sm btn-red" onclick="deleteEntry('${e.id}')" title="Delete">✕</button>
+            </td>
+        </tr>`;
+        if (e.notes) {
+            html += `<tr><td colspan="9" class="text-muted" style="padding:4px 12px 8px;font-size:.82rem;border-top:none;">📝 ${e.notes}</td></tr>`;
+        }
+    });
+    document.getElementById('journalTable').innerHTML = html;
+}
+
+function updateJournalStats() {
+    const count = journalEntries.length;
+    document.getElementById('journalCount').textContent = count;
+    if (!count) return;
+    let totalPnl = 0, wins = 0, best = -Infinity;
+    journalEntries.forEach(e => {
+        const pnl = e.pnl != null ? e.pnl : ((e.exit_price||0) - (e.entry_price||0)) * (e.size||1) * (e.side==='SELL'?-1:1);
+        totalPnl += pnl;
+        if (pnl > 0) wins++;
+        if (pnl > best) best = pnl;
+    });
+    document.getElementById('journalPnl').textContent = '$' + formatNum(totalPnl, 2);
+    document.getElementById('journalPnl').className = 'card-value ' + (totalPnl >= 0 ? 'text-green' : 'text-red');
+    document.getElementById('journalWinRate').textContent = Math.round(wins/count*100) + '%';
+    document.getElementById('journalBest').textContent = best > -Infinity ? '$' + formatNum(best, 2) : '—';
+}
+
+async function saveJournalEntry(e) {
+    e.preventDefault();
+    if (!currentUser) { showToast('Sign in first', 'error'); return; }
+    const entry = {
+        uid: currentUser.uid,
+        symbol: document.getElementById('jSymbol').value,
+        side: document.getElementById('jSide').value,
+        entry_price: parseFloat(document.getElementById('jEntry').value) || 0,
+        exit_price: parseFloat(document.getElementById('jExit').value) || null,
+        size: parseFloat(document.getElementById('jSize').value) || 1,
+        strategy: document.getElementById('jStrategy').value,
+        emotion: document.getElementById('jEmotion').value,
+        rating: parseInt(document.getElementById('jRating').value),
+        notes: document.getElementById('jNotes').value,
+        tags: document.getElementById('jTags').value.split(',').map(t => t.trim()).filter(Boolean),
+    };
+    // Calculate P&L
+    if (entry.exit_price) {
+        entry.pnl = (entry.exit_price - entry.entry_price) * entry.size * (entry.side === 'SELL' ? -1 : 1);
+    }
+    try {
+        await fetch('/api/journal', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(entry),
+        });
+        showToast('Journal entry saved!', 'success');
+        document.getElementById('journalForm').reset();
+        loadJournal();
+    } catch(err) { showToast('Failed to save', 'error'); }
+}
+
+async function deleteEntry(id) {
+    if (!confirm('Delete this journal entry?')) return;
+    try {
+        await fetch('/api/journal/delete', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ uid: currentUser.uid, id }),
+        });
+        showToast('Entry deleted', 'success');
+        loadJournal();
+    } catch(e) { showToast('Failed to delete', 'error'); }
+}
+
+function filterJournal() {
+    const q = document.getElementById('journalSearch').value.toLowerCase();
+    const filtered = journalEntries.filter(e =>
+        (e.symbol||'').toLowerCase().includes(q) ||
+        (e.strategy||'').toLowerCase().includes(q) ||
+        (e.notes||'').toLowerCase().includes(q) ||
+        (e.tags||[]).some(t => t.toLowerCase().includes(q))
+    );
+    renderJournal(filtered);
+}
+
+async function exportJournal(fmt) {
+    if (!currentUser) { showToast('Sign in first', 'error'); return; }
+    window.open(`/api/journal/export?uid=${currentUser.uid}&format=${fmt}`, '_blank');
+}
+</script>
+{% endblock %}

@@ -1,0 +1,1230 @@
+{% extends "base.html" %}
+{% block title %}Strategy — TrekBot{% endblock %}
+{% block page_title %}Strategy{% endblock %}
+
+{% block content %}
+
+<!-- ─── Sub-tab strip ──────────────────────────────────────────── -->
+<div class="subtab-strip">
+    <button class="subtab-btn active" id="tabBuilder" onclick="switchStratTab('builder')">🏗️ Builder</button>
+    <button class="subtab-btn"        id="tabLibrary" onclick="switchStratTab('library')">📚 Library</button>
+</div>
+
+<!-- ═══ TAB: BUILDER ═══════════════════════════════════════════ -->
+<div id="tabPanelBuilder">
+
+<div class="grid-2col">
+    <!-- Builder Panel -->
+    <div class="panel">
+        <div class="panel-header">
+            <h2>No-Code Strategy Builder</h2>
+        </div>
+        <div class="panel-body">
+            <div class="form-group">
+                <label>Strategy Name</label>
+                <input type="text" id="bName" class="form-input" placeholder="My Custom Strategy" required>
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <input type="text" id="bDesc" class="form-input" placeholder="Buy on RSI dip, sell on RSI spike">
+            </div>
+
+            <h3 style="margin-top:1.5rem;font-size:.95rem;color:var(--text-secondary);">📥 Entry Conditions</h3>
+            <div id="entryConditions">
+                <div class="condition-row" data-idx="0">
+                    <select class="form-input cond-indicator">
+                        <option value="rsi">RSI</option>
+                        <option value="macd">MACD</option>
+                        <option value="ema_cross">EMA Crossover</option>
+                        <option value="bb_upper">BB Upper Band</option>
+                        <option value="bb_lower">BB Lower Band</option>
+                        <option value="volume_spike">Volume Spike</option>
+                        <option value="price_above_ema">Price > EMA</option>
+                        <option value="price_below_ema">Price < EMA</option>
+                        <option value="stochrsi">Stoch RSI</option>
+                        <option value="supertrend_up">Supertrend Up</option>
+                    </select>
+                    <select class="form-input cond-operator">
+                        <option value="<">Less than</option>
+                        <option value=">">Greater than</option>
+                        <option value="crosses_above">Crosses Above</option>
+                        <option value="crosses_below">Crosses Below</option>
+                    </select>
+                    <input type="number" step="any" class="form-input cond-value" value="30" style="width:80px;">
+                    <button class="btn btn-sm btn-red" onclick="removeCondition(this, 'entry')">✕</button>
+                </div>
+            </div>
+            <button class="btn btn-sm" onclick="addCondition('entry')" style="margin-top:.5rem;">+ Add Entry Condition</button>
+
+            <h3 style="margin-top:1.5rem;font-size:.95rem;color:var(--text-secondary);">📤 Exit Conditions</h3>
+            <div id="exitConditions">
+                <div class="condition-row" data-idx="0">
+                    <select class="form-input cond-indicator">
+                        <option value="rsi" selected>RSI</option>
+                        <option value="macd">MACD</option>
+                        <option value="ema_cross">EMA Crossover</option>
+                        <option value="bb_upper">BB Upper Band</option>
+                        <option value="bb_lower">BB Lower Band</option>
+                        <option value="volume_spike">Volume Spike</option>
+                        <option value="price_above_ema">Price > EMA</option>
+                        <option value="price_below_ema">Price < EMA</option>
+                        <option value="stochrsi">Stoch RSI</option>
+                        <option value="supertrend_down">Supertrend Down</option>
+                    </select>
+                    <select class="form-input cond-operator">
+                        <option value="<">Less than</option>
+                        <option value=">" selected>Greater than</option>
+                        <option value="crosses_above">Crosses Above</option>
+                        <option value="crosses_below">Crosses Below</option>
+                    </select>
+                    <input type="number" step="any" class="form-input cond-value" value="70" style="width:80px;">
+                    <button class="btn btn-sm btn-red" onclick="removeCondition(this, 'exit')">✕</button>
+                </div>
+            </div>
+            <button class="btn btn-sm" onclick="addCondition('exit')" style="margin-top:.5rem;">+ Add Exit Condition</button>
+
+            <h3 style="margin-top:1.5rem;font-size:.95rem;color:var(--text-secondary);">⚙️ Risk Management</h3>
+            <div class="form-grid-4">
+                <div class="form-group">
+                    <label>Stop Loss %</label>
+                    <input type="number" step="0.1" id="bStopLoss" class="form-input" value="2">
+                </div>
+                <div class="form-group">
+                    <label>Take Profit %</label>
+                    <input type="number" step="0.1" id="bTakeProfit" class="form-input" value="4">
+                </div>
+                <div class="form-group">
+                    <label>Position Size ($)</label>
+                    <input type="number" step="1" id="bPosSize" class="form-input" value="100">
+                </div>
+                <div class="form-group">
+                    <label>Timeframe</label>
+                    <select id="bTimeframe" class="form-input">
+                        <option value="1m">1m</option>
+                        <option value="5m">5m</option>
+                        <option value="15m">15m</option>
+                        <option value="1h" selected>1h</option>
+                        <option value="4h">4h</option>
+                        <option value="1d">1d</option>
+                    </select>
+                </div>
+            </div>
+
+            <div style="margin-top:1.5rem;display:flex;gap:.5rem;">
+                <button class="btn btn-purple" onclick="saveStrategy()">💾 Save Strategy</button>
+                <button class="btn" onclick="backtestStrategy()">🧪 Backtest</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Saved Strategies -->
+    <div class="panel">
+        <div class="panel-header">
+            <h2>My Strategies</h2>
+            <button class="btn btn-sm" onclick="loadCustomStrategies()">Refresh</button>
+        </div>
+        <div class="panel-body">
+            <div id="savedStrategies">
+                <p class="text-muted text-center">Loading...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Backtest Result -->
+<div class="panel" style="margin-top:1.5rem;display:none;" id="btResultPanel">
+    <div class="panel-header"><h2>Backtest Result</h2></div>
+    <div class="panel-body" id="btResult"></div>
+</div>
+
+</div><!-- /tabPanelBuilder -->
+
+<!-- ═══ TAB: LIBRARY ═══════════════════════════════════════════ -->
+<div id="tabPanelLibrary" style="display:none;">
+
+<div class="strat-tab-intro">
+    <span class="strat-tab-icon">🤖</span>
+    <div>
+        <div class="strat-tab-title">Strategy Library</div>
+        <div class="strat-tab-sub">Click any card to expand the full trading rules. Use 🔧 to clone &amp; tweak a strategy into your own Quick Launch preset.</div>
+    </div>
+</div>
+
+<!-- ── BTCUSDT PRO_1 ── -->
+<div class="strat-card" id="sc-pro1">
+    <div class="strat-card-header" onclick="toggleStratCard('sc-pro1')">
+        <div class="strat-card-left">
+            <span class="strat-badge strat-badge-rsi">RSI</span>
+            <div>
+                <div class="strat-card-name">🤖 BTCUSDT PRO_1</div>
+                <div class="strat-card-tagline">RSI Swing &lt;30/&gt;70 · Scale-In · Profit-Locked Exit</div>
+            </div>
+        </div>
+        <div class="strat-card-right">
+            <span class="strat-pill strat-pill-green">BTC/USDT</span>
+            <span class="strat-pill strat-pill-blue">1m+</span>
+            <span class="strat-pill strat-pill-gold">Scale-In</span>
+            <button class="strat-quick-clone-btn" onclick="event.stopPropagation(); openCloneModal('rsi_swing','🤖 BTCUSDT PRO_1','BTC/USDT','1m',5,
+              [{name:'Oversold RSI (Buy below)',key:'oversold',type:'number',min:5,max:45,step:1,val:30},
+               {name:'Overbought RSI (Sell above)',key:'overbought',type:'number',min:55,max:95,step:1,val:70},
+               {name:'RSI Period',key:'rsi_period',type:'number',min:5,max:30,step:1,val:14},
+               {name:'Stop Loss %',key:'stop_loss_pct',type:'number',min:0.5,max:10,step:0.5,val:2},
+               {name:'Min Trade USD ($)',key:'min_trade_usd',type:'number',min:1,max:1000,step:1,val:5},
+               {name:'Position Size USD ($)',key:'size',type:'number',min:1,max:10000,step:1,val:5}])" title="Clone &amp; Tweak">🔧</button>
+            <span class="strat-expand-arrow" id="sc-pro1-arrow">▼</span>
+        </div>
+    </div>
+    <div class="strat-card-body" id="sc-pro1-body">
+
+        <div class="strat-rule-grid">
+
+            <div class="strat-rule strat-rule-buy">
+                <div class="strat-rule-num">1</div>
+                <div class="strat-rule-content">
+                    <div class="strat-rule-title">📈 ENTRY — RSI closes below 30</div>
+                    <ul class="strat-rule-list">
+                        <li>Candle closes with <strong>RSI &lt; 30</strong> and no open position → <span class="strat-hl-green">BUY $5 of BTC</span></li>
+                        <li>Only free USDT cash is used. <strong>No margin, no leverage, ever.</strong></li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="strat-rule strat-rule-scalein">
+                <div class="strat-rule-num">2</div>
+                <div class="strat-rule-content">
+                    <div class="strat-rule-title">➕ SCALE-IN — RSI dips below 30 again (while still in trade)</div>
+                    <ul class="strat-rule-list">
+                        <li>RSI drops below 30 again <strong>before</strong> a sell has been triggered</li>
+                        <li>Bot checks real free USDT balance in real-time:</li>
+                        <li class="strat-sub-item"><span class="strat-hl-green">Free balance ≥ $5</span> → BUY another $5 — avg entry price recalculated (weighted average of all fills)</li>
+                        <li class="strat-sub-item"><span class="strat-hl-red">Free balance &lt; $5</span> → HOLD — skip the trade, never borrow</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="strat-rule strat-rule-sell">
+                <div class="strat-rule-num">3</div>
+                <div class="strat-rule-content">
+                    <div class="strat-rule-title">📉 SELL — RSI closes above 70 AND trade is in green</div>
+                    <ul class="strat-rule-list">
+                        <li><strong>BOTH</strong> must be true on the same candle close:</li>
+                        <li class="strat-sub-item">RSI &gt; 70</li>
+                        <li class="strat-sub-item">Current price ≥ average entry price <span class="strat-hl-muted">(even $0.001 profit counts — break-even also closes)</span></li>
+                        <li>All accumulated BTC is sold in a <strong>single order</strong></li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="strat-rule strat-rule-lock">
+                <div class="strat-rule-num">4</div>
+                <div class="strat-rule-content">
+                    <div class="strat-rule-title">🔒 PROFIT-LOCK — RSI &gt; 70 but still in loss</div>
+                    <ul class="strat-rule-list">
+                        <li>Bot engages <strong>PROFIT-LOCK</strong> mode — does <strong>NOT</strong> sell</li>
+                        <li>Every candle it checks: RSI still &gt; 70 AND price now ≥ avg entry → <span class="strat-hl-green">SELL</span></li>
+                        <li>If RSI drops back below 70 while still in loss → just hold (no sell, no new buys)</li>
+                        <li>Once RSI crosses back above 70 and trade is finally green → <span class="strat-hl-green">SELL</span></li>
+                        <li>No new scale-ins while PROFIT-LOCK is active</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="strat-rule strat-rule-reset">
+                <div class="strat-rule-num">5</div>
+                <div class="strat-rule-content">
+                    <div class="strat-rule-title">🔄 CYCLE RESET</div>
+                    <ul class="strat-rule-list">
+                        <li>After any successful sell → back to <strong>IDLE</strong>, wait for next RSI &lt; 30</li>
+                    </ul>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="strat-protections">
+            <div class="strat-prot-title">⚙️ Protections</div>
+            <div class="strat-prot-grid">
+                <div class="strat-prot-item">
+                    <span class="strat-prot-icon">✅</span>
+                    <span>Never sells at a loss — stop-loss at <strong>–2%</strong> still protects against hard crashes</span>
+                </div>
+                <div class="strat-prot-item">
+                    <span class="strat-prot-icon">✅</span>
+                    <span>Never uses margin or leverage — balance check is enforced in real-time on every cycle</span>
+                </div>
+                <div class="strat-prot-item">
+                    <span class="strat-prot-icon">✅</span>
+                    <span>Scale-in avg cost is always correctly recalculated as a <strong>weighted average</strong> of all fills</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="strat-example">
+            <div class="strat-example-title">📋 Example Scenario</div>
+            <div class="strat-example-steps">
+                <div class="strat-ex-step strat-ex-buy">Candle 1: RSI=28 → <strong>BUY $5</strong> @ $85,000</div>
+                <div class="strat-ex-step strat-ex-buy">Candle 4: RSI=26 again → balance=$5 → <strong>BUY $5 more</strong> @ $84,200 → avg entry=$84,600</div>
+                <div class="strat-ex-step strat-ex-hold">Candle 9: RSI=72 but price=$84,100 (loss) → <strong>PROFIT-LOCK engaged</strong> — hold</div>
+                <div class="strat-ex-step strat-ex-hold">Candle 12: RSI=65 → below 70, still holding — no action</div>
+                <div class="strat-ex-step strat-ex-hold">Candle 15: RSI=71 but price=$84,500 (still loss) → still locked — hold</div>
+                <div class="strat-ex-step strat-ex-sell">Candle 18: RSI=73 AND price=$84,650 (green!) → <strong>SELL ALL</strong> — cycle complete ✓</div>
+            </div>
+        </div>
+
+        <!-- Clone action bar -->
+        <div class="strat-clone-bar">
+            <button class="btn strat-clone-btn" onclick="event.stopPropagation(); openCloneModal('rsi_swing','🤖 BTCUSDT PRO_1','BTC/USDT','1m',5,
+              [{name:'Oversold RSI (Buy below)',key:'oversold',type:'number',min:5,max:45,step:1,val:30},
+               {name:'Overbought RSI (Sell above)',key:'overbought',type:'number',min:55,max:95,step:1,val:70},
+               {name:'RSI Period',key:'rsi_period',type:'number',min:5,max:30,step:1,val:14},
+               {name:'Stop Loss %',key:'stop_loss_pct',type:'number',min:0.5,max:10,step:0.5,val:2},
+               {name:'Min Trade USD ($)',key:'min_trade_usd',type:'number',min:1,max:1000,step:1,val:5},
+               {name:'Position Size USD ($)',key:'size',type:'number',min:1,max:10000,step:1,val:5}])">
+                🔧 Clone &amp; Tweak
+            </button>
+            <span class="strat-clone-hint">Customise RSI levels, position size and more → save as your own Quick Launch preset</span>
+        </div>
+
+    </div>
+</div>
+
+<!-- ── MACD ── -->
+<div class="strat-card" id="sc-macd">
+    <div class="strat-card-header" onclick="toggleStratCard('sc-macd')">
+        <div class="strat-card-left">
+            <span class="strat-badge strat-badge-macd">MACD</span>
+            <div>
+                <div class="strat-card-name">📊 MACD Histogram (3/15/3)</div>
+                <div class="strat-card-tagline">Momentum histogram crossover — good on 4H</div>
+            </div>
+        </div>
+        <div class="strat-card-right">
+            <span class="strat-pill strat-pill-blue">4H recommended</span>
+            <button class="strat-quick-clone-btn" onclick="event.stopPropagation(); openCloneModal('macd','📊 MACD (3/15/3)','BTC/USDT','4h',5,
+              [{name:'Fast EMA',key:'fast_period',type:'number',min:2,max:20,step:1,val:3},
+               {name:'Slow EMA',key:'slow_period',type:'number',min:5,max:50,step:1,val:15},
+               {name:'Signal Period',key:'signal_period',type:'number',min:1,max:15,step:1,val:3},
+               {name:'Stop Loss %',key:'stop_loss_pct',type:'number',min:0.5,max:15,step:0.5,val:2},
+               {name:'Position Size USD ($)',key:'size',type:'number',min:1,max:10000,step:1,val:5}])" title="Clone &amp; Tweak">🔧</button>
+            <span class="strat-expand-arrow" id="sc-macd-arrow">▼</span>
+        </div>
+    </div>
+    <div class="strat-card-body" id="sc-macd-body">
+        <div class="strat-rule-grid">
+            <div class="strat-rule strat-rule-buy">
+                <div class="strat-rule-num">BUY</div>
+                <div class="strat-rule-content">
+                    <div class="strat-rule-title">MACD Histogram crosses from negative to positive</div>
+                    <ul class="strat-rule-list">
+                        <li>Fast EMA (3) crosses above Slow EMA (15) after being below</li>
+                        <li>Signal line (3-period EMA of MACD) confirmation</li>
+                        <li>Histogram bar flips positive — entry on close of that candle</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="strat-rule strat-rule-sell">
+                <div class="strat-rule-num">SELL</div>
+                <div class="strat-rule-content">
+                    <div class="strat-rule-title">MACD Histogram crosses from positive to negative</div>
+                    <ul class="strat-rule-list">
+                        <li>Fast EMA crosses back below Slow EMA</li>
+                        <li>Histogram bar flips negative — exit on close of that candle</li>
+                        <li>No profit-lock: exits immediately on signal regardless of P&amp;L</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="strat-protections">
+            <div class="strat-prot-title">⚙️ Notes</div>
+            <div class="strat-prot-grid">
+                <div class="strat-prot-item"><span class="strat-prot-icon">📌</span><span>Best on 4H or 1D — too noisy on 1m</span></div>
+                <div class="strat-prot-item"><span class="strat-prot-icon">📌</span><span>Parameters: Fast=3, Slow=15, Signal=3</span></div>
+                <div class="strat-prot-item"><span class="strat-prot-icon">📌</span><span>Trend-following — performs best in trending markets, struggles in chop</span></div>
+            </div>
+        </div>
+        <!-- Clone action bar -->
+        <div class="strat-clone-bar">
+            <button class="btn strat-clone-btn" onclick="event.stopPropagation(); openCloneModal('macd','📊 MACD (3/15/3)','BTC/USDT','4h',5,
+              [{name:'Fast EMA',key:'fast_period',type:'number',min:2,max:20,step:1,val:3},
+               {name:'Slow EMA',key:'slow_period',type:'number',min:5,max:50,step:1,val:15},
+               {name:'Signal Period',key:'signal_period',type:'number',min:1,max:15,step:1,val:3},
+               {name:'Stop Loss %',key:'stop_loss_pct',type:'number',min:0.5,max:15,step:0.5,val:2},
+               {name:'Position Size USD ($)',key:'size',type:'number',min:1,max:10000,step:1,val:5}])">
+                🔧 Clone &amp; Tweak
+            </button>
+            <span class="strat-clone-hint">Adjust EMA periods and save as a custom Quick Launch preset</span>
+        </div>
+    </div>
+</div>
+
+<!-- ── TEMA ── -->
+<div class="strat-card" id="sc-tema">
+    <div class="strat-card-header" onclick="toggleStratCard('sc-tema')">
+        <div class="strat-card-left">
+            <span class="strat-badge strat-badge-tema">TEMA</span>
+            <div>
+                <div class="strat-card-name">⭐ TEMA Crossover (9/21) + ADX</div>
+                <div class="strat-card-tagline">Research pick · Sharpe ~13 in backtests · ADX trend filter</div>
+            </div>
+        </div>
+        <div class="strat-card-right">
+            <span class="strat-pill strat-pill-gold">★ Sharpe 13</span>
+            <span class="strat-pill strat-pill-blue">1H–4H</span>
+            <button class="strat-quick-clone-btn" onclick="event.stopPropagation(); openCloneModal('tema','⭐ TEMA Crossover','BTC/USDT','1h',5,
+              [{name:'Fast TEMA Period',key:'fast_period',type:'number',min:3,max:30,step:1,val:9},
+               {name:'Slow TEMA Period',key:'slow_period',type:'number',min:10,max:60,step:1,val:21},
+               {name:'ADX Threshold (trend filter)',key:'adx_threshold',type:'number',min:10,max:40,step:1,val:20},
+               {name:'Stop Loss %',key:'stop_loss_pct',type:'number',min:0.5,max:15,step:0.5,val:2},
+               {name:'Position Size USD ($)',key:'size',type:'number',min:1,max:10000,step:1,val:5}])" title="Clone &amp; Tweak">🔧</button>
+            <span class="strat-expand-arrow" id="sc-tema-arrow">▼</span>
+        </div>
+    </div>
+    <div class="strat-card-body" id="sc-tema-body">
+        <div class="strat-rule-grid">
+            <div class="strat-rule strat-rule-buy">
+                <div class="strat-rule-num">BUY</div>
+                <div class="strat-rule-content">
+                    <div class="strat-rule-title">Fast TEMA (9) crosses above Slow TEMA (21) with ADX &gt; 20</div>
+                    <ul class="strat-rule-list">
+                        <li>Triple EMA (9) crosses above Triple EMA (21)</li>
+                        <li>ADX &gt; 20 confirms a trending market — no trades in sideways chop</li>
+                        <li>Entry on candle close</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="strat-rule strat-rule-sell">
+                <div class="strat-rule-num">SELL</div>
+                <div class="strat-rule-content">
+                    <div class="strat-rule-title">Fast TEMA (9) crosses below Slow TEMA (21)</div>
+                    <ul class="strat-rule-list">
+                        <li>Triple EMA (9) drops back below Triple EMA (21)</li>
+                        <li>ADX check not required on exit</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="strat-protections">
+            <div class="strat-prot-title">⚙️ Notes</div>
+            <div class="strat-prot-grid">
+                <div class="strat-prot-item"><span class="strat-prot-icon">📌</span><span>TEMA reacts faster than EMA/SMA — fewer whipsaws in trending markets</span></div>
+                <div class="strat-prot-item"><span class="strat-prot-icon">📌</span><span>ADX filter is the key edge — removes most false signals in range conditions</span></div>
+                <div class="strat-prot-item"><span class="strat-prot-icon">📌</span><span>Backtested Sharpe of ~13 is exceptional — validate with fresh data before live</span></div>
+            </div>
+        </div>
+        <!-- Clone action bar -->
+        <div class="strat-clone-bar">
+            <button class="btn strat-clone-btn" onclick="event.stopPropagation(); openCloneModal('tema','⭐ TEMA Crossover','BTC/USDT','1h',5,
+              [{name:'Fast TEMA Period',key:'fast_period',type:'number',min:3,max:30,step:1,val:9},
+               {name:'Slow TEMA Period',key:'slow_period',type:'number',min:10,max:60,step:1,val:21},
+               {name:'ADX Threshold (trend filter)',key:'adx_threshold',type:'number',min:10,max:40,step:1,val:20},
+               {name:'Stop Loss %',key:'stop_loss_pct',type:'number',min:0.5,max:15,step:0.5,val:2},
+               {name:'Position Size USD ($)',key:'size',type:'number',min:1,max:10000,step:1,val:5}])">
+                🔧 Clone &amp; Tweak
+            </button>
+            <span class="strat-clone-hint">Tune TEMA periods and ADX filter → save as your own Quick Launch preset</span>
+        </div>
+    </div>
+</div>
+
+<!-- ── Arbitrage ── -->
+<div class="strat-card" id="sc-arb">
+    <div class="strat-card-header" onclick="toggleStratCard('sc-arb')">
+        <div class="strat-card-left">
+            <span class="strat-badge strat-badge-arb">ARB</span>
+            <div>
+                <div class="strat-card-name">⚡ Arbitrage Ratio (BTC/ETH)</div>
+                <div class="strat-card-tagline">Statistical mean-reversion on the BTC÷ETH price ratio</div>
+            </div>
+        </div>
+        <div class="strat-card-right">
+            <span class="strat-pill strat-pill-purple">BTC + ETH</span>
+            <span class="strat-pill strat-pill-blue">4H+</span>
+            <button class="strat-quick-clone-btn" onclick="event.stopPropagation(); openCloneModal('arbitrage','⚡ Arbitrage Ratio','BTC/USDT','4h',5,
+              [{name:'SMA Window (ratio rolling mean)',key:'window',type:'number',min:5,max:100,step:1,val:30},
+               {name:'Z-Score Entry Threshold (σ)',key:'z_entry',type:'number',min:0.5,max:4,step:0.1,val:2},
+               {name:'Z-Score Exit Threshold (σ)',key:'z_exit',type:'number',min:0.1,max:3,step:0.1,val:0.5},
+               {name:'Position Size USD ($)',key:'size',type:'number',min:1,max:10000,step:1,val:5}])" title="Clone &amp; Tweak">🔧</button>
+            <span class="strat-expand-arrow" id="sc-arb-arrow">▼</span>
+        </div>
+    </div>
+    <div class="strat-card-body" id="sc-arb-body">
+        <div class="strat-rule-grid">
+            <div class="strat-rule strat-rule-buy">
+                <div class="strat-rule-num">BUY</div>
+                <div class="strat-rule-content">
+                    <div class="strat-rule-title">Ratio drops below mean − 2σ (BTC cheap vs ETH)</div>
+                    <ul class="strat-rule-list">
+                        <li>Computes BTC/ETH price ratio each candle</li>
+                        <li>Rolling SMA(30) and standard deviation of the ratio</li>
+                        <li>When ratio &lt; SMA − 2σ → BUY BTC (statistically undervalued vs ETH)</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="strat-rule strat-rule-sell">
+                <div class="strat-rule-num">SELL</div>
+                <div class="strat-rule-content">
+                    <div class="strat-rule-title">Ratio reverts above mean + 2σ (BTC expensive vs ETH)</div>
+                    <ul class="strat-rule-list">
+                        <li>When ratio &gt; SMA + 2σ → SELL BTC</li>
+                        <li>Mean-reversion trade completes when ratio returns to historical norm</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="strat-protections">
+            <div class="strat-prot-title">⚙️ Notes</div>
+            <div class="strat-prot-grid">
+                <div class="strat-prot-item"><span class="strat-prot-icon">📌</span><span>Requires both BTC and ETH price feeds simultaneously</span></div>
+                <div class="strat-prot-item"><span class="strat-prot-icon">📌</span><span>Works best when BTC and ETH are highly correlated — breaks down in divergence events</span></div>
+                <div class="strat-prot-item"><span class="strat-prot-icon">📌</span><span>Live ratio monitor available on the Trading page</span></div>
+            </div>
+        </div>
+        <!-- Clone action bar -->
+        <div class="strat-clone-bar">
+            <button class="btn strat-clone-btn" onclick="event.stopPropagation(); openCloneModal('arbitrage','⚡ Arbitrage Ratio','BTC/USDT','4h',5,
+              [{name:'SMA Window (ratio rolling mean)',key:'window',type:'number',min:5,max:100,step:1,val:30},
+               {name:'Z-Score Entry Threshold (σ)',key:'z_entry',type:'number',min:0.5,max:4,step:0.1,val:2},
+               {name:'Z-Score Exit Threshold (σ)',key:'z_exit',type:'number',min:0.1,max:3,step:0.1,val:0.5},
+               {name:'Position Size USD ($)',key:'size',type:'number',min:1,max:10000,step:1,val:5}])">
+                🔧 Clone &amp; Tweak
+            </button>
+            <span class="strat-clone-hint">Adjust the SMA window and Z-score thresholds → save as your own preset</span>
+        </div>
+    </div>
+</div>
+
+<!-- ── My Cloned Strategies ───────────────────────────────────── -->
+<div id="userClonesSection" style="display:none; margin-top: 1.5rem;">
+    <div class="strat-tab-intro" style="margin-bottom: 0.75rem;">
+        <span class="strat-tab-icon">📌</span>
+        <div>
+            <div class="strat-tab-title">My Cloned Strategies</div>
+            <div class="strat-tab-sub">Strategies you saved via Clone &amp; Tweak. Also available in Live Trading → Quick Launch and the Strategy dropdown.</div>
+        </div>
+        <button onclick="clearAllClones()" style="margin-left:auto;background:none;border:1px solid #ff4d4d44;color:#ff4d4d99;border-radius:6px;padding:4px 10px;font-size:0.72rem;cursor:pointer;" onmouseover="this.style.color='#ff4d4d'" onmouseout="this.style.color='#ff4d4d99'">🗑 Clear all</button>
+    </div>
+    <div id="userCloneCards"></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     CLONE & TWEAK MODAL
+════════════════════════════════════════════════════════════════ -->
+<div id="cloneModal" class="clone-modal-overlay" style="display:none;" onclick="if(event.target===this)closeCloneModal()">
+    <div class="clone-modal">
+        <div class="clone-modal-header">
+            <div>
+                <div class="clone-modal-title">🔧 Clone &amp; Tweak Strategy</div>
+                <div class="clone-modal-subtitle" id="cloneBaseLabel">Based on: —</div>
+            </div>
+            <button class="clone-modal-close" onclick="closeCloneModal()">✕</button>
+        </div>
+        <div class="clone-modal-body">
+            <div class="clone-field-row">
+                <label class="clone-field-label">Preset Name <span style="color:#e5484d">*</span></label>
+                <input id="cloneName" class="form-input" type="text" placeholder="e.g. My RSI 20/60 Aggressive" maxlength="50">
+                <div class="clone-field-hint">This name will appear in Quick Launch on the Trading tab</div>
+            </div>
+            <div class="clone-field-row">
+                <label class="clone-field-label">Symbol</label>
+                <input id="cloneSymbol" class="form-input" type="text" placeholder="BTC/USDT">
+            </div>
+            <div class="clone-field-row">
+                <label class="clone-field-label">Timeframe</label>
+                <select id="cloneTimeframe" class="form-input">
+                    <option value="1m">1 Minute</option>
+                    <option value="5m">5 Minutes</option>
+                    <option value="15m">15 Minutes</option>
+                    <option value="1h">1 Hour</option>
+                    <option value="4h">4 Hours</option>
+                    <option value="1d">1 Day</option>
+                </select>
+            </div>
+            <div id="cloneDynamicFields"></div>
+        </div>
+        <div class="clone-modal-footer">
+            <button class="btn btn-sm" onclick="closeCloneModal()">Cancel</button>
+            <button class="btn bt-act-green clone-save-btn" onclick="saveClonePreset()">
+                ⚡ Save to Quick Launch
+            </button>
+        </div>
+    </div>
+</div>
+
+</div><!-- /tabPanelLibrary -->
+
+{% endblock %}<!-- end block content -->
+
+{% block scripts %}
+<style>
+/* ═══════════════════════════════════════════════════════════════
+   🤖  STRATEGIES PAGE
+═══════════════════════════════════════════════════════════════ */
+.strat-tab-intro {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    padding: 1rem 1.25rem;
+    background: var(--bg-secondary, #181f2a);
+    border: 1px solid var(--border, #2a3240);
+    border-radius: 10px;
+}
+.strat-tab-icon { font-size: 2rem; flex-shrink: 0; }
+.strat-tab-title {
+    font-size: 1rem; font-weight: 700;
+    color: var(--text-primary, #e8eaf0);
+    margin-bottom: 0.2rem;
+}
+.strat-tab-sub { font-size: 0.8rem; color: var(--text-muted, #7a8899); }
+
+/* Strategy Card */
+.strat-card {
+    background: var(--bg-secondary, #181f2a);
+    border: 1px solid var(--border, #2a3240);
+    border-radius: 12px;
+    margin-bottom: 0.85rem;
+    overflow: hidden;
+    transition: border-color 0.22s, box-shadow 0.22s, transform 0.15s;
+}
+.strat-card:hover {
+    border-color: #3a4560;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 18px rgba(0,0,0,0.25);
+}
+.strat-card-open {
+    border-color: #e5484d44;
+    box-shadow: 0 0 22px rgba(229,72,77,0.07);
+    transform: none;
+}
+.strat-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.25rem;
+    cursor: pointer;
+    user-select: none;
+    gap: 1rem;
+}
+.strat-card-header:hover { background: transparent; }
+.strat-card-left {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    flex: 1;
+}
+.strat-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 46px; height: 46px; border-radius: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem; font-weight: 800;
+    letter-spacing: 0.04em; flex-shrink: 0;
+}
+.strat-badge-rsi   { background:#05F26C18; color:#05F26C; border:1px solid #05F26C44; }
+.strat-badge-macd  { background:#00bfff18; color:#00bfff; border:1px solid #00bfff44; }
+.strat-badge-tema  { background:#ffd60a18; color:#ffd60a; border:1px solid #ffd60a44; }
+.strat-badge-arb   { background:#b57bee18; color:#b57bee; border:1px solid #b57bee44; }
+.strat-card-name {
+    font-size: 0.96rem; font-weight: 700;
+    color: var(--text-primary, #e8eaf0);
+    margin-bottom: 0.15rem;
+}
+.strat-card-tagline {
+    font-size: 0.78rem;
+    color: var(--text-muted, #7a8899);
+}
+.strat-card-right {
+    display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0;
+}
+.strat-pill {
+    padding: 0.2rem 0.55rem; border-radius: 20px;
+    font-size: 0.68rem; font-weight: 700;
+    letter-spacing: 0.04em; white-space: nowrap;
+}
+.strat-pill-green  { background:#05F26C1a; color:#05F26C; border:1px solid #05F26C33; }
+.strat-pill-blue   { background:#00bfff1a; color:#00bfff; border:1px solid #00bfff33; }
+.strat-pill-gold   { background:#ffd60a1a; color:#ffd60a; border:1px solid #ffd60a33; }
+.strat-pill-purple { background:#b57bee1a; color:#b57bee; border:1px solid #b57bee33; }
+.strat-expand-arrow {
+    font-size: 0.8rem; color: var(--text-muted, #7a8899);
+    width: 1.25rem; text-align: center; flex-shrink: 0;
+    transition: color 0.15s;
+}
+.strat-card-open .strat-expand-arrow { color: #e5484d; }
+
+/* Quick clone button in card header */
+.strat-quick-clone-btn {
+    background: none;
+    border: 1px solid #A855F744;
+    color: #A855F799;
+    border-radius: 5px;
+    padding: 0.22rem 0.5rem;
+    font-size: 0.78rem;
+    cursor: pointer;
+    transition: all 0.15s;
+    flex-shrink: 0;
+    line-height: 1;
+}
+.strat-quick-clone-btn:hover {
+    background: #A855F718;
+    border-color: #A855F7;
+    color: #C084FC;
+    box-shadow: 0 0 8px #A855F733;
+}
+
+/* Card body */
+.strat-card-body {
+    display: none;
+    padding: 0 1.25rem 1.25rem;
+    border-top: 1px solid var(--border, #2a3240);
+}
+.strat-card-body.open { display: block; animation: stratFadeIn 0.18s ease; }
+@keyframes stratFadeIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Rule grid */
+.strat-rule-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-top: 1rem;
+}
+.strat-rule {
+    display: flex;
+    gap: 1rem;
+    padding: 0.85rem 1rem;
+    border-radius: 8px;
+    border-left: 3px solid transparent;
+    background: var(--bg-primary, #111827);
+}
+.strat-rule-buy    { border-left-color: #05F26C; background: #05F26C09; }
+.strat-rule-sell   { border-left-color: #ff6b6b; background: #ff6b6b09; }
+.strat-rule-scalein{ border-left-color: #00bfff; background: #00bfff09; }
+.strat-rule-lock   { border-left-color: #ffd60a; background: #ffd60a09; }
+.strat-rule-reset  { border-left-color: #b57bee; background: #b57bee09; }
+.strat-rule-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem; font-weight: 800;
+    color: var(--text-muted, #7a8899);
+    min-width: 1.6rem;
+    padding-top: 0.1rem;
+    text-align: center;
+}
+.strat-rule-content { flex: 1; }
+.strat-rule-title {
+    font-weight: 700;
+    font-size: 0.87rem;
+    color: var(--text-primary, #e8eaf0);
+    margin-bottom: 0.45rem;
+}
+.strat-rule-list {
+    margin: 0; padding-left: 1.1rem;
+    font-size: 0.82rem;
+    color: var(--text-secondary, #b0bac8);
+    line-height: 1.75;
+}
+.strat-rule-list li { margin-bottom: 0.1rem; }
+.strat-sub-item { list-style: none; padding-left: 0.5rem; }
+.strat-sub-item::before { content: '→ '; color: var(--text-muted, #7a8899); }
+.strat-hl-green { color: #05F26C; font-weight: 600; }
+.strat-hl-red   { color: #ff6b6b; font-weight: 600; }
+.strat-hl-muted { color: var(--text-muted, #7a8899); font-size: 0.78rem; }
+
+/* Protections block */
+.strat-protections {
+    margin-top: 1rem;
+    padding: 0.85rem 1rem;
+    background: #05F26C08;
+    border: 1px solid #05F26C22;
+    border-radius: 8px;
+}
+.strat-prot-title {
+    font-size: 0.78rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.08em;
+    color: #05F26C; margin-bottom: 0.6rem;
+}
+.strat-prot-grid {
+    display: flex; flex-direction: column; gap: 0.4rem;
+}
+.strat-prot-item {
+    display: flex; align-items: flex-start; gap: 0.6rem;
+    font-size: 0.82rem; color: var(--text-secondary, #b0bac8);
+    line-height: 1.55;
+}
+.strat-prot-icon { flex-shrink: 0; }
+
+/* Example scenario */
+.strat-example {
+    margin-top: 1rem;
+    padding: 0.85rem 1rem;
+    background: #00bfff08;
+    border: 1px solid #00bfff22;
+    border-radius: 8px;
+}
+.strat-example-title {
+    font-size: 0.78rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.08em;
+    color: #00bfff; margin-bottom: 0.65rem;
+}
+.strat-example-steps {
+    display: flex; flex-direction: column; gap: 0.35rem;
+}
+.strat-ex-step {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.77rem;
+    padding: 0.35rem 0.65rem;
+    border-radius: 5px;
+    color: var(--text-secondary, #b0bac8);
+}
+.strat-ex-buy  { background: #05F26C12; border-left: 2px solid #05F26C; }
+.strat-ex-sell { background: #ff6b6b12; border-left: 2px solid #ff6b6b; }
+.strat-ex-hold { background: #ffd60a10; border-left: 2px solid #ffd60a88; }
+
+/* Clone & Tweak action bar */
+.strat-clone-bar {
+    display: flex; align-items: center; gap: 1rem;
+    margin-top: 1.1rem; padding-top: 1rem;
+    border-top: 1px solid var(--border, #2a3240);
+    flex-wrap: wrap;
+}
+.strat-clone-btn {
+    font-size: 0.8rem !important; font-weight: 700 !important;
+    padding: 0.42rem 1rem !important; border-radius: 6px !important;
+    border: 1px solid #05F26C66 !important; color: #05F26Ccc !important;
+    background: transparent !important; cursor: pointer !important;
+    transition: all 0.18s !important;
+    white-space: nowrap;
+}
+.strat-clone-btn:hover { background: #05F26C15 !important; border-color: #05F26C !important; color: #05F26C !important; box-shadow: 0 0 10px #05F26C33 !important; }
+.strat-clone-hint { font-size: 0.75rem; color: var(--text-muted, #7a8899); }
+
+/* Clone Modal */
+.clone-modal-overlay {
+    position: fixed; inset: 0; z-index: 9000;
+    background: rgba(0,0,0,0.65); backdrop-filter: blur(4px);
+    display: flex; align-items: center; justify-content: center;
+    padding: 1rem;
+}
+.clone-modal {
+    background: var(--bg-secondary, #181f2a);
+    border: 1px solid #05F26C44;
+    border-radius: 14px;
+    width: 100%; max-width: 520px;
+    max-height: 90vh; overflow-y: auto;
+    box-shadow: 0 0 40px #05F26C22, 0 16px 48px rgba(0,0,0,0.5);
+    animation: cloneModalIn 0.18s ease;
+}
+@keyframes cloneModalIn {
+    from { opacity: 0; transform: scale(0.96) translateY(-8px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+.clone-modal-header {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    padding: 1.25rem 1.5rem 1rem;
+    border-bottom: 1px solid var(--border, #2a3240);
+}
+.clone-modal-title {
+    font-size: 1rem; font-weight: 800; color: var(--text-primary, #e8eaf0);
+    margin-bottom: 0.2rem;
+}
+.clone-modal-subtitle { font-size: 0.78rem; color: #05F26C; }
+.clone-modal-close {
+    background: none; border: none; color: var(--text-muted); cursor: pointer;
+    font-size: 1.1rem; padding: 0.25rem 0.4rem; border-radius: 5px;
+    transition: color 0.15s;
+}
+.clone-modal-close:hover { color: #ff6b6b; }
+.clone-modal-body { padding: 1.25rem 1.5rem; display: flex; flex-direction: column; gap: 1rem; }
+.clone-modal-footer {
+    padding: 1rem 1.5rem; border-top: 1px solid var(--border, #2a3240);
+    display: flex; justify-content: flex-end; gap: 0.75rem;
+}
+.clone-field-row { display: flex; flex-direction: column; gap: 0.35rem; }
+.clone-field-label { font-size: 0.78rem; font-weight: 700; color: var(--text-secondary, #b0bac8); text-transform: uppercase; letter-spacing: 0.05em; }
+.clone-field-hint { font-size: 0.72rem; color: var(--text-muted, #7a8899); margin-top: 0.1rem; }
+.clone-dynamic-param {
+    display: grid; grid-template-columns: 1fr 140px; gap: 0.5rem 1rem; align-items: center;
+    background: var(--bg-primary, #111827); border: 1px solid var(--border, #2a3240);
+    border-radius: 8px; padding: 0.65rem 0.85rem;
+}
+.clone-param-label { font-size: 0.82rem; color: var(--text-secondary, #b0bac8); font-weight: 600; }
+.clone-save-btn {
+    border: 1px solid #05F26C88 !important; color: #05F26Ccc !important;
+    background: transparent !important; font-size: 0.84rem !important;
+    font-weight: 700 !important; padding: 0.5rem 1.2rem !important;
+    border-radius: 7px !important; cursor: pointer !important; transition: all 0.18s !important;
+}
+.clone-save-btn:hover { background: #05F26C18 !important; border-color: #05F26C !important; color: #05F26C !important; }
+
+/* bt-act-green for modal save button */
+.bt-act-green { border-color: #05F26C88 !important; color: #05F26Ccc !important; background: transparent !important; }
+.bt-act-green:hover { background: #05F26C15 !important; border-color: #05F26C !important; color: #05F26C !important; }
+</style>
+
+<script>
+// ── Strategy cards ───────────────────────────────────────────────
+function toggleStratCard(id) {
+    const body  = document.getElementById(id + '-body');
+    const arrow = document.getElementById(id + '-arrow');
+    const card  = document.getElementById(id);
+    const isOpen = body.classList.toggle('open');
+    arrow.textContent = isOpen ? '▲' : '▼';
+    card.classList.toggle('strat-card-open', isOpen);
+}
+
+// ── Clone & Tweak Modal ──────────────────────────────────────────
+let _cloneCtx = {};
+
+function openCloneModal(stratKey, stratLabel, defaultSymbol, defaultTf, defaultSize, params) {
+    _cloneCtx = { stratKey, stratLabel, params };
+    document.getElementById('cloneBaseLabel').textContent = 'Based on: ' + stratLabel;
+    document.getElementById('cloneName').value = stratLabel + ' (Clone)';
+    document.getElementById('cloneSymbol').value = defaultSymbol;
+    const tfSel = document.getElementById('cloneTimeframe');
+    for (const opt of tfSel.options) { opt.selected = (opt.value === defaultTf); }
+    const container = document.getElementById('cloneDynamicFields');
+    container.innerHTML = '';
+    for (const p of params) {
+        const row = document.createElement('div');
+        row.className = 'clone-dynamic-param';
+        const label = document.createElement('span');
+        label.className = 'clone-param-label';
+        label.textContent = p.name;
+        const input = document.createElement('input');
+        input.className = 'form-input';
+        input.type = p.type || 'number';
+        input.id = 'clone_param_' + p.key;
+        input.value = p.val;
+        if (p.min !== undefined) input.min = p.min;
+        if (p.max !== undefined) input.max = p.max;
+        if (p.step !== undefined) input.step = p.step;
+        row.appendChild(label);
+        row.appendChild(input);
+        container.appendChild(row);
+    }
+    document.getElementById('cloneModal').style.display = 'flex';
+    setTimeout(() => document.getElementById('cloneName').focus(), 50);
+}
+
+function closeCloneModal() {
+    document.getElementById('cloneModal').style.display = 'none';
+}
+
+function saveClonePreset() {
+    const name = document.getElementById('cloneName').value.trim();
+    if (!name) { document.getElementById('cloneName').focus(); return; }
+    const symbol    = document.getElementById('cloneSymbol').value.trim() || 'BTC/USDT';
+    const timeframe = document.getElementById('cloneTimeframe').value;
+
+    const extras = {};
+    for (const p of _cloneCtx.params || []) {
+        const el = document.getElementById('clone_param_' + p.key);
+        if (!el) continue;
+        extras[p.key] = p.type === 'number' ? parseFloat(el.value) : el.value;
+    }
+    const size = parseFloat(extras.size) || 5;
+
+    const preset = {
+        name,
+        strategy: _cloneCtx.stratKey,
+        stratLabel: _cloneCtx.stratLabel,
+        symbol,
+        timeframe,
+        size,
+        extras,
+        hint: Object.entries(extras)
+            .filter(([k]) => k !== 'size')
+            .map(([k, v]) => `${k}=${v}`)
+            .join(' · '),
+        clonedFrom: _cloneCtx.stratKey,
+        savedAt: Date.now(),
+    };
+
+    try {
+        const existing = JSON.parse(localStorage.getItem('userQuickPresets') || '[]');
+        existing.push(preset);
+        localStorage.setItem('userQuickPresets', JSON.stringify(existing));
+        closeCloneModal();
+        renderUserStrategyCards();
+        showToast('⚡ "' + name + '" saved to Quick Launch & Strategies!', 'success');
+    } catch(e) {
+        showToast('Failed to save preset', 'error');
+    }
+}
+
+// ── Render user-cloned strategy cards ───────────────────────────
+function renderUserStrategyCards() {
+    const section   = document.getElementById('userClonesSection');
+    const container = document.getElementById('userCloneCards');
+    if (!section || !container) return;
+
+    let presets = [];
+    try { presets = JSON.parse(localStorage.getItem('userQuickPresets') || '[]'); } catch(e) {}
+    if (presets.length === 0) { section.style.display = 'none'; return; }
+
+    section.style.display = '';
+    container.innerHTML = '';
+
+    presets.forEach((p, idx) => {
+        const paramRows = Object.entries(p.extras || {})
+            .filter(([k]) => k !== 'size')
+            .map(([k, v]) => `<tr><td class="clone-param-label" style="padding:3px 10px 3px 0;color:var(--text-secondary,#8b949e);font-size:0.8rem;">${k}</td><td style="font-weight:600;font-size:0.82rem;">${v}</td></tr>`)
+            .join('');
+
+        const card = document.createElement('div');
+        card.className = 'strat-card';
+        card.style.cssText = 'border-color:#A855F744; margin-bottom:0.75rem;';
+        card.innerHTML = `
+            <div class="strat-card-header" onclick="toggleStratCard('uc-${idx}')">
+                <div class="strat-card-left">
+                    <span class="strat-badge" style="background:#A855F722;color:#A855F7;border-color:#A855F744;">📌</span>
+                    <div>
+                        <div class="strat-card-name" style="color:#C084FC;">${p.name}</div>
+                        <div class="strat-card-tagline">Cloned from ${p.stratLabel || p.strategy} · ${p.symbol} · ${p.timeframe}</div>
+                    </div>
+                </div>
+                <div class="strat-card-right">
+                    <span class="strat-pill strat-pill-blue">${p.symbol}</span>
+                    <span class="strat-pill" style="background:#A855F722;color:#C084FC;">${p.timeframe}</span>
+                    <button onclick="event.stopPropagation();removeClonePreset(${idx})" style="background:none;border:none;color:#ff4d4d66;cursor:pointer;font-size:0.85rem;padding:0 4px;" onmouseover="this.style.color='#ff4d4d'" onmouseout="this.style.color='#ff4d4d66'" title="Remove">✕</button>
+                    <span class="strat-expand-arrow" id="uc-${idx}-arrow">▼</span>
+                </div>
+            </div>
+            <div class="strat-card-body" id="uc-${idx}-body">
+                <div style="display:flex;gap:1.5rem;flex-wrap:wrap;align-items:flex-start;">
+                    <div>
+                        <div style="font-size:0.72rem;text-transform:uppercase;color:#8b949e;letter-spacing:.06em;margin-bottom:6px;">Parameters</div>
+                        <table style="border-collapse:collapse;">
+                            ${paramRows || '<tr><td style="color:#8b949e;font-size:0.8rem;">No custom parameters</td></tr>'}
+                        </table>
+                    </div>
+                    <div>
+                        <div style="font-size:0.72rem;text-transform:uppercase;color:#8b949e;letter-spacing:.06em;margin-bottom:6px;">Config</div>
+                        <table style="border-collapse:collapse;">
+                            <tr><td class="clone-param-label" style="padding:3px 10px 3px 0;color:#8b949e;font-size:0.8rem;">Symbol</td><td style="font-weight:600;font-size:0.82rem;">${p.symbol}</td></tr>
+                            <tr><td class="clone-param-label" style="padding:3px 10px 3px 0;color:#8b949e;font-size:0.8rem;">Timeframe</td><td style="font-weight:600;font-size:0.82rem;">${p.timeframe}</td></tr>
+                            <tr><td class="clone-param-label" style="padding:3px 10px 3px 0;color:#8b949e;font-size:0.8rem;">Position size</td><td style="font-weight:600;font-size:0.82rem;">$${p.size}</td></tr>
+                        </table>
+                    </div>
+                </div>
+                <div class="strat-clone-bar" style="margin-top:0.75rem;">
+                    <button class="btn btn-sm strat-clone-btn" onclick="event.stopPropagation();removeClonePreset(${idx})" style="border-color:#ff4d4d66;color:#ff4d4d99;">🗑 Remove</button>
+                </div>
+            </div>`;
+        container.appendChild(card);
+    });
+}
+
+function removeClonePreset(idx) {
+    try {
+        const presets = JSON.parse(localStorage.getItem('userQuickPresets') || '[]');
+        const name = presets[idx] ? presets[idx].name : '';
+        presets.splice(idx, 1);
+        localStorage.setItem('userQuickPresets', JSON.stringify(presets));
+        renderUserStrategyCards();
+        if (name) showToast('"' + name + '" removed', 'success');
+    } catch(e) {}
+}
+
+function clearAllClones() {
+    if (!confirm('Remove all cloned strategies?')) return;
+    localStorage.removeItem('userQuickPresets');
+    renderUserStrategyCards();
+    showToast('All cloned strategies cleared', 'success');
+}
+
+// Close modal on Escape
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && document.getElementById('cloneModal').style.display !== 'none') {
+        closeCloneModal();
+    }
+});
+
+// Render cloned strategies on page load
+renderUserStrategyCards();
+
+// ═══════════════════════════════════════════════════════════════
+//  SUB-TAB SWITCHING: Builder ↔ Library
+// ═══════════════════════════════════════════════════════════════
+function switchStratTab(tab) {
+    document.getElementById('tabPanelBuilder').style.display = tab === 'builder' ? 'block' : 'none';
+    document.getElementById('tabPanelLibrary').style.display = tab === 'library' ? 'block' : 'none';
+    document.getElementById('tabBuilder').classList.toggle('active', tab === 'builder');
+    document.getElementById('tabLibrary').classList.toggle('active', tab === 'library');
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  BUILDER TAB JS
+// ═══════════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => { loadCustomStrategies(); });
+
+function addCondition(type) {
+    const container = document.getElementById(type + 'Conditions');
+    const idx = container.children.length;
+    const div = document.createElement('div');
+    div.className = 'condition-row';
+    div.dataset.idx = idx;
+    div.innerHTML = `
+        <select class="form-input cond-indicator">
+            <option value="rsi">RSI</option><option value="macd">MACD</option>
+            <option value="ema_cross">EMA Cross</option><option value="bb_upper">BB Upper</option>
+            <option value="bb_lower">BB Lower</option><option value="volume_spike">Vol Spike</option>
+            <option value="price_above_ema">Price>EMA</option><option value="price_below_ema">Price<EMA</option>
+            <option value="stochrsi">Stoch RSI</option><option value="supertrend_up">ST Up</option>
+        </select>
+        <select class="form-input cond-operator">
+            <option value="<">Less than</option><option value=">">Greater than</option>
+            <option value="crosses_above">Crosses Above</option><option value="crosses_below">Crosses Below</option>
+        </select>
+        <input type="number" step="any" class="form-input cond-value" value="50" style="width:80px;">
+        <button class="btn btn-sm btn-red" onclick="removeCondition(this, '${type}')">✕</button>
+    `;
+    container.appendChild(div);
+}
+
+function removeCondition(btn, type) {
+    const container = document.getElementById(type + 'Conditions');
+    if (container.children.length > 1) btn.closest('.condition-row').remove();
+}
+
+function getConditions(type) {
+    const rows = document.getElementById(type + 'Conditions').querySelectorAll('.condition-row');
+    return Array.from(rows).map(r => ({
+        indicator: r.querySelector('.cond-indicator').value,
+        operator: r.querySelector('.cond-operator').value,
+        value: parseFloat(r.querySelector('.cond-value').value) || 0,
+    }));
+}
+
+async function saveStrategy() {
+    if (!currentUser) { showToast('Sign in first', 'error'); return; }
+    const strategy = {
+        uid: currentUser.uid,
+        name: document.getElementById('bName').value || 'Unnamed Strategy',
+        description: document.getElementById('bDesc').value,
+        entry_conditions: getConditions('entry'),
+        exit_conditions: getConditions('exit'),
+        stop_loss_pct: parseFloat(document.getElementById('bStopLoss').value),
+        take_profit_pct: parseFloat(document.getElementById('bTakeProfit').value),
+        position_size: parseFloat(document.getElementById('bPosSize').value),
+        timeframe: document.getElementById('bTimeframe').value,
+    };
+    try {
+        await fetch('/api/strategies/custom', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(strategy),
+        });
+        showToast('Strategy saved!', 'success');
+        loadCustomStrategies();
+    } catch(e) { showToast('Failed to save', 'error'); }
+}
+
+async function loadCustomStrategies() {
+    if (!currentUser) return;
+    try {
+        const res = await fetch(`/api/strategies/custom?uid=${currentUser.uid}`);
+        const data = await res.json();
+        if (!data.strategies || !data.strategies.length) {
+            document.getElementById('savedStrategies').innerHTML = '<p class="text-muted text-center">No saved strategies. Build one!</p>';
+            return;
+        }
+        let html = '';
+        data.strategies.forEach(s => {
+            html += `<div class="bot-card" style="margin-bottom:.75rem;">
+                <div class="bot-info">
+                    <span class="bot-name">${s.name}</span>
+                    <span class="text-muted" style="font-size:.82rem;">${s.description||''}</span>
+                </div>
+                <div class="bot-details" style="margin-top:.5rem;">
+                    <span>Entry: ${(s.entry_conditions||[]).length} conditions</span>
+                    <span>Exit: ${(s.exit_conditions||[]).length} conditions</span>
+                    <span>SL: ${s.stop_loss_pct}% / TP: ${s.take_profit_pct}%</span>
+                    <span>TF: ${s.timeframe}</span>
+                </div>
+                <div style="margin-top:.5rem;display:flex;gap:.5rem;">
+                    <button class="btn btn-sm" onclick="loadStrategyIntoBuilder('${s.id}')">📝 Edit</button>
+                    <button class="btn btn-sm btn-red" onclick="deleteCustomStrategy('${s.id}')">✕ Delete</button>
+                </div>
+            </div>`;
+        });
+        document.getElementById('savedStrategies').innerHTML = html;
+    } catch(e) {}
+}
+
+async function deleteCustomStrategy(id) {
+    if (!confirm('Delete this strategy?')) return;
+    try {
+        await fetch('/api/strategies/custom/delete', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ uid: currentUser.uid, id }),
+        });
+        showToast('Strategy deleted', 'success');
+        loadCustomStrategies();
+    } catch(e) {}
+}
+
+async function loadStrategyIntoBuilder(id) {
+    if (!currentUser) return;
+    try {
+        const res = await fetch(`/api/strategies/custom?uid=${currentUser.uid}`);
+        const data = await res.json();
+        const s = (data.strategies||[]).find(x => x.id === id);
+        if (!s) return;
+        document.getElementById('bName').value = s.name || '';
+        document.getElementById('bDesc').value = s.description || '';
+        document.getElementById('bStopLoss').value = s.stop_loss_pct || 2;
+        document.getElementById('bTakeProfit').value = s.take_profit_pct || 4;
+        document.getElementById('bPosSize').value = s.position_size || 100;
+        document.getElementById('bTimeframe').value = s.timeframe || '1h';
+        switchStratTab('builder');
+        showToast('Strategy loaded into builder', 'success');
+    } catch(e) {}
+}
+
+async function backtestStrategy() {
+    const entry = getConditions('entry');
+    const indicatorMap = {
+        'rsi': 'rsi', 'macd': 'macd', 'ema_cross': 'ema_ribbon',
+        'bb_upper': 'bb_squeeze', 'bb_lower': 'bb_squeeze',
+        'stochrsi': 'stochrsi', 'supertrend_up': 'supertrend',
+        'volume_spike': 'cvd', 'price_above_ema': 'ema_ribbon',
+    };
+    const strategyName = indicatorMap[entry[0]?.indicator] || 'rsi';
+
+    try {
+        const res = await fetch('/api/backtest', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                strategy: strategyName,
+                symbol: 'BTC/USDT',
+                timeframe: document.getElementById('bTimeframe').value,
+                limit: 500,
+                size: parseFloat(document.getElementById('bPosSize').value),
+            }),
+        });
+        const data = await res.json();
+        document.getElementById('btResultPanel').style.display = 'block';
+        document.getElementById('btResult').innerHTML = `
+            <div class="cards-row">
+                <div class="card"><div class="card-label">Trades</div><div class="card-value">${data.total_trades}</div></div>
+                <div class="card"><div class="card-label">Win Rate</div><div class="card-value">${data.win_rate}%</div></div>
+                <div class="card"><div class="card-label">P&L</div><div class="card-value ${data.total_pnl>=0?'text-green':'text-red'}">$${formatNum(data.total_pnl, 4)}</div></div>
+                <div class="card"><div class="card-label">Max DD</div><div class="card-value text-red">${data.max_drawdown}%</div></div>
+            </div>
+        `;
+    } catch(e) { showToast('Backtest failed', 'error'); }
+}
+
+</script>
+<style>
+.condition-row {
+    display: flex; gap: .5rem; align-items: center; margin-bottom: .5rem; flex-wrap: wrap;
+}
+.condition-row .form-input { flex: 1; min-width: 100px; }
+.condition-row .cond-value { flex: 0 0 80px; }
+</style>
+{% endblock %}

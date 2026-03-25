@@ -1,0 +1,303 @@
+{% extends "base.html" %}
+{% block title %}Strategy Builder — TrekBot{% endblock %}
+{% block page_title %}Strategy Builder{% endblock %}
+
+{% block content %}
+<div class="grid-2col">
+    <!-- Builder Panel -->
+    <div class="panel">
+        <div class="panel-header">
+            <h2>No-Code Strategy Builder</h2>
+        </div>
+        <div class="panel-body">
+            <div class="form-group">
+                <label>Strategy Name</label>
+                <input type="text" id="bName" class="form-input" placeholder="My Custom Strategy" required>
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <input type="text" id="bDesc" class="form-input" placeholder="Buy on RSI dip, sell on RSI spike">
+            </div>
+
+            <h3 style="margin-top:1.5rem;font-size:.95rem;color:var(--text-secondary);">📥 Entry Conditions</h3>
+            <div id="entryConditions">
+                <div class="condition-row" data-idx="0">
+                    <select class="form-input cond-indicator">
+                        <option value="rsi">RSI</option>
+                        <option value="macd">MACD</option>
+                        <option value="ema_cross">EMA Crossover</option>
+                        <option value="bb_upper">BB Upper Band</option>
+                        <option value="bb_lower">BB Lower Band</option>
+                        <option value="volume_spike">Volume Spike</option>
+                        <option value="price_above_ema">Price > EMA</option>
+                        <option value="price_below_ema">Price < EMA</option>
+                        <option value="stochrsi">Stoch RSI</option>
+                        <option value="supertrend_up">Supertrend Up</option>
+                    </select>
+                    <select class="form-input cond-operator">
+                        <option value="<">Less than</option>
+                        <option value=">">Greater than</option>
+                        <option value="crosses_above">Crosses Above</option>
+                        <option value="crosses_below">Crosses Below</option>
+                    </select>
+                    <input type="number" step="any" class="form-input cond-value" value="30" style="width:80px;">
+                    <button class="btn btn-sm btn-red" onclick="removeCondition(this, 'entry')">✕</button>
+                </div>
+            </div>
+            <button class="btn btn-sm" onclick="addCondition('entry')" style="margin-top:.5rem;">+ Add Entry Condition</button>
+
+            <h3 style="margin-top:1.5rem;font-size:.95rem;color:var(--text-secondary);">📤 Exit Conditions</h3>
+            <div id="exitConditions">
+                <div class="condition-row" data-idx="0">
+                    <select class="form-input cond-indicator">
+                        <option value="rsi" selected>RSI</option>
+                        <option value="macd">MACD</option>
+                        <option value="ema_cross">EMA Crossover</option>
+                        <option value="bb_upper">BB Upper Band</option>
+                        <option value="bb_lower">BB Lower Band</option>
+                        <option value="volume_spike">Volume Spike</option>
+                        <option value="price_above_ema">Price > EMA</option>
+                        <option value="price_below_ema">Price < EMA</option>
+                        <option value="stochrsi">Stoch RSI</option>
+                        <option value="supertrend_down">Supertrend Down</option>
+                    </select>
+                    <select class="form-input cond-operator">
+                        <option value="<">Less than</option>
+                        <option value=">" selected>Greater than</option>
+                        <option value="crosses_above">Crosses Above</option>
+                        <option value="crosses_below">Crosses Below</option>
+                    </select>
+                    <input type="number" step="any" class="form-input cond-value" value="70" style="width:80px;">
+                    <button class="btn btn-sm btn-red" onclick="removeCondition(this, 'exit')">✕</button>
+                </div>
+            </div>
+            <button class="btn btn-sm" onclick="addCondition('exit')" style="margin-top:.5rem;">+ Add Exit Condition</button>
+
+            <h3 style="margin-top:1.5rem;font-size:.95rem;color:var(--text-secondary);">⚙️ Risk Management</h3>
+            <div class="form-grid-4">
+                <div class="form-group">
+                    <label>Stop Loss %</label>
+                    <input type="number" step="0.1" id="bStopLoss" class="form-input" value="2">
+                </div>
+                <div class="form-group">
+                    <label>Take Profit %</label>
+                    <input type="number" step="0.1" id="bTakeProfit" class="form-input" value="4">
+                </div>
+                <div class="form-group">
+                    <label>Position Size ($)</label>
+                    <input type="number" step="1" id="bPosSize" class="form-input" value="100">
+                </div>
+                <div class="form-group">
+                    <label>Timeframe</label>
+                    <select id="bTimeframe" class="form-input">
+                        <option value="1m">1m</option>
+                        <option value="5m">5m</option>
+                        <option value="15m">15m</option>
+                        <option value="1h" selected>1h</option>
+                        <option value="4h">4h</option>
+                        <option value="1d">1d</option>
+                    </select>
+                </div>
+            </div>
+
+            <div style="margin-top:1.5rem;display:flex;gap:.5rem;">
+                <button class="btn btn-purple" onclick="saveStrategy()">💾 Save Strategy</button>
+                <button class="btn" onclick="backtestStrategy()">🧪 Backtest</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Saved Strategies -->
+    <div class="panel">
+        <div class="panel-header">
+            <h2>My Strategies</h2>
+            <button class="btn btn-sm" onclick="loadStrategies()">Refresh</button>
+        </div>
+        <div class="panel-body">
+            <div id="savedStrategies">
+                <p class="text-muted text-center">Loading...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Backtest Result -->
+<div class="panel" style="margin-top:1.5rem;display:none;" id="btResultPanel">
+    <div class="panel-header"><h2>Backtest Result</h2></div>
+    <div class="panel-body" id="btResult"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => { loadStrategies(); });
+
+function addCondition(type) {
+    const container = document.getElementById(type + 'Conditions');
+    const idx = container.children.length;
+    const div = document.createElement('div');
+    div.className = 'condition-row';
+    div.dataset.idx = idx;
+    div.innerHTML = `
+        <select class="form-input cond-indicator">
+            <option value="rsi">RSI</option><option value="macd">MACD</option>
+            <option value="ema_cross">EMA Cross</option><option value="bb_upper">BB Upper</option>
+            <option value="bb_lower">BB Lower</option><option value="volume_spike">Vol Spike</option>
+            <option value="price_above_ema">Price>EMA</option><option value="price_below_ema">Price<EMA</option>
+            <option value="stochrsi">Stoch RSI</option><option value="supertrend_up">ST Up</option>
+        </select>
+        <select class="form-input cond-operator">
+            <option value="<">Less than</option><option value=">">Greater than</option>
+            <option value="crosses_above">Crosses Above</option><option value="crosses_below">Crosses Below</option>
+        </select>
+        <input type="number" step="any" class="form-input cond-value" value="50" style="width:80px;">
+        <button class="btn btn-sm btn-red" onclick="removeCondition(this, '${type}')">✕</button>
+    `;
+    container.appendChild(div);
+}
+
+function removeCondition(btn, type) {
+    const container = document.getElementById(type + 'Conditions');
+    if (container.children.length > 1) btn.closest('.condition-row').remove();
+}
+
+function getConditions(type) {
+    const rows = document.getElementById(type + 'Conditions').querySelectorAll('.condition-row');
+    return Array.from(rows).map(r => ({
+        indicator: r.querySelector('.cond-indicator').value,
+        operator: r.querySelector('.cond-operator').value,
+        value: parseFloat(r.querySelector('.cond-value').value) || 0,
+    }));
+}
+
+async function saveStrategy() {
+    if (!currentUser) { showToast('Sign in first', 'error'); return; }
+    const strategy = {
+        uid: currentUser.uid,
+        name: document.getElementById('bName').value || 'Unnamed Strategy',
+        description: document.getElementById('bDesc').value,
+        entry_conditions: getConditions('entry'),
+        exit_conditions: getConditions('exit'),
+        stop_loss_pct: parseFloat(document.getElementById('bStopLoss').value),
+        take_profit_pct: parseFloat(document.getElementById('bTakeProfit').value),
+        position_size: parseFloat(document.getElementById('bPosSize').value),
+        timeframe: document.getElementById('bTimeframe').value,
+    };
+    try {
+        await fetch('/api/strategies/custom', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(strategy),
+        });
+        showToast('Strategy saved!', 'success');
+        loadStrategies();
+    } catch(e) { showToast('Failed to save', 'error'); }
+}
+
+async function loadStrategies() {
+    if (!currentUser) return;
+    try {
+        const res = await fetch(`/api/strategies/custom?uid=${currentUser.uid}`);
+        const data = await res.json();
+        if (!data.strategies || !data.strategies.length) {
+            document.getElementById('savedStrategies').innerHTML = '<p class="text-muted text-center">No saved strategies. Build one!</p>';
+            return;
+        }
+        let html = '';
+        data.strategies.forEach(s => {
+            html += `<div class="bot-card" style="margin-bottom:.75rem;">
+                <div class="bot-info">
+                    <span class="bot-name">${s.name}</span>
+                    <span class="text-muted" style="font-size:.82rem;">${s.description||''}</span>
+                </div>
+                <div class="bot-details" style="margin-top:.5rem;">
+                    <span>Entry: ${(s.entry_conditions||[]).length} conditions</span>
+                    <span>Exit: ${(s.exit_conditions||[]).length} conditions</span>
+                    <span>SL: ${s.stop_loss_pct}% / TP: ${s.take_profit_pct}%</span>
+                    <span>TF: ${s.timeframe}</span>
+                </div>
+                <div style="margin-top:.5rem;display:flex;gap:.5rem;">
+                    <button class="btn btn-sm" onclick="loadStrategy('${s.id}')">📝 Edit</button>
+                    <button class="btn btn-sm btn-red" onclick="deleteStrategy('${s.id}')">✕ Delete</button>
+                </div>
+            </div>`;
+        });
+        document.getElementById('savedStrategies').innerHTML = html;
+    } catch(e) {}
+}
+
+async function deleteStrategy(id) {
+    if (!confirm('Delete this strategy?')) return;
+    try {
+        await fetch('/api/strategies/custom/delete', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ uid: currentUser.uid, id }),
+        });
+        showToast('Strategy deleted', 'success');
+        loadStrategies();
+    } catch(e) {}
+}
+
+async function loadStrategy(id) {
+    // Fetch and populate form (simplified — reload from saved)
+    if (!currentUser) return;
+    try {
+        const res = await fetch(`/api/strategies/custom?uid=${currentUser.uid}`);
+        const data = await res.json();
+        const s = (data.strategies||[]).find(x => x.id === id);
+        if (!s) return;
+        document.getElementById('bName').value = s.name || '';
+        document.getElementById('bDesc').value = s.description || '';
+        document.getElementById('bStopLoss').value = s.stop_loss_pct || 2;
+        document.getElementById('bTakeProfit').value = s.take_profit_pct || 4;
+        document.getElementById('bPosSize').value = s.position_size || 100;
+        document.getElementById('bTimeframe').value = s.timeframe || '1h';
+        showToast('Strategy loaded into builder', 'success');
+    } catch(e) {}
+}
+
+async function backtestStrategy() {
+    const entry = getConditions('entry');
+    // Use the first entry indicator's closest built-in strategy
+    const indicatorMap = {
+        'rsi': 'rsi', 'macd': 'macd', 'ema_cross': 'ema_ribbon',
+        'bb_upper': 'bb_squeeze', 'bb_lower': 'bb_squeeze',
+        'stochrsi': 'stochrsi', 'supertrend_up': 'supertrend',
+        'volume_spike': 'cvd', 'price_above_ema': 'ema_ribbon',
+    };
+    const strategyName = indicatorMap[entry[0]?.indicator] || 'rsi';
+
+    try {
+        const res = await fetch('/api/backtest', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                strategy: strategyName,
+                symbol: 'BTC/USDT',
+                timeframe: document.getElementById('bTimeframe').value,
+                limit: 500,
+                size: parseFloat(document.getElementById('bPosSize').value),
+            }),
+        });
+        const data = await res.json();
+        document.getElementById('btResultPanel').style.display = 'block';
+        document.getElementById('btResult').innerHTML = `
+            <div class="cards-row">
+                <div class="card"><div class="card-label">Trades</div><div class="card-value">${data.total_trades}</div></div>
+                <div class="card"><div class="card-label">Win Rate</div><div class="card-value">${data.win_rate}%</div></div>
+                <div class="card"><div class="card-label">P&L</div><div class="card-value ${data.total_pnl>=0?'text-green':'text-red'}">$${formatNum(data.total_pnl, 4)}</div></div>
+                <div class="card"><div class="card-label">Max DD</div><div class="card-value text-red">${data.max_drawdown}%</div></div>
+            </div>
+        `;
+    } catch(e) { showToast('Backtest failed', 'error'); }
+}
+</script>
+<style>
+.condition-row {
+    display: flex; gap: .5rem; align-items: center; margin-bottom: .5rem; flex-wrap: wrap;
+}
+.condition-row .form-input { flex: 1; min-width: 100px; }
+.condition-row .cond-value { flex: 0 0 80px; }
+</style>
+{% endblock %}

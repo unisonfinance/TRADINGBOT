@@ -246,9 +246,19 @@ def backtest():
     return render_template("backtest.html", active_page="backtest")
 
 
+@app.route("/strategies")
+def strategies():
+    return render_template("strategies.html", active_page="strategies")
+
+
 @app.route("/settings")
 def settings_page():
     return render_template("settings.html", active_page="settings")
+
+
+@app.route("/advanced")
+def advanced_page():
+    return render_template("advanced.html", active_page="advanced")
 
 
 # ─── API: Account & Balance ──────────────────────────────────────
@@ -319,17 +329,24 @@ def api_candles(symbol):
 @app.route("/api/bot/start", methods=["POST"])
 def api_bot_start():
     data = request.json
-    strategy = data.get("strategy", settings.DEFAULT_STRATEGY)
-    symbol   = data.get("symbol",   settings.DEFAULT_SYMBOL)
-    timeframe= data.get("timeframe",settings.DEFAULT_TIMEFRAME)
-    size     = float(data.get("size", settings.DEFAULT_POSITION_SIZE))
+    strategy    = data.get("strategy", settings.DEFAULT_STRATEGY)
+    symbol      = data.get("symbol",   settings.DEFAULT_SYMBOL)
+    timeframe   = data.get("timeframe",settings.DEFAULT_TIMEFRAME)
+    size        = float(data.get("size", settings.DEFAULT_POSITION_SIZE))
+    custom_name = data.get("name", "").strip()       # optional name from cloned preset
+    extras      = data.get("params", {}) or {}        # custom strategy params from clone
+
+    # Strip trading-level keys that are NOT strategy constructor params
+    _NON_STRATEGY_KEYS = {"size", "symbol", "timeframe", "name"}
+    strategy_kwargs = {k: v for k, v in extras.items() if k not in _NON_STRATEGY_KEYS}
 
     # Friendly display name for well-known strategy+pair combos
     _PRO_NAMES = {
         ("rsi_swing", "BTC/USDT", "1m"): "BTCUSDT PRO_1",
     }
     raw_name = f"{strategy}_{symbol}_{timeframe}"
-    bot_name = _PRO_NAMES.get((strategy, symbol, timeframe), raw_name)
+    # Use custom name if provided, otherwise fall back to PRO alias or raw name
+    bot_name = custom_name or _PRO_NAMES.get((strategy, symbol, timeframe), raw_name)
 
     if bot_name in active_bots:
         return jsonify({"error": f"Bot '{bot_name}' already running"}), 400
@@ -340,6 +357,7 @@ def api_bot_start():
             symbol=symbol,
             position_size=size,
             timeframe=timeframe,
+            strategy_kwargs=strategy_kwargs,
         )
 
         def run_bot():
@@ -381,6 +399,17 @@ def api_bot_status():
     bots = []
     for name, info in active_bots.items():
         trader = info["trader"]
+        # Compute unrealized P&L for open positions
+        unrealized = 0.0
+        pos = trader.positions.positions.get(trader.symbol)
+        if pos:
+            try:
+                current_price = float(
+                    trader.client.get_price(trader.symbol)
+                )
+                unrealized = pos.unrealized_pnl(current_price)
+            except Exception:
+                pass
         bots.append({
             "name": name,
             "strategy": info["strategy"],
@@ -391,8 +420,39 @@ def api_bot_status():
             "cycles": trader.cycle_count,
             "running": trader.running,
             "positions": trader.positions.get_open_count(),
+            "orders_placed": getattr(trader, "orders_placed", 0),
+            "orders_filled": getattr(trader, "orders_filled", 0),
+            "order_errors": getattr(trader, "order_errors", 0),
+            "last_error": getattr(trader, "last_error", ""),
+            "last_action": getattr(trader, "last_action", ""),
+            "session_pnl": round(getattr(trader, "session_pnl", 0.0), 6),
+            "unrealized_pnl": round(unrealized, 6),
+            "total_trades": getattr(trader, "total_trades", 0),
+            "winning_trades": getattr(trader, "winning_trades", 0),
         })
     return jsonify({"bots": bots})
+
+
+@app.route("/api/bot/trades")
+def api_bot_trades():
+    """Live trade feed — returns recent trades from all running bots."""
+    # Optional: ?since=ISO_TIMESTAMP to only get new trades
+    since = request.args.get("since", "")
+    all_trades = []
+    for name, info in active_bots.items():
+        trader = info["trader"]
+        for t in getattr(trader, "trade_history", []):
+            if since and t.get("time", "") <= since:
+                continue
+            all_trades.append({
+                "bot": name,
+                "symbol": info["symbol"],
+                "strategy": info["strategy"],
+                **t,
+            })
+    # Sort by time, newest first
+    all_trades.sort(key=lambda x: x.get("time", ""), reverse=True)
+    return jsonify({"trades": all_trades})
 
 
 # ─── API: Backtest ───────────────────────────────────────────────
@@ -816,6 +876,1003 @@ def api_test_railway_token():
 
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 502
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  NEW FEATURES — 19 Feature Mega-Build
+# ═══════════════════════════════════════════════════════════════════
+
+from services import firestore_service as fstore
+from services.alert_service import AlertService
+
+# Active paper/DCA/grid bots stored alongside regular active_bots
+active_paper_bots: dict[str, dict] = {}
+active_dca_bots: dict[str, dict] = {}
+active_grid_bots: dict[str, dict] = {}
+
+
+# ─── New Pages ────────────────────────────────────────────────────
+
+@app.route("/analytics")
+def analytics_page():
+    return render_template("analytics.html", active_page="analytics")
+
+@app.route("/journal")
+def journal_page():
+    return render_template("journal.html", active_page="journal")
+
+@app.route("/scanner")
+def scanner_page():
+    return render_template("scanner.html", active_page="scanner")
+
+@app.route("/builder")
+def builder_page():
+    return render_template("builder.html", active_page="builder")
+
+@app.route("/leaderboard")
+def leaderboard_page():
+    return render_template("leaderboard.html", active_page="leaderboard")
+
+
+# ─── API: Paper Trading ──────────────────────────────────────────
+
+@app.route("/api/paper/toggle", methods=["POST"])
+def api_paper_toggle():
+    """Enable/disable paper trading mode for a user."""
+    data = request.json
+    uid = data.get("uid", "")
+    enabled = data.get("enabled", False)
+    if not uid:
+        return jsonify({"error": "uid required"}), 400
+    fstore.set_paper_trading_enabled(uid, enabled)
+    return jsonify({"enabled": enabled})
+
+@app.route("/api/paper/status")
+def api_paper_status():
+    uid = request.args.get("uid", "")
+    if not uid:
+        return jsonify({"enabled": False})
+    enabled = fstore.get_paper_trading_enabled(uid)
+    return jsonify({"enabled": enabled})
+
+@app.route("/api/paper/start", methods=["POST"])
+def api_paper_start():
+    """Start a paper trading bot."""
+    from bot.paper_trader import PaperTrader
+    data = request.json
+    strategy = data.get("strategy", "macd")
+    symbol = data.get("symbol", "BTC/USDT")
+    timeframe = data.get("timeframe", "5m")
+    size = float(data.get("size", 10))
+    balance = float(data.get("starting_balance", 10000))
+    uid = data.get("uid", "")
+    name = data.get("name", f"paper_{strategy}_{symbol}")
+
+    if name in active_paper_bots:
+        return jsonify({"error": f"Paper bot '{name}' already running"}), 400
+
+    trader = PaperTrader(
+        strategy_name=strategy, symbol=symbol, position_size=size,
+        timeframe=timeframe, starting_balance=balance, uid=uid,
+    )
+    thread = threading.Thread(target=trader.run, daemon=True)
+    thread.start()
+    active_paper_bots[name] = {"trader": trader, "thread": thread, "started_at": datetime.utcnow().isoformat()}
+    return jsonify({"message": f"Paper bot '{name}' started", "name": name})
+
+@app.route("/api/paper/stop", methods=["POST"])
+def api_paper_stop():
+    data = request.json
+    name = data.get("name", "")
+    if name not in active_paper_bots:
+        return jsonify({"error": "Not found"}), 404
+    active_paper_bots[name]["trader"].stop()
+    del active_paper_bots[name]
+    return jsonify({"message": f"Paper bot '{name}' stopped"})
+
+@app.route("/api/paper/bots")
+def api_paper_bots():
+    bots = []
+    for name, info in active_paper_bots.items():
+        bots.append({"name": name, **info["trader"].get_status()})
+    return jsonify({"bots": bots})
+
+@app.route("/api/paper/trades")
+def api_paper_trades():
+    uid = request.args.get("uid", "")
+    if not uid:
+        return jsonify({"trades": []})
+    trades = fstore.get_paper_trades(uid)
+    return jsonify({"trades": trades})
+
+
+# ─── API: Trailing Stop ──────────────────────────────────────────
+
+@app.route("/api/trailing-stop/config", methods=["POST"])
+def api_trailing_stop_config():
+    """Save trailing stop config for a bot."""
+    data = request.json
+    uid = data.get("uid", "")
+    if not uid:
+        return jsonify({"error": "uid required"}), 400
+    config = {
+        "mode": data.get("mode", "percentage"),
+        "trail_pct": float(data.get("trail_pct", 2.0)),
+        "trail_amount": float(data.get("trail_amount", 0)),
+        "atr_multiplier": float(data.get("atr_multiplier", 2.0)),
+        "activation_pct": float(data.get("activation_pct", 0)),
+        "enabled": data.get("enabled", True),
+    }
+    fstore.save_doc(uid, "settings", config, doc_id="trailing_stop")
+    return jsonify({"saved": True})
+
+@app.route("/api/trailing-stop/config")
+def api_trailing_stop_get():
+    uid = request.args.get("uid", "")
+    if not uid:
+        return jsonify({})
+    doc = fstore.get_doc(uid, "settings", "trailing_stop")
+    return jsonify(doc or {})
+
+
+# ─── API: DCA Bot ─────────────────────────────────────────────────
+
+@app.route("/api/dca/start", methods=["POST"])
+def api_dca_start():
+    from bot.dca_bot import DCABot
+    data = request.json
+    symbol = data.get("symbol", "BTC/USDT")
+    amount = float(data.get("amount", 10))
+    interval = int(data.get("interval", 3600))
+    mode = data.get("mode", "fixed")
+    dip_pct = float(data.get("dip_pct", 5))
+    max_buys = int(data.get("max_buys", 0))
+    uid = data.get("uid", "")
+    paper = data.get("paper", True)
+    name = data.get("name", f"dca_{symbol}_{mode}")
+
+    if name in active_dca_bots:
+        return jsonify({"error": f"DCA bot '{name}' already running"}), 400
+
+    bot = DCABot(
+        symbol=symbol, amount_per_buy=amount, interval_seconds=interval,
+        mode=mode, dip_pct=dip_pct, max_buys=max_buys, uid=uid, paper=paper,
+    )
+    thread = threading.Thread(target=bot.run, daemon=True)
+    thread.start()
+    active_dca_bots[name] = {"bot": bot, "thread": thread, "started_at": datetime.utcnow().isoformat()}
+
+    # Save config to Firestore
+    if uid:
+        fstore.save_dca_config(uid, {
+            "name": name, "symbol": symbol, "amount": amount, "interval": interval,
+            "mode": mode, "dip_pct": dip_pct, "max_buys": max_buys, "paper": paper,
+        })
+
+    return jsonify({"message": f"DCA bot '{name}' started", "name": name})
+
+@app.route("/api/dca/stop", methods=["POST"])
+def api_dca_stop():
+    data = request.json
+    name = data.get("name", "")
+    if name not in active_dca_bots:
+        return jsonify({"error": "Not found"}), 404
+    active_dca_bots[name]["bot"].stop()
+    del active_dca_bots[name]
+    return jsonify({"message": f"DCA bot '{name}' stopped"})
+
+@app.route("/api/dca/bots")
+def api_dca_bots():
+    bots = []
+    for name, info in active_dca_bots.items():
+        bots.append({"name": name, **info["bot"].get_status()})
+    return jsonify({"bots": bots})
+
+
+# ─── API: Grid Bot ────────────────────────────────────────────────
+
+@app.route("/api/grid/start", methods=["POST"])
+def api_grid_start():
+    from bot.grid_bot import GridBot
+    data = request.json
+    symbol = data.get("symbol", "BTC/USDT")
+    lower = float(data.get("lower_price", 90000))
+    upper = float(data.get("upper_price", 110000))
+    grids = int(data.get("grid_count", 10))
+    investment = float(data.get("total_investment", 1000))
+    uid = data.get("uid", "")
+    paper = data.get("paper", True)
+    name = data.get("name", f"grid_{symbol}_{grids}")
+
+    if name in active_grid_bots:
+        return jsonify({"error": f"Grid bot '{name}' already running"}), 400
+
+    bot = GridBot(
+        symbol=symbol, lower_price=lower, upper_price=upper,
+        grid_count=grids, total_investment=investment, uid=uid, paper=paper,
+    )
+    thread = threading.Thread(target=bot.run, daemon=True)
+    thread.start()
+    active_grid_bots[name] = {"bot": bot, "thread": thread, "started_at": datetime.utcnow().isoformat()}
+
+    if uid:
+        fstore.save_grid_config(uid, {
+            "name": name, "symbol": symbol, "lower_price": lower, "upper_price": upper,
+            "grid_count": grids, "total_investment": investment, "paper": paper,
+        })
+
+    return jsonify({"message": f"Grid bot '{name}' started", "name": name})
+
+@app.route("/api/grid/stop", methods=["POST"])
+def api_grid_stop():
+    data = request.json
+    name = data.get("name", "")
+    if name not in active_grid_bots:
+        return jsonify({"error": "Not found"}), 404
+    active_grid_bots[name]["bot"].stop()
+    del active_grid_bots[name]
+    return jsonify({"message": f"Grid bot '{name}' stopped"})
+
+@app.route("/api/grid/bots")
+def api_grid_bots():
+    bots = []
+    for name, info in active_grid_bots.items():
+        bots.append({"name": name, **info["bot"].get_status()})
+    return jsonify({"bots": bots})
+
+
+# ─── API: Alerts (Telegram / Email) ──────────────────────────────
+
+@app.route("/api/alerts/settings", methods=["GET"])
+def api_alerts_get():
+    uid = request.args.get("uid", "")
+    if not uid:
+        return jsonify({})
+    data = fstore.get_alert_settings(uid)
+    return jsonify(data or {})
+
+@app.route("/api/alerts/settings", methods=["POST"])
+def api_alerts_save():
+    data = request.json
+    uid = data.pop("uid", "")
+    if not uid:
+        return jsonify({"error": "uid required"}), 400
+    fstore.save_alert_settings(uid, data)
+    return jsonify({"saved": True})
+
+@app.route("/api/alerts/test", methods=["POST"])
+def api_alerts_test():
+    """Send a test alert to verify configuration."""
+    data = request.json
+    svc = AlertService(data)
+    results = {}
+    if data.get("telegram_enabled"):
+        results["telegram"] = svc.send_telegram("🧪 <b>TrekBot Test Alert</b>\nYour Telegram alerts are working!")
+    if data.get("email_enabled"):
+        results["email"] = svc.send_email("TrekBot Test Alert", "<h2>Test Alert</h2><p>Your email alerts are working!</p>")
+    return jsonify(results)
+
+
+# ─── API: Multi-Pair Scanner ─────────────────────────────────────
+
+@app.route("/api/scanner/scan", methods=["POST"])
+def api_scanner_scan():
+    """Scan multiple pairs for signals using a strategy."""
+    data = request.json
+    pairs = data.get("pairs", ["BTC/USDT", "ETH/USDT", "SOL/USDT", "XRP/USDT"])
+    strategy_name = data.get("strategy", "rsi")
+    timeframe = data.get("timeframe", "1h")
+
+    exchange = _get_public_exchange()
+    if not exchange:
+        return jsonify({"error": "No exchange reachable"}), 500
+
+    import pandas as pd
+    results = []
+    for pair in pairs:
+        try:
+            raw = exchange.fetch_ohlcv(pair, timeframe=timeframe, limit=100)
+            df = pd.DataFrame(raw, columns=["timestamp", "open", "high", "low", "close", "volume"])
+            df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
+
+            strategy = get_strategy(strategy_name)
+            try:
+                sig = strategy.get_signal(df, in_position=False)
+            except TypeError:
+                sig = strategy.get_signal(df)
+
+            price = float(df.iloc[-1]["close"])
+            change_24h = ((price - float(df.iloc[0]["close"])) / float(df.iloc[0]["close"])) * 100
+
+            results.append({
+                "symbol": pair,
+                "price": round(price, 4),
+                "signal": sig.signal.name if hasattr(sig.signal, 'name') else str(sig.signal),
+                "confidence": round(sig.confidence, 2),
+                "reason": sig.reason,
+                "change_24h": round(change_24h, 2),
+                "strategy": strategy_name,
+            })
+        except Exception as e:
+            results.append({"symbol": pair, "error": str(e)[:100]})
+
+    return jsonify({"results": results, "strategy": strategy_name, "timeframe": timeframe})
+
+@app.route("/api/scanner/watchlist", methods=["GET"])
+def api_scanner_watchlist_get():
+    uid = request.args.get("uid", "")
+    if not uid:
+        return jsonify({"pairs": []})
+    pairs = fstore.get_watchlist(uid)
+    return jsonify({"pairs": pairs})
+
+@app.route("/api/scanner/watchlist", methods=["POST"])
+def api_scanner_watchlist_save():
+    data = request.json
+    uid = data.get("uid", "")
+    pairs = data.get("pairs", [])
+    if not uid:
+        return jsonify({"error": "uid required"}), 400
+    fstore.save_watchlist(uid, pairs)
+    return jsonify({"saved": True})
+
+
+# ─── API: TradingView Webhooks ────────────────────────────────────
+
+@app.route("/api/webhook/tradingview", methods=["POST"])
+def api_tradingview_webhook():
+    """
+    Receive TradingView webhook alerts and execute trades.
+    Expected JSON: {action, symbol, size, secret, uid}
+    """
+    data = request.json or {}
+    secret = data.get("secret", "")
+    uid = data.get("uid", "")
+    action = data.get("action", "").upper()
+    symbol = data.get("symbol", "BTC/USDT")
+    size = float(data.get("size", 10))
+
+    # Verify webhook secret from user's config
+    if uid:
+        configs = fstore.get_webhook_configs(uid)
+        valid_secrets = [c.get("secret", "") for c in configs if c.get("enabled", True)]
+        if secret not in valid_secrets:
+            return jsonify({"error": "Invalid webhook secret"}), 403
+
+    if action not in ("BUY", "SELL"):
+        return jsonify({"error": "action must be BUY or SELL"}), 400
+
+    # Execute trade
+    try:
+        client = get_client()
+        if not client:
+            return jsonify({"error": "API keys not configured"}), 400
+
+        price = client.get_price(symbol)
+        amount = size / price if price > 0 else 0
+
+        if action == "BUY":
+            order = client.exchange.create_market_buy_order(symbol, client.amount_to_precision(symbol, amount))
+        else:
+            order = client.exchange.create_market_sell_order(symbol, client.amount_to_precision(symbol, amount))
+
+        # Save to Firestore
+        if uid:
+            fstore.save_doc(uid, "trades", {
+                "side": action, "symbol": symbol, "price": price,
+                "size": amount, "source": "tradingview_webhook",
+                "created_at": datetime.utcnow().isoformat() + "Z",
+            })
+
+        # Send alert
+        if uid:
+            alert_settings = fstore.get_alert_settings(uid)
+            if alert_settings:
+                AlertService(alert_settings).send_trade_alert({
+                    "side": action, "symbol": symbol, "price": price,
+                    "size": amount, "strategy": "TradingView Webhook",
+                })
+
+        return jsonify({"success": True, "action": action, "symbol": symbol, "price": price})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/webhook/configs", methods=["GET"])
+def api_webhook_configs_get():
+    uid = request.args.get("uid", "")
+    if not uid:
+        return jsonify({"configs": []})
+    return jsonify({"configs": fstore.get_webhook_configs(uid)})
+
+@app.route("/api/webhook/configs", methods=["POST"])
+def api_webhook_configs_save():
+    data = request.json
+    uid = data.pop("uid", "")
+    if not uid:
+        return jsonify({"error": "uid required"}), 400
+    doc_id = fstore.save_webhook_config(uid, data)
+    return jsonify({"saved": True, "id": doc_id})
+
+@app.route("/api/webhook/configs/delete", methods=["POST"])
+def api_webhook_configs_delete():
+    data = request.json
+    uid = data.get("uid", "")
+    doc_id = data.get("id", "")
+    if not uid or not doc_id:
+        return jsonify({"error": "uid and id required"}), 400
+    fstore.delete_webhook_config(uid, doc_id)
+    return jsonify({"deleted": True})
+
+
+# ─── API: Trade Journal ──────────────────────────────────────────
+
+@app.route("/api/journal", methods=["GET"])
+def api_journal_get():
+    uid = request.args.get("uid", "")
+    if not uid:
+        return jsonify({"entries": []})
+    return jsonify({"entries": fstore.get_journal(uid)})
+
+@app.route("/api/journal", methods=["POST"])
+def api_journal_save():
+    data = request.json
+    uid = data.pop("uid", "")
+    if not uid:
+        return jsonify({"error": "uid required"}), 400
+    doc_id = fstore.save_journal_entry(uid, data)
+    return jsonify({"saved": True, "id": doc_id})
+
+@app.route("/api/journal/update", methods=["POST"])
+def api_journal_update():
+    data = request.json
+    uid = data.pop("uid", "")
+    doc_id = data.pop("id", "")
+    if not uid or not doc_id:
+        return jsonify({"error": "uid and id required"}), 400
+    fstore.update_journal_entry(uid, doc_id, data)
+    return jsonify({"updated": True})
+
+@app.route("/api/journal/delete", methods=["POST"])
+def api_journal_delete():
+    data = request.json
+    uid = data.get("uid", "")
+    doc_id = data.get("id", "")
+    if not uid or not doc_id:
+        return jsonify({"error": "uid and id required"}), 400
+    fstore.delete_journal_entry(uid, doc_id)
+    return jsonify({"deleted": True})
+
+@app.route("/api/journal/export")
+def api_journal_export():
+    """Export trade journal as CSV."""
+    uid = request.args.get("uid", "")
+    fmt = request.args.get("format", "csv")
+    if not uid:
+        return jsonify({"error": "uid required"}), 400
+
+    entries = fstore.get_journal(uid, limit=1000)
+    if not entries:
+        return jsonify({"error": "No journal entries"}), 404
+
+    if fmt == "csv":
+        import io, csv
+        output = io.StringIO()
+        if entries:
+            writer = csv.DictWriter(output, fieldnames=entries[0].keys())
+            writer.writeheader()
+            for e in entries:
+                writer.writerow(e)
+        from flask import Response
+        return Response(
+            output.getvalue(),
+            mimetype="text/csv",
+            headers={"Content-Disposition": "attachment; filename=trade_journal.csv"},
+        )
+    return jsonify({"entries": entries})
+
+
+# ─── API: P&L / Equity Curve ─────────────────────────────────────
+
+@app.route("/api/pnl/snapshot", methods=["POST"])
+def api_pnl_snapshot():
+    """Save a P&L snapshot for equity curve."""
+    data = request.json
+    uid = data.pop("uid", "")
+    if not uid:
+        return jsonify({"error": "uid required"}), 400
+    fstore.save_pnl_snapshot(uid, data)
+    return jsonify({"saved": True})
+
+@app.route("/api/pnl/history")
+def api_pnl_history():
+    uid = request.args.get("uid", "")
+    if not uid:
+        return jsonify({"history": []})
+    history = fstore.get_pnl_history(uid)
+    return jsonify({"history": history})
+
+@app.route("/api/pnl/realtime")
+def api_pnl_realtime():
+    """Get real-time P&L from all active bots."""
+    pnl_data = {"bots": [], "total_pnl": 0, "total_unrealized": 0}
+
+    for name, info in active_bots.items():
+        trader = info["trader"]
+        try:
+            price = trader.client.get_price(trader.symbol)
+            unrealized = trader.positions.total_unrealized_pnl({trader.symbol: price})
+            realized = trader.positions.closed_pnl
+            pnl_data["bots"].append({
+                "name": name, "symbol": trader.symbol, "strategy": info["strategy"],
+                "unrealized": round(unrealized, 4), "realized": round(realized, 4),
+                "price": round(price, 4),
+            })
+            pnl_data["total_unrealized"] += unrealized
+            pnl_data["total_pnl"] += realized
+        except Exception:
+            pass
+
+    # Paper bots
+    for name, info in active_paper_bots.items():
+        status = info["trader"].get_status()
+        pnl_data["bots"].append({
+            "name": name, "paper": True, **status,
+        })
+
+    pnl_data["total_pnl"] = round(pnl_data["total_pnl"], 4)
+    pnl_data["total_unrealized"] = round(pnl_data["total_unrealized"], 4)
+    return jsonify(pnl_data)
+
+
+# ─── API: Fee-Adjusted P&L ───────────────────────────────────────
+
+@app.route("/api/pnl/fee-adjusted")
+def api_pnl_fee_adjusted():
+    """Calculate net P&L after exchange fees."""
+    uid = request.args.get("uid", "")
+    fee_rate = float(request.args.get("fee_rate", "0.001"))  # Default 0.1%
+
+    trades = fstore.list_docs(uid, "trades", order_by="created_at", limit=500) if uid else []
+    total_gross = 0
+    total_fees = 0
+    adjusted_trades = []
+
+    for t in trades:
+        price = float(t.get("price", 0))
+        size = float(t.get("size", 0))
+        volume = price * size
+        fee = volume * fee_rate
+        pnl = float(t.get("pnl", 0)) if t.get("pnl") is not None else 0
+        net_pnl = pnl - fee
+
+        total_gross += pnl
+        total_fees += fee
+        adjusted_trades.append({
+            **t, "fee": round(fee, 4), "net_pnl": round(net_pnl, 4),
+        })
+
+    return jsonify({
+        "trades": adjusted_trades,
+        "total_gross_pnl": round(total_gross, 4),
+        "total_fees": round(total_fees, 4),
+        "total_net_pnl": round(total_gross - total_fees, 4),
+        "fee_rate": fee_rate,
+    })
+
+
+# ─── API: Custom Strategies (No-Code Builder) ────────────────────
+
+@app.route("/api/strategies/custom", methods=["GET"])
+def api_custom_strategies_get():
+    uid = request.args.get("uid", "")
+    if not uid:
+        return jsonify({"strategies": []})
+    return jsonify({"strategies": fstore.get_custom_strategies(uid)})
+
+@app.route("/api/strategies/custom", methods=["POST"])
+def api_custom_strategies_save():
+    data = request.json
+    uid = data.pop("uid", "")
+    if not uid:
+        return jsonify({"error": "uid required"}), 400
+    doc_id = fstore.save_custom_strategy(uid, data)
+    return jsonify({"saved": True, "id": doc_id})
+
+@app.route("/api/strategies/custom/delete", methods=["POST"])
+def api_custom_strategies_delete():
+    data = request.json
+    uid = data.get("uid", "")
+    doc_id = data.get("id", "")
+    if not uid or not doc_id:
+        return jsonify({"error": "uid and id required"}), 400
+    fstore.delete_custom_strategy(uid, doc_id)
+    return jsonify({"deleted": True})
+
+
+# ─── API: Strategy Leaderboard ────────────────────────────────────
+
+@app.route("/api/leaderboard")
+def api_leaderboard():
+    sort_by = request.args.get("sort", "total_pnl")
+    entries = fstore.get_leaderboard(limit=100, sort_by=sort_by)
+    return jsonify({"entries": entries})
+
+@app.route("/api/leaderboard/submit", methods=["POST"])
+def api_leaderboard_submit():
+    data = request.json
+    fstore.save_leaderboard_entry(data)
+    return jsonify({"submitted": True})
+
+
+# ─── API: Backtest Chart Overlay ──────────────────────────────────
+
+@app.route("/api/backtest/chart", methods=["POST"])
+def api_backtest_chart():
+    """Run backtest and return candle data + trade markers for chart overlay."""
+    data = request.json
+    strategy_name = data.get("strategy", "macd")
+    symbol = data.get("symbol", "BTC/USDT")
+    timeframe = data.get("timeframe", "5m")
+    limit = int(data.get("limit", 500))
+
+    try:
+        import pandas as pd
+        exchange = _get_public_exchange()
+        if not exchange:
+            return jsonify({"error": "No exchange reachable"}), 500
+
+        raw = exchange.fetch_ohlcv(symbol, timeframe=timeframe, limit=limit)
+        df = pd.DataFrame(raw, columns=["timestamp", "open", "high", "low", "close", "volume"])
+        df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
+
+        strategy = get_strategy(strategy_name)
+        engine = BacktestEngine(position_size=float(data.get("size", 10)))
+        result = engine.run(strategy, df)
+
+        # Build candle data
+        candles = []
+        for _, row in df.iterrows():
+            candles.append({
+                "time": int(row["timestamp"].timestamp()),
+                "open": float(row["open"]),
+                "high": float(row["high"]),
+                "low": float(row["low"]),
+                "close": float(row["close"]),
+                "volume": float(row["volume"]),
+            })
+
+        # Build trade markers from result
+        markers = []
+        for trade in result.trades:
+            markers.append({
+                "time": int(trade.get("timestamp", 0)) if isinstance(trade.get("timestamp"), (int, float))
+                        else int(pd.Timestamp(trade.get("timestamp", "2024-01-01")).timestamp()),
+                "side": trade.get("side", "BUY"),
+                "price": float(trade.get("price", 0)),
+                "pnl": float(trade.get("pnl", 0)) if trade.get("pnl") is not None else None,
+            })
+
+        return jsonify({
+            "candles": candles,
+            "markers": markers,
+            "metrics": {
+                "total_trades": result.metrics.total_trades,
+                "win_rate": round(result.metrics.win_rate * 100, 2),
+                "total_pnl": round(result.metrics.total_pnl, 4),
+                "max_drawdown": round(result.metrics.max_drawdown_pct * 100, 2),
+                "sharpe_ratio": round(result.metrics.sharpe_ratio, 4),
+            },
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ─── API: Walk-Forward Optimization ──────────────────────────────
+
+@app.route("/api/backtest/walkforward", methods=["POST"])
+def api_walkforward():
+    """Run walk-forward optimization: rolling window backtests."""
+    data = request.json
+    strategy_name = data.get("strategy", "macd")
+    symbol = data.get("symbol", "BTC/USDT")
+    timeframe = data.get("timeframe", "1h")
+    total_bars = int(data.get("total_bars", 2000))
+    window_size = int(data.get("window_size", 500))
+    step_size = int(data.get("step_size", 250))
+
+    try:
+        import pandas as pd
+        exchange = _get_public_exchange()
+        if not exchange:
+            return jsonify({"error": "No exchange reachable"}), 500
+
+        raw = exchange.fetch_ohlcv(symbol, timeframe=timeframe, limit=total_bars)
+        df = pd.DataFrame(raw, columns=["timestamp", "open", "high", "low", "close", "volume"])
+        df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
+
+        windows = []
+        i = 0
+        while i + window_size <= len(df):
+            window_df = df.iloc[i:i + window_size].reset_index(drop=True)
+            strategy = get_strategy(strategy_name)
+            engine = BacktestEngine(position_size=float(data.get("size", 10)))
+            result = engine.run(strategy, window_df)
+
+            start_date = str(window_df["timestamp"].iloc[0])
+            end_date = str(window_df["timestamp"].iloc[-1])
+
+            windows.append({
+                "window": len(windows) + 1,
+                "start": start_date,
+                "end": end_date,
+                "total_trades": result.metrics.total_trades,
+                "win_rate": round(result.metrics.win_rate * 100, 2),
+                "total_pnl": round(result.metrics.total_pnl, 4),
+                "max_drawdown": round(result.metrics.max_drawdown_pct * 100, 2),
+                "sharpe_ratio": round(result.metrics.sharpe_ratio, 4),
+                "profit_factor": round(result.metrics.profit_factor, 4),
+            })
+            i += step_size
+
+        # Aggregate
+        avg_winrate = sum(w["win_rate"] for w in windows) / len(windows) if windows else 0
+        avg_pnl = sum(w["total_pnl"] for w in windows) / len(windows) if windows else 0
+        consistency = sum(1 for w in windows if w["total_pnl"] > 0) / len(windows) * 100 if windows else 0
+
+        return jsonify({
+            "windows": windows,
+            "summary": {
+                "total_windows": len(windows),
+                "avg_win_rate": round(avg_winrate, 2),
+                "avg_pnl": round(avg_pnl, 4),
+                "consistency_pct": round(consistency, 2),
+                "profitable_windows": sum(1 for w in windows if w["total_pnl"] > 0),
+            },
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ─── API: Monte Carlo Simulation ─────────────────────────────────
+
+@app.route("/api/backtest/montecarlo", methods=["POST"])
+def api_montecarlo():
+    """Run Monte Carlo simulation on backtest trade results."""
+    data = request.json
+    strategy_name = data.get("strategy", "macd")
+    symbol = data.get("symbol", "BTC/USDT")
+    timeframe = data.get("timeframe", "1h")
+    limit = int(data.get("limit", 1000))
+    simulations = int(data.get("simulations", 1000))
+    simulations = min(simulations, 5000)  # Cap at 5000
+
+    try:
+        import pandas as pd
+        import numpy as np
+
+        exchange = _get_public_exchange()
+        if not exchange:
+            return jsonify({"error": "No exchange reachable"}), 500
+
+        raw = exchange.fetch_ohlcv(symbol, timeframe=timeframe, limit=limit)
+        df = pd.DataFrame(raw, columns=["timestamp", "open", "high", "low", "close", "volume"])
+        df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
+
+        strategy = get_strategy(strategy_name)
+        engine = BacktestEngine(position_size=float(data.get("size", 10)))
+        result = engine.run(strategy, df)
+
+        # Extract individual trade PnLs
+        trade_pnls = []
+        for t in result.trades:
+            pnl = t.get("pnl")
+            if pnl is not None:
+                trade_pnls.append(float(pnl))
+
+        if len(trade_pnls) < 2:
+            return jsonify({"error": "Not enough trades for Monte Carlo (need at least 2)"}), 400
+
+        pnl_array = np.array(trade_pnls)
+        n_trades = len(pnl_array)
+
+        # Run simulations
+        final_pnls = []
+        equity_curves = []
+        max_drawdowns = []
+
+        for _ in range(simulations):
+            shuffled = np.random.choice(pnl_array, size=n_trades, replace=True)
+            cumulative = np.cumsum(shuffled)
+            final_pnls.append(float(cumulative[-1]))
+
+            # Max drawdown
+            peak = np.maximum.accumulate(cumulative)
+            dd = (peak - cumulative)
+            max_dd = float(np.max(dd)) if len(dd) > 0 else 0
+            max_drawdowns.append(max_dd)
+
+            # Save first 20 curves for charting
+            if len(equity_curves) < 20:
+                equity_curves.append([round(float(v), 4) for v in cumulative])
+
+        final_pnls_arr = np.array(final_pnls)
+        dd_arr = np.array(max_drawdowns)
+
+        return jsonify({
+            "simulations": simulations,
+            "original_trades": n_trades,
+            "original_pnl": round(float(np.sum(pnl_array)), 4),
+            "percentiles": {
+                "p5": round(float(np.percentile(final_pnls_arr, 5)), 4),
+                "p25": round(float(np.percentile(final_pnls_arr, 25)), 4),
+                "p50": round(float(np.percentile(final_pnls_arr, 50)), 4),
+                "p75": round(float(np.percentile(final_pnls_arr, 75)), 4),
+                "p95": round(float(np.percentile(final_pnls_arr, 95)), 4),
+            },
+            "mean_pnl": round(float(np.mean(final_pnls_arr)), 4),
+            "std_pnl": round(float(np.std(final_pnls_arr)), 4),
+            "win_probability": round(float(np.mean(final_pnls_arr > 0)) * 100, 2),
+            "avg_max_drawdown": round(float(np.mean(dd_arr)), 4),
+            "worst_drawdown": round(float(np.max(dd_arr)), 4),
+            "equity_curves": equity_curves,
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ─── API: Portfolio Risk Heatmap ──────────────────────────────────
+
+@app.route("/api/risk/heatmap", methods=["POST"])
+def api_risk_heatmap():
+    """Calculate correlation matrix for multiple pairs (portfolio risk)."""
+    data = request.json
+    pairs = data.get("pairs", ["BTC/USDT", "ETH/USDT", "SOL/USDT", "XRP/USDT", "ADA/USDT"])
+    timeframe = data.get("timeframe", "1h")
+    limit = int(data.get("limit", 200))
+
+    try:
+        import pandas as pd
+        import numpy as np
+
+        exchange = _get_public_exchange()
+        if not exchange:
+            return jsonify({"error": "No exchange reachable"}), 500
+
+        returns_data = {}
+        for pair in pairs:
+            try:
+                raw = exchange.fetch_ohlcv(pair, timeframe=timeframe, limit=limit)
+                closes = [c[4] for c in raw]
+                # Calculate returns
+                rets = [(closes[i] - closes[i - 1]) / closes[i - 1] for i in range(1, len(closes))]
+                returns_data[pair] = rets
+            except Exception:
+                continue
+
+        if len(returns_data) < 2:
+            return jsonify({"error": "Need at least 2 valid pairs"}), 400
+
+        # Align lengths
+        min_len = min(len(r) for r in returns_data.values())
+        df = pd.DataFrame({k: v[:min_len] for k, v in returns_data.items()})
+
+        # Correlation matrix
+        corr = df.corr()
+        matrix = []
+        labels = list(corr.columns)
+        for i, row_label in enumerate(labels):
+            for j, col_label in enumerate(labels):
+                matrix.append({
+                    "x": col_label,
+                    "y": row_label,
+                    "value": round(float(corr.iloc[i, j]), 4),
+                })
+
+        # Volatility
+        volatility = {}
+        for col in df.columns:
+            volatility[col] = round(float(df[col].std() * np.sqrt(365)), 4)
+
+        return jsonify({
+            "labels": labels,
+            "matrix": matrix,
+            "volatility": volatility,
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ─── API: Multi-Exchange ──────────────────────────────────────────
+
+@app.route("/api/exchanges/list")
+def api_exchanges_list():
+    """Return list of supported exchanges."""
+    import ccxt
+    popular = ["binance", "binanceus", "bybit", "okx", "kraken", "coinbase",
+               "kucoin", "gate", "bitget", "mexc", "huobi", "bitfinex"]
+    all_exchanges = ccxt.exchanges
+    return jsonify({
+        "popular": [e for e in popular if e in all_exchanges],
+        "all": sorted(all_exchanges),
+    })
+
+@app.route("/api/exchanges/test", methods=["POST"])
+def api_exchanges_test():
+    """Test connection to a specific exchange with provided credentials."""
+    data = request.json
+    exchange_id = data.get("exchange_id", "binance")
+    api_key = data.get("api_key", "")
+    api_secret = data.get("api_secret", "")
+
+    try:
+        import ccxt
+        ExClass = getattr(ccxt, exchange_id)
+        ex = ExClass({"apiKey": api_key, "secret": api_secret})
+        balance = ex.fetch_balance()
+        totals = balance.get("total", {})
+        non_zero = {k: round(float(v), 8) for k, v in totals.items()
+                    if isinstance(v, (int, float)) and v > 0}
+        return jsonify({"success": True, "exchange": exchange_id, "balances": non_zero})
+    except Exception as e:
+        return jsonify({"success": False, "error": _sanitize_exchange_error(e)})
+
+
+# ─── API: Multi-Bot Management ────────────────────────────────────
+
+@app.route("/api/bots/all")
+def api_all_bots():
+    """Return status of ALL bot types (regular, paper, DCA, grid)."""
+    all_bots = []
+
+    for name, info in active_bots.items():
+        trader = info["trader"]
+        all_bots.append({
+            "name": name, "type": "strategy", "strategy": info["strategy"],
+            "symbol": info["symbol"], "timeframe": info.get("timeframe", "?"),
+            "size": info["size"], "started_at": info["started_at"],
+            "cycles": trader.cycle_count, "running": trader.running,
+            "positions": trader.positions.get_open_count(), "paper": False,
+        })
+
+    for name, info in active_paper_bots.items():
+        status = info["trader"].get_status()
+        all_bots.append({"name": name, "type": "paper", "started_at": info["started_at"], **status})
+
+    for name, info in active_dca_bots.items():
+        status = info["bot"].get_status()
+        all_bots.append({"name": name, "started_at": info["started_at"], **status})
+
+    for name, info in active_grid_bots.items():
+        status = info["bot"].get_status()
+        all_bots.append({"name": name, "started_at": info["started_at"], **status})
+
+    return jsonify({"bots": all_bots, "total": len(all_bots)})
+
+@app.route("/api/bots/stop-all", methods=["POST"])
+def api_stop_all_bots():
+    """Emergency stop all running bots."""
+    stopped = []
+    for name, info in list(active_bots.items()):
+        info["trader"].stop()
+        stopped.append(name)
+    active_bots.clear()
+
+    for name, info in list(active_paper_bots.items()):
+        info["trader"].stop()
+        stopped.append(name)
+    active_paper_bots.clear()
+
+    for name, info in list(active_dca_bots.items()):
+        info["bot"].stop()
+        stopped.append(name)
+    active_dca_bots.clear()
+
+    for name, info in list(active_grid_bots.items()):
+        info["bot"].stop()
+        stopped.append(name)
+    active_grid_bots.clear()
+
+    return jsonify({"stopped": stopped, "count": len(stopped)})
 
 
 # ─── Run ──────────────────────────────────────────────────────────

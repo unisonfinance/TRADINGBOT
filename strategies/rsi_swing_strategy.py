@@ -153,29 +153,29 @@ class RSISwingProStrategy(BaseStrategy):
 
         return df
 
-    def get_signal(self, df: pd.DataFrame) -> TradeSignal:
+    def get_signal(self, df: pd.DataFrame, in_position: bool = False) -> TradeSignal:
         """
         Live signal — evaluates the latest candle.
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            Recent OHLCV candles (last N bars).
+        in_position : bool
+            **Authoritative** position state supplied by the Trader.
+            True  = a position is currently open → look for scale-in or exit.
+            False = no position open → look for fresh entry.
 
         Returns BUY, BUY_MORE, SELL, or HOLD.
         The caller (Trader) is responsible for the balance guard on BUY_MORE
         so that no margin / leverage is ever used.
+
+        NOTE: We use `in_position` directly instead of replaying RSI history
+        to infer state.  History replay is fundamentally unreliable — it can
+        mistake an ancient RSI dip as an open trade and permanently suppress
+        BUY signals, causing the bot to hold forever with 0 trades.
         """
         df = self._add_rsi(df)
-
-        # Replay state up to (but NOT including) the last candle so the
-        # final signal evaluation sees the correct pre-last-bar state.
-        state = 0
-        for i in range(self.rsi_period, len(df) - 1):
-            rsi_val = df.iloc[i]["rsi"]
-            if pd.isna(rsi_val):
-                continue
-            if state == 0:
-                if rsi_val < self.oversold:
-                    state = 1
-            else:
-                if rsi_val > self.overbought:
-                    state = 0
 
         last   = df.iloc[-1]
         rsi    = last["rsi"]
@@ -187,21 +187,36 @@ class RSISwingProStrategy(BaseStrategy):
                 reason="RSI not yet computed",
             )
 
-        # Decide signal for the CURRENT (last) candle given inferred state
-        if state == 0 and rsi < self.oversold:
-            signal     = Signal.BUY
-            confidence = min(1.0, (self.oversold - rsi) / self.oversold)
-            reason     = (
-                f"RSI={rsi:.2f} < {self.oversold} → BUY (fresh oversold entry)"
+        # ── IDLE (no open position) ──────────────────────────────────────
+        if not in_position:
+            if rsi < self.oversold:
+                signal     = Signal.BUY
+                confidence = min(1.0, (self.oversold - rsi) / self.oversold)
+                reason     = f"RSI={rsi:.2f} < {self.oversold} → BUY (oversold entry)"
+            else:
+                signal     = Signal.HOLD
+                confidence = 0.0
+                reason     = (
+                    f"RSI={rsi:.2f} — idle, waiting for RSI < {self.oversold}"
+                )
+            return TradeSignal(
+                signal=signal,
+                price=price,
+                confidence=max(0.0, confidence),
+                reason=reason,
+                stop_loss=round(price * (1 - self.stop_loss_pct / 100), 2),
+                take_profit=round(price * (1 + self.take_profit_pct / 100), 2),
             )
-        elif state == 1 and rsi > self.overbought:
+
+        # ── IN TRADE (position is open) ──────────────────────────────────
+        if rsi > self.overbought:
             signal     = Signal.SELL
             confidence = min(1.0, (rsi - self.overbought) / (100 - self.overbought))
             reason     = (
                 f"RSI={rsi:.2f} > {self.overbought} → SELL (overbought exit)"
             )
-        elif state == 1 and rsi < self.oversold:
-            # Scale-in opportunity; balance check is done by the Trader
+        elif rsi < self.oversold:
+            # RSI dipped below oversold again — scale-in; balance check done by Trader
             signal     = Signal.BUY_MORE
             confidence = min(1.0, (self.oversold - rsi) / self.oversold)
             reason     = (
@@ -212,8 +227,8 @@ class RSISwingProStrategy(BaseStrategy):
             signal     = Signal.HOLD
             confidence = 0.0
             reason     = (
-                f"RSI={rsi:.2f} — holding "
-                f"({'in trade' if state == 1 else 'idle'}, waiting)"
+                f"RSI={rsi:.2f} — in trade, waiting for "
+                f"RSI > {self.overbought} (exit) or < {self.oversold} (scale-in)"
             )
 
         return TradeSignal(

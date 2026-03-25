@@ -17,6 +17,7 @@
             <div style="margin-bottom: 1rem;">
                 <div style="font-size: 0.72rem; color: #8b949e; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.5rem;">⚡ Quick Launch</div>
                 <div style="display: flex; flex-wrap: wrap; gap: 0.4rem;" id="presetBtns">
+                    <button type="button" class="btn btn-sm preset-btn" style="background:#f59e0b22;color:#f59e0b;border:1px solid #f59e0b55;" onclick="quickLaunch('tester','DOGE/USDT','1m',5)" title="🧪 Always-trade test · DOGE · $5 · 1m">🧪 Tester · DOGE · 1m · $5</button>
                     <button type="button" class="btn btn-sm preset-btn" onclick="quickLaunch('macd','BTC/USDT','4h',5)" title="79 trades · PF 1.59 · Sharpe 2.23">MACD · BTC · 4h · $5</button>
                     <button type="button" class="btn btn-sm preset-btn" onclick="quickLaunch('ichimoku','ETH/USDT','4h',5)" title="★ PF 2.40 · Sharpe 6.76 · 11 trades">Ichimoku · ETH · 4h · $5 ★</button>
                     <button type="button" class="btn btn-sm preset-btn" onclick="quickLaunch('tema','BTC/USDT','15m',5)" title="★ PF 2.27 · Sharpe 4.77 · 5 trades">TEMA · BTC · 15m · $5 ★</button>
@@ -65,6 +66,9 @@
                         </optgroup>
                         <optgroup label="── Arbitrage ──────────────────">
                             <option value="arbitrage">⚡ Arbitrage Ratio (BTC/ETH)</option>
+                        </optgroup>
+                        <optgroup label="── Testing ────────────────────">
+                            <option value="tester">🧪 Tester (always-trade · $0.10 · 1m)</option>
                         </optgroup>
                     </select>
                 </div>
@@ -268,31 +272,59 @@
     </div>
 </div>
 
+<!-- ═══════════════════════════════════════════════════════════════
+     RUNNING BOTS + LIVE P&L + TRADE FEED
+     ═══════════════════════════════════════════════════════════════ -->
+
+<!-- Session P&L Hero Cards -->
+<div id="pnlHeroSection" style="margin-top:1.5rem;display:none;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0.75rem;margin-bottom:1rem;" id="pnlCards"></div>
+</div>
+
 <!-- Running Bots -->
-<div class="panel" style="margin-top: 1.5rem;">
+<div class="panel" style="margin-top: 1rem;">
     <div class="panel-header">
         <h2>🤖 Running Bots</h2>
         <button class="btn btn-sm" onclick="loadRunningBots()">Refresh</button>
     </div>
-    <div class="panel-body">
+    <div class="panel-body" style="overflow-x:auto;">
         <table class="data-table">
             <thead>
                 <tr>
                     <th>Name</th>
                     <th>Strategy</th>
                     <th>Symbol</th>
-                    <th>Timeframe</th>
+                    <th>TF</th>
                     <th>Size</th>
                     <th>Cycles</th>
-                    <th>Positions</th>
+                    <th>Orders</th>
+                    <th>Pos</th>
+                    <th>Session P&L</th>
                     <th>Status</th>
                     <th>Actions</th>
                 </tr>
             </thead>
             <tbody id="runningBotsTable">
-                <tr><td colspan="9" class="text-center text-muted">No bots running</td></tr>
+                <tr><td colspan="11" class="text-center text-muted">No bots running</td></tr>
             </tbody>
         </table>
+    </div>
+</div>
+
+<!-- Live Trade Feed -->
+<div class="panel" style="margin-top:1rem;" id="tradeFeedPanel">
+    <div class="panel-header">
+        <h2>⚡ Live Trade Feed</h2>
+        <div style="display:flex;align-items:center;gap:0.6rem;">
+            <span id="tradeFeedPulse" class="feed-pulse"></span>
+            <span id="tradeFeedCount" style="font-size:0.72rem;color:#8b949e;">0 trades</span>
+        </div>
+    </div>
+    <div class="panel-body" style="max-height:340px;overflow-y:auto;padding:0;" id="tradeFeedBody">
+        <div id="tradeFeedList" style="display:flex;flex-direction:column;"></div>
+        <div id="tradeFeedEmpty" class="text-center text-muted" style="padding:2rem;">
+            Waiting for trades…<br><span style="font-size:0.7rem;">Bot will execute orders in real time</span>
+        </div>
     </div>
 </div>
 
@@ -431,6 +463,7 @@ function toggleTopPanels() {
 
 document.addEventListener('DOMContentLoaded', () => {
     loadRunningBots();
+    loadTradeFeed();
     refreshPrice();
     loadQuickPrices();
     loadUserPresets();
@@ -438,7 +471,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Live preview
     document.getElementById('symbolInput').addEventListener('input', updatePreview);
-    document.getElementById('strategySelect').addEventListener('change', updatePreview);
     document.getElementById('timeframeSelect').addEventListener('change', updatePreview);
     document.getElementById('sizeInput').addEventListener('input', updatePreview);
 
@@ -548,11 +580,44 @@ function drawArbSparkline(data, sma) {
 }
 
 function updatePreview() {
+    const stratVal = document.getElementById('strategySelect').value;
+    // Show friendly name for user presets
+    let stratDisplay = stratVal.toUpperCase();
+    if (stratVal.startsWith('user_')) {
+        try {
+            const idx = parseInt(stratVal.split('_')[1]);
+            const p = JSON.parse(localStorage.getItem('userQuickPresets') || '[]')[idx];
+            if (p) stratDisplay = p.name;
+        } catch(e) {}
+    }
     document.getElementById('previewSymbol').textContent = document.getElementById('symbolInput').value || '—';
-    document.getElementById('previewStrategy').textContent = document.getElementById('strategySelect').value.toUpperCase();
+    document.getElementById('previewStrategy').textContent = stratDisplay;
     document.getElementById('previewTimeframe').textContent = document.getElementById('timeframeSelect').value;
     document.getElementById('previewSize').textContent = document.getElementById('sizeInput').value || '0';
 }
+
+// Auto-fill form fields when a user preset is selected from dropdown
+document.getElementById('strategySelect').addEventListener('change', function() {
+    const val = this.value;
+    if (val === 'tester') {
+        document.getElementById('symbolInput').value = 'DOGE/USDT';
+        document.getElementById('sizeInput').value = 5;
+        const tfSel = document.getElementById('timeframeSelect');
+        for (const opt of tfSel.options) opt.selected = (opt.value === '1m');
+    } else if (val.startsWith('user_')) {
+        try {
+            const idx = parseInt(val.split('_')[1]);
+            const p = JSON.parse(localStorage.getItem('userQuickPresets') || '[]')[idx];
+            if (p) {
+                document.getElementById('symbolInput').value   = p.symbol   || 'BTC/USDT';
+                document.getElementById('sizeInput').value     = p.size     || 5;
+                const tfSel = document.getElementById('timeframeSelect');
+                for (const opt of tfSel.options) opt.selected = (opt.value === p.timeframe);
+            }
+        } catch(e) {}
+    }
+    updatePreview();
+});
 
 async function quickLaunch(strategy, symbol, timeframe, size) {
     const btn = [...document.querySelectorAll('.preset-btn')].find(b => b.onclick?.toString().includes(`'${strategy}','${symbol}','${timeframe}'`));
@@ -752,10 +817,26 @@ function _lpDrawSparkline() {
 
 async function startBot(e) {
     e.preventDefault();
-    const strategy = document.getElementById('strategySelect').value;
+    let strategy = document.getElementById('strategySelect').value;
     const symbol = document.getElementById('symbolInput').value;
     const timeframe = document.getElementById('timeframeSelect').value;
     const size = parseFloat(document.getElementById('sizeInput').value);
+
+    // Resolve user-cloned preset: translate "user_N" → real strategy key
+    let botName = null;
+    let cloneParams = {};
+    if (strategy.startsWith('user_')) {
+        try {
+            const idx = parseInt(strategy.split('_')[1]);
+            const p = JSON.parse(localStorage.getItem('userQuickPresets') || '[]')[idx];
+            if (!p) { showToast('Cloned preset not found — it may have been removed', 'error'); return; }
+            strategy    = p.strategy;           // e.g. "rsi_swing"
+            botName     = p.name;               // use the preset name for display
+            cloneParams = p.extras || {};       // custom params e.g. {oversold:40, overbought:70, ...}
+        } catch(err) {
+            showToast('Could not load cloned preset', 'error'); return;
+        }
+    }
 
     if (!symbol) { showToast('Enter a trading pair', 'error'); return; }
     if (size <= 0) { showToast('Size must be positive', 'error'); return; }
@@ -764,17 +845,20 @@ async function startBot(e) {
         const res = await fetch('/api/bot/start', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({strategy, symbol, timeframe, size})
+            body: JSON.stringify({strategy, symbol, timeframe, size,
+                ...(botName     ? {name:   botName}     : {}),
+                ...(Object.keys(cloneParams).length ? {params: cloneParams} : {})
+            })
         });
         const data = await res.json();
         if (data.error) {
             showToast(data.error, 'error');
         } else {
-            showToast(`Bot started: ${data.name}`, 'success');
+            showToast(`Bot started: ${data.name || botName || strategy}`, 'success');
 
             // Save bot config to Firestore
             if (typeof saveBotConfigToFirestore === 'function' && currentUser) {
-                await saveBotConfigToFirestore({ strategy, symbol, timeframe, size, name: data.name, started_at: new Date().toISOString() });
+                await saveBotConfigToFirestore({ strategy, symbol, timeframe, size, name: data.name || botName, started_at: new Date().toISOString() });
             }
 
             loadRunningBots();
@@ -783,6 +867,101 @@ async function startBot(e) {
         showToast('Failed to start bot', 'error');
     }
 }
+</script>
+<style>
+/* ── Live Trade Feed & P&L styles ────── */
+.pnl-card{
+    background:#161b22;
+    border:1px solid #30363d;
+    border-radius:12px;padding:1.1rem 1.2rem;text-align:center;
+    position:relative;overflow:hidden;
+    transition:transform .25s ease,box-shadow .25s,border-color .25s;
+}
+.pnl-card::before{
+    content:'';position:absolute;top:0;left:0;right:0;height:2px;
+    background:#30363d;
+}
+.pnl-card:hover{
+    transform:translateY(-3px);
+    box-shadow:0 6px 20px rgba(0,0,0,.4);
+    border-color:#484f58;
+}
+.pnl-card .pnl-label{
+    font-size:0.7rem;text-transform:uppercase;letter-spacing:0.1em;
+    color:#8b949e;margin-bottom:0.4rem;font-weight:600;
+}
+.pnl-card .pnl-value{
+    font-size:1.5rem;font-weight:800;font-family:'JetBrains Mono','SF Mono',monospace;
+    letter-spacing:-0.02em;color:#e6edf3;
+}
+.pnl-card .pnl-sub{font-size:0.7rem;color:#6e7681;margin-top:0.3rem}
+.pnl-green{color:#3fb950!important}
+.pnl-red{color:#f85149!important}
+
+/* Hero card — total P&L */
+.pnl-card.pnl-card-hero{
+    background:#0d1117;
+    border-color:#238636;
+    box-shadow:0 0 12px rgba(35,134,54,.15);
+}
+.pnl-card.pnl-card-hero::before{background:#238636}
+.pnl-card.pnl-card-hero.negative{
+    border-color:#da3633;
+    box-shadow:0 0 12px rgba(218,54,51,.15);
+}
+.pnl-card.pnl-card-hero.negative::before{background:#da3633}
+
+/* Trades card */
+.pnl-card:nth-child(2){border-top:2px solid #8b5cf6}
+.pnl-card:nth-child(2) .pnl-value{color:#c4b5fd}
+.pnl-card:nth-child(2)::before{background:#8b5cf6}
+
+/* Win Rate card */
+.pnl-card:nth-child(3){border-top:2px solid #38bdf8}
+.pnl-card:nth-child(3) .pnl-value{color:#7dd3fc}
+.pnl-card:nth-child(3)::before{background:#38bdf8}
+
+/* Bots Running card */
+.pnl-card:nth-child(4){border-top:2px solid #f59e0b}
+.pnl-card:nth-child(4) .pnl-value{color:#fbbf24}
+.pnl-card:nth-child(4)::before{background:#f59e0b}
+
+.pnl-pulse{
+    display:inline-block;width:8px;height:8px;border-radius:50%;
+    background:#3fb950;animation:pnlPulse 2s infinite;
+}
+@keyframes pnlPulse{
+    0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(63,185,80,.5)}
+    50%{opacity:.6;box-shadow:0 0 0 6px rgba(63,185,80,0)}
+}
+.feed-pulse{display:inline-block;width:8px;height:8px;border-radius:50%;background:#3fb950;animation:pnlPulse 2s infinite}
+
+/* Trade feed rows */
+.trade-row{
+    display:flex;align-items:center;gap:0.7rem;padding:0.55rem 1rem;
+    border-bottom:1px solid #21262d;
+    animation:tradeSlideIn .4s ease;transition:background .2s;
+}
+.trade-row:hover{background:#1c2128}
+@keyframes tradeSlideIn{from{opacity:0;transform:translateX(-30px)}to{opacity:1;transform:translateX(0)}}
+.trade-row .trade-side{
+    font-size:0.68rem;font-weight:700;padding:0.2rem 0.55rem;
+    border-radius:6px;min-width:38px;text-align:center;letter-spacing:0.04em;
+}
+.trade-side.buy{background:rgba(63,185,80,.12);color:#3fb950;border:1px solid rgba(63,185,80,.3)}
+.trade-side.sell{background:rgba(248,81,73,.12);color:#f85149;border:1px solid rgba(248,81,73,.3)}
+.trade-row .trade-detail{font-size:0.78rem;color:#c9d1d9;flex:1}
+.trade-row .trade-pnl{font-size:0.82rem;font-weight:700;font-family:'JetBrains Mono',monospace;min-width:70px;text-align:right}
+.trade-row .trade-time{font-size:0.64rem;color:#6e7681;min-width:60px;text-align:right}
+.pnl-row-anim{animation:pnlFlash .7s ease-out}
+@keyframes pnlFlash{0%{background:rgba(63,185,80,.15)}100%{background:transparent}}
+.pnl-row-anim.loss{animation-name:pnlFlashLoss}
+@keyframes pnlFlashLoss{0%{background:rgba(248,81,73,.15)}100%{background:transparent}}
+</style>
+<script>
+// ── Live Trade Feed & P&L engine ────────────────────────
+let _lastTradeSince = '';
+let _knownTradeCount = 0;
 
 async function loadRunningBots() {
     try {
@@ -790,17 +969,72 @@ async function loadRunningBots() {
         const data = await res.json();
         const bots = data.bots;
 
+        const heroSection = document.getElementById('pnlHeroSection');
+
         if (bots.length === 0) {
             document.getElementById('runningBotsTable').innerHTML =
-                '<tr><td colspan="9" class="text-center text-muted">No bots running</td></tr>';
+                '<tr><td colspan="11" class="text-center text-muted">No bots running</td></tr>';
+            if (heroSection) heroSection.style.display = 'none';
             if (window._startBotAnimation) window._startBotAnimation(0);
             return;
         }
 
         if (window._startBotAnimation) window._startBotAnimation(bots.length);
 
+        // ── P&L Hero Cards ──────────────────────────────────
+        let totalPnl = 0, totalUnrealized = 0, totalTrades = 0, totalWins = 0;
+        bots.forEach(b => {
+            totalPnl += b.session_pnl || 0;
+            totalUnrealized += b.unrealized_pnl || 0;
+            totalTrades += b.total_trades || 0;
+            totalWins += b.winning_trades || 0;
+        });
+        const totalAll = totalPnl + totalUnrealized;
+        const winRate = totalTrades > 0 ? ((totalWins / totalTrades) * 100).toFixed(0) : '—';
+
+        if (heroSection) {
+            heroSection.style.display = 'block';
+            document.getElementById('pnlCards').innerHTML = `
+                <div class="pnl-card pnl-card-hero ${totalAll < 0 ? 'negative' : ''}">
+                    <div class="pnl-label"><span class="pnl-pulse"></span> Total P&L</div>
+                    <div class="pnl-value ${totalAll >= 0 ? 'pnl-green' : 'pnl-red'}">${totalAll >= 0 ? '+' : ''}$${totalAll.toFixed(4)}</div>
+                    <div class="pnl-sub">Realized: $${totalPnl.toFixed(4)} · Open: $${totalUnrealized.toFixed(4)}</div>
+                </div>
+                <div class="pnl-card">
+                    <div class="pnl-label">Trades</div>
+                    <div class="pnl-value" style="color:#c9d1d9;">${totalTrades}</div>
+                    <div class="pnl-sub">${totalWins} wins · ${totalTrades - totalWins} losses</div>
+                </div>
+                <div class="pnl-card">
+                    <div class="pnl-label">Win Rate</div>
+                    <div class="pnl-value ${parseFloat(winRate) >= 50 ? 'pnl-green' : 'pnl-red'}">${winRate}%</div>
+                    <div class="pnl-sub">${bots.length} bot${bots.length > 1 ? 's' : ''} active</div>
+                </div>
+                <div class="pnl-card">
+                    <div class="pnl-label">Bots Running</div>
+                    <div class="pnl-value" style="color:#a78bfa;">${bots.length}</div>
+                    <div class="pnl-sub">${bots.reduce((s, b) => s + (b.orders_filled || 0), 0)} orders filled</div>
+                </div>
+            `;
+        }
+
+        // ── Bot Table ───────────────────────────────────────
         let html = '';
         bots.forEach(bot => {
+            const errs = bot.order_errors || 0;
+            const placed = bot.orders_placed || 0;
+            const filled = bot.orders_filled || 0;
+            const errTip = bot.last_error ? ` title="${bot.last_error}"` : '';
+            const ordersCell = errs > 0
+                ? `<span style="color:#f87171;"${errTip}>⚠ ${errs} err</span> · ${filled}/${placed}`
+                : (placed > 0 ? `<span style="color:#34d399;">✓</span> ${filled}/${placed}` : '—');
+
+            const sPnl = (bot.session_pnl || 0) + (bot.unrealized_pnl || 0);
+            const pnlColor = sPnl >= 0 ? '#34d399' : '#f87171';
+            const pnlSign = sPnl >= 0 ? '+' : '';
+            const trades = bot.total_trades || 0;
+            const wins = bot.winning_trades || 0;
+
             html += `<tr>
                 <td><strong>${bot.name}</strong></td>
                 <td>${bot.strategy.toUpperCase()}</td>
@@ -808,14 +1042,77 @@ async function loadRunningBots() {
                 <td class="mono">${bot.timeframe || '—'}</td>
                 <td class="mono">$${bot.size}</td>
                 <td class="mono">${bot.cycles}</td>
+                <td class="mono" style="font-size:0.78rem;">${ordersCell}</td>
                 <td class="mono">${bot.positions}</td>
-                <td><span class="badge-running">Running</span></td>
+                <td class="mono" style="font-weight:700;color:${pnlColor};font-size:0.85rem;">
+                    ${pnlSign}$${sPnl.toFixed(4)}
+                    <div style="font-size:0.62rem;color:#8b949e;font-weight:400;">${trades}T · ${wins}W</div>
+                </td>
+                <td><span class="badge-running">● Running</span></td>
                 <td><button class="btn btn-red btn-sm" onclick="stopBot('${bot.name}')">🔴 Stop</button></td>
             </tr>`;
         });
         document.getElementById('runningBotsTable').innerHTML = html;
-    } catch (e) {}
+    } catch (e) {
+        console.error('loadRunningBots error:', e);
+    }
 }
+
+async function loadTradeFeed() {
+    try {
+        const url = _lastTradeSince
+            ? `/api/bot/trades?since=${encodeURIComponent(_lastTradeSince)}`
+            : '/api/bot/trades';
+        const res = await fetch(url);
+        const data = await res.json();
+        const trades = data.trades || [];
+
+        if (trades.length === 0) return;
+
+        const list = document.getElementById('tradeFeedList');
+        const empty = document.getElementById('tradeFeedEmpty');
+        if (empty) empty.style.display = 'none';
+
+        // Insert newest trades at top
+        trades.reverse().forEach(t => {
+            _knownTradeCount++;
+            const isBuy = t.side === 'BUY';
+            const pnlStr = t.side === 'SELL' && t.pnl !== undefined
+                ? `<span class="${t.pnl >= 0 ? 'pnl-green' : 'pnl-red'}">${t.pnl >= 0 ? '+' : ''}$${t.pnl.toFixed(6)}</span>`
+                : '<span style="color:#484f58;">—</span>';
+            const timeStr = t.time ? new Date(t.time + 'Z').toLocaleTimeString() : '';
+            const row = document.createElement('div');
+            row.className = `trade-row ${t.pnl < 0 ? 'loss' : ''} pnl-row-anim`;
+            row.innerHTML = `
+                <span class="trade-side ${isBuy ? 'buy' : 'sell'}">${t.side}</span>
+                <span class="trade-detail">
+                    <strong>${t.symbol}</strong> · ${parseFloat(t.amount).toFixed(2)} @ $${parseFloat(t.price).toFixed(4)}
+                    <span style="color:#484f58;font-size:0.68rem;"> · $${(t.cost || t.price * t.amount).toFixed(2)}</span>
+                </span>
+                <span class="trade-pnl">${pnlStr}</span>
+                <span class="trade-time">${timeStr}</span>
+            `;
+            list.insertBefore(row, list.firstChild);
+        });
+
+        // Update since marker
+        if (trades.length > 0) {
+            _lastTradeSince = trades[trades.length - 1].time || _lastTradeSince;
+        }
+
+        document.getElementById('tradeFeedCount').textContent = `${_knownTradeCount} trades`;
+
+        // Cap visible trades at 50
+        while (list.children.length > 50) list.removeChild(list.lastChild);
+
+    } catch (e) {
+        console.error('loadTradeFeed error:', e);
+    }
+}
+
+// Auto-refresh: bots every 5s, trade feed every 3s
+setInterval(loadRunningBots, 5000);
+setInterval(loadTradeFeed, 3000);
 
 async function stopBot(name) {
     const ok = await botConfirm(`Stop bot "${name}"?`, {
@@ -890,27 +1187,51 @@ function loadUserPresets() {
         if (!raw) return;
         const presets = JSON.parse(raw);
         if (!presets || presets.length === 0) return;
+
+        // ── 1. My Strategies section (Quick Launch area) ──────────
         const section   = document.getElementById('myStrategiesSection');
         const container = document.getElementById('myStrategyBtns');
-        if (!section || !container) return;
-        section.style.display = '';
-        container.innerHTML = '';
-        presets.forEach((p, idx) => {
-            const wrap = document.createElement('div');
-            wrap.style.cssText = 'display:inline-flex;align-items:center;gap:2px;';
-            wrap.innerHTML = `
-                <button type="button" class="btn btn-sm preset-btn"
-                    onclick="quickLaunchUserPreset(${idx})"
-                    title="PF: ${(p.pf||0).toFixed(2)} · Sharpe: ${(p.sharpe||0).toFixed(2)} · WR: ${(p.wr||0).toFixed(1)}%"
-                    style="border-color:var(--accent-green-border);color:var(--accent-green);">
-                    ${(p.strategy||'?').toUpperCase()} · ${p.symbol||'—'} · ${p.timeframe||'—'} · $${p.size||5}
-                </button>
-                <button onclick="removeUserPreset(${idx})" title="Remove"
-                    style="background:none;border:none;color:#ff4d4d66;cursor:pointer;font-size:0.75rem;padding:0 3px;line-height:1;"
-                    onmouseover="this.style.color='#ff4d4d'" onmouseout="this.style.color='#ff4d4d66'">✕</button>
-            `;
-            container.appendChild(wrap);
-        });
+        if (section && container) {
+            section.style.display = '';
+            container.innerHTML = '';
+            presets.forEach((p, idx) => {
+                const wrap = document.createElement('div');
+                wrap.style.cssText = 'display:inline-flex;align-items:center;gap:2px;';
+                wrap.innerHTML = `
+                    <button type="button" class="btn btn-sm preset-btn"
+                        onclick="quickLaunchUserPreset(${idx})"
+                        title="${p.hint || ''}"
+                        style="border-color:#A855F766;color:#C084FC;">
+                        📌 ${p.name || ((p.strategy||'?').toUpperCase() + ' · ' + (p.symbol||'—') + ' · ' + (p.timeframe||'—') + ' · $' + (p.size||5))}
+                    </button>
+                    <button onclick="removeUserPreset(${idx})" title="Remove"
+                        style="background:none;border:none;color:#ff4d4d66;cursor:pointer;font-size:0.75rem;padding:0 3px;line-height:1;"
+                        onmouseover="this.style.color='#ff4d4d'" onmouseout="this.style.color='#ff4d4d66'">✕</button>
+                `;
+                container.appendChild(wrap);
+            });
+        }
+
+        // ── 2. Strategy dropdown ──────────────────────────────────
+        const sel = document.getElementById('strategySelect');
+        if (sel) {
+            // Remove any previously injected user optgroup
+            const old = sel.querySelector('optgroup[data-user]');
+            if (old) old.remove();
+
+            const grp = document.createElement('optgroup');
+            grp.label = '── My Cloned ──────────────────';
+            grp.setAttribute('data-user', '1');
+            presets.forEach((p, idx) => {
+                const opt = document.createElement('option');
+                opt.value = `user_${idx}`;
+                opt.textContent = `📌 ${p.name}`;
+                opt.title = p.hint || '';
+                grp.appendChild(opt);
+            });
+            sel.appendChild(grp);
+        }
+
     } catch(e) {}
 }
 

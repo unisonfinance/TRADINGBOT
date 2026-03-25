@@ -820,6 +820,38 @@ select.form-input optgroup { background: var(--bg-card); color: var(--text-muted
 .badge-green  { background: var(--green-bg);  color: var(--green);  border-color: var(--green-dark); }
 .badge-red    { background: var(--red-bg);     color: var(--red);    border-color: var(--red-dark);   }
 .badge-yellow { background: var(--orange-bg);  color: var(--orange); }
+.badge-gray   { background: rgba(148,163,184,.15); color: #94a3b8; }
+
+/* ─── Utilities: form-grid-4, spinner, input-sm ─── */
+.form-grid-4 {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: .75rem;
+}
+@media (max-width: 768px) {
+    .form-grid-4 { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 480px) {
+    .form-grid-4 { grid-template-columns: 1fr; }
+}
+
+.spinner {
+    width: 36px; height: 36px; margin: 0 auto;
+    border: 3px solid rgba(168,85,247,.2);
+    border-top-color: #A855F7;
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.input-sm {
+    padding: .35rem .65rem;
+    font-size: .82rem;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
 
 /* Animated RUNNING badge */
 @keyframes badge-pulse-ring {

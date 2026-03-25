@@ -5,6 +5,7 @@ Works with any exchange supported by ccxt (Binance, Bybit, OKX, Kraken, etc.)
 """
 import logging
 import time
+from dataclasses import replace as dc_replace
 from datetime import datetime
 
 import pandas as pd
@@ -44,6 +45,7 @@ class Trader:
         account_name: str = "default",
         position_size: float = None,
         timeframe: str = None,
+        strategy_kwargs: dict = None,
     ):
         # Account & client
         self.account = get_account(account_name)
@@ -55,8 +57,8 @@ class Trader:
             sandbox=self.account.sandbox,
         )
 
-        # Strategy
-        self.strategy = get_strategy(strategy_name)
+        # Strategy — pass any custom params (e.g. oversold=40 from a cloned preset)
+        self.strategy = get_strategy(strategy_name, **(strategy_kwargs or {}))
         self.strategy_name = strategy_name
 
         # Market
@@ -81,6 +83,20 @@ class Trader:
         self._waiting_for_profit: bool = False
         # Use market orders on short timeframes to guarantee fills.
         self._use_market = self.timeframe in ("1m", "5m", "15m")
+
+        # Error / diagnostics tracking (visible in UI)
+        self.order_errors: int = 0
+        self.last_error: str = ""
+        self.orders_placed: int = 0
+        self.orders_filled: int = 0
+        self.last_action: str = "initializing"
+
+        # P&L and trade history (visible in live feed)
+        self.session_pnl: float = 0.0
+        self.total_trades: int = 0
+        self.winning_trades: int = 0
+        self.trade_history: list = []  # Recent trades [{side, price, amount, pnl, time}]
+        self._trade_history_max: int = 100
 
         logger.info(
             "Trader initialized: strategy=%s, symbol=%s, size=$%.2f, "
@@ -153,17 +169,29 @@ class Trader:
         try:
             df = self._fetch_candles()
             if df.empty or len(df) < 30:
+                self.last_action = f"insufficient data ({len(df)} bars)"
                 logger.warning("Insufficient candle data (%d bars)", len(df))
                 return
         except Exception as e:
+            self.last_action = f"fetch error: {e}"
             logger.error("Failed to fetch candles: %s", e)
             return
 
         current_price = float(df.iloc[-1]["close"])
+        self.last_action = f"got {len(df)} bars, price=${current_price:.4f}"
 
         # 2. Check for filled orders
         filled = self.orders.check_fills()
         for order in filled:
+            self.orders_filled += 1
+            trade_entry = {
+                "side": order.side,
+                "price": order.price,
+                "amount": float(order.amount),
+                "cost": order.price * float(order.amount),
+                "time": datetime.utcnow().isoformat(),
+                "pnl": 0.0,
+            }
             if order.side == "BUY":
                 if self.symbol in self.positions.positions:
                     # Scale-in fill — update weighted avg cost, don't close position
@@ -186,6 +214,11 @@ class Trader:
             elif order.side == "SELL":
                 pnl = self.positions.close_position(self.symbol, order.price)
                 self.risk.position_closed(pnl)
+                trade_entry["pnl"] = round(pnl, 6)
+                self.session_pnl += pnl
+                self.total_trades += 1
+                if pnl >= 0:
+                    self.winning_trades += 1
                 self.storage.record_trade(
                     strategy=self.strategy_name,
                     account=self.account.name,
@@ -196,6 +229,11 @@ class Trader:
                     order_id=order.order_id,
                     notes=f"pnl={pnl:.4f}",
                 )
+
+            # Record to trade history (BUY and SELL)
+            self.trade_history.append(trade_entry)
+            if len(self.trade_history) > self._trade_history_max:
+                self.trade_history = self.trade_history[-self._trade_history_max:]
 
         # 3. Check stop-loss / take-profit
         exits = self.positions.check_exits({self.symbol: current_price})
@@ -212,17 +250,29 @@ class Trader:
                 )
 
         # 4. Get strategy signal — pass actual position state so the
-        # strategy never diverges from reality (profit-lock / stop-loss).
+        # strategy uses the *real* open-position flag, not a guessed one.
         actual_in_position = self.symbol in self.positions.positions
         try:
             try:
                 signal = self.strategy.get_signal(df, in_position=actual_in_position)
             except TypeError:
-                # Fallback for strategies that don't accept in_position yet
+                # Older strategies that don't accept in_position yet
                 signal = self.strategy.get_signal(df)
         except Exception as e:
+            self.last_action = f"strategy error: {e}"
             logger.error("Strategy error: %s", e)
             return
+
+        self.last_action = f"signal={signal.signal.value} | price=${current_price:.4f} | in_pos={actual_in_position}"
+
+        # Safety: if strategy emits BUY_MORE but we have no open position,
+        # promote it to a fresh BUY so the entry is never silently skipped.
+        if signal.signal == Signal.BUY_MORE and not actual_in_position:
+            logger.info(
+                "BUY_MORE received but no open position — promoting to BUY "
+                "(strategy state recovered from desync)"
+            )
+            signal = dc_replace(signal, signal=Signal.BUY)
 
         # ── WAITING-FOR-PROFIT override ────────────────────────────────────
         # When RSI previously crossed above 70 but the trade was in loss,
@@ -280,12 +330,14 @@ class Trader:
 
         # 5. Act on signal
         if signal.signal == Signal.HOLD:
+            self.last_action = f"HOLD: {signal.reason} | price=${current_price:.4f}"
             logger.debug("Signal: HOLD (reason: %s)", signal.reason)
             return
 
         # 6. Check risk before trading
         can_trade, risk_reason = self.risk.can_trade(self.position_size_usd)
         if not can_trade:
+            self.last_action = f"RISK BLOCKED: {risk_reason}"
             logger.warning("Risk blocked: %s", risk_reason)
             return
 
@@ -293,6 +345,7 @@ class Trader:
             # ── Fresh entry ───────────────────────────────────────────
             amount = self._calculate_amount(current_price)
             if amount <= 0:
+                self.last_action = f"BUY: amount=0 after precision (${self.position_size_usd}/${current_price:.4f})"
                 logger.warning("Calculated amount is 0 — position size too small")
                 return
 
@@ -302,13 +355,19 @@ class Trader:
                 signal.confidence, signal.reason,
             )
             order_price = self.client.price_to_precision(self.symbol, current_price)
-            self.orders.place_order(
+            result = self.orders.place_order(
                 symbol=self.symbol,
                 side="buy",
                 price=order_price,
                 amount=amount,
                 use_market=self._use_market,
             )
+            if result is None:
+                self.order_errors += 1
+                self.last_error = f"BUY order failed: amount={amount}, notional=${amount * current_price:.2f}"
+                logger.warning("BUY order failed — %s", self.last_error)
+            else:
+                self.orders_placed += 1
             self.storage.record_trade(
                 strategy=self.strategy_name,
                 account=self.account.name,
