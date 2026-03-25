@@ -201,8 +201,8 @@
 
     <div class="dca-build-header">
         <div>
-            <h2 style="margin:0;font-size:1.4rem;color:#e6edf3;">DCA Strategy Builder</h2>
-            <p style="margin:0.3rem 0 0;color:#8b949e;font-size:0.85rem;">Configure your automated dollar-cost averaging plan with precision.</p>
+            <h2 style="margin:0;font-size:1.4rem;color:var(--text-primary);">DCA Strategy Builder</h2>
+            <p style="margin:0.3rem 0 0;color:var(--text-muted);font-size:0.85rem;">Configure your automated dollar-cost averaging plan with precision.</p>
         </div>
         <button class="dca-save-btn" onclick="saveDcaPlan()">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
@@ -331,7 +331,7 @@
 
         <!-- Dip Settings -->
         <div id="dipPanel" class="dca-schedule-panel" style="display:none;">
-            <p style="color:#8b949e;font-size:0.82rem;margin-bottom:1rem;">
+            <p style="color:var(--text-muted);font-size:0.82rem;margin-bottom:1rem;">
                 When the price drops from its <strong>recent high</strong> by the percentages below, extra buys will trigger automatically.
             </p>
             <div class="dca-form-grid">
@@ -361,7 +361,7 @@
     <!-- ── DCA Levels / Entries ───────────────────────── -->
     <div class="dca-section-card">
         <div class="dca-section-badge">DCA LEVELS — ENTRY LADDER</div>
-        <p style="color:#8b949e;font-size:0.82rem;margin-bottom:1rem;">
+        <p style="color:var(--text-muted);font-size:0.82rem;margin-bottom:1rem;">
             Define up to 10 DCA levels. Each level triggers when price drops by the given % from your <strong>first entry</strong>. Configure the buy multiplier — how much more to invest at each deeper level.
         </p>
 
@@ -419,7 +419,7 @@
     <div class="dca-section-card" id="dcaSummaryCard">
         <div class="dca-section-badge">PLAN SUMMARY</div>
         <div id="dcaSummary" class="dca-summary-content">
-            <p style="color:#6e7681;text-align:center;padding:2rem;">Configure your plan above — summary will appear here.</p>
+            <p style="color:var(--text-faint);text-align:center;padding:2rem;">Configure your plan above — summary will appear here.</p>
         </div>
     </div>
 
@@ -427,7 +427,7 @@
     <div class="dca-section-card">
         <div class="dca-section-badge">SAVED DCA PLANS</div>
         <div id="dcaSavedPlans">
-            <p style="color:#6e7681;text-align:center;padding:2rem;">No saved plans yet. Build one above and click "Save Plan".</p>
+            <p style="color:var(--text-faint);text-align:center;padding:2rem;">No saved plans yet. Build one above and click "Save Plan".</p>
         </div>
     </div>
 
@@ -983,7 +983,7 @@ function renderSavedPlans() {
     const container = document.getElementById('dcaSavedPlans');
     const plans = getDcaPlans();
     if (!plans.length) {
-        container.innerHTML = '<p style="color:#6e7681;text-align:center;padding:2rem;">No saved plans yet.</p>';
+        container.innerHTML = '<p style="color:var(--text-faint);text-align:center;padding:2rem;">No saved plans yet.</p>';
         return;
     }
     container.innerHTML = plans.map(p => `
