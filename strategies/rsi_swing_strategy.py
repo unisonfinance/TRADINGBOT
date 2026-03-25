@@ -54,9 +54,9 @@ logger = logging.getLogger(__name__)
 DISPLAY_NAME = "BTCUSDT PRO_1"
 
 
-class RSISwingStrategy(BaseStrategy):
+class RSISwingProStrategy(BaseStrategy):
     """
-    RSI Swing with balance-aware scale-in.
+    RSI Swing with balance-aware scale-in (BTCUSDT PRO_1).
 
     Parameters
     ----------
@@ -317,36 +317,79 @@ class RSISwingStrategy(BaseStrategy):
 
         return df
 
-    def get_signal(self, df: pd.DataFrame) -> TradeSignal:
+    def get_signal(self, df: pd.DataFrame, in_position: bool = False) -> TradeSignal:
         """
-        Live signal — evaluates only the latest candle.
+        Live signal — evaluates the latest candle using the ACTUAL bot
+        position state rather than an unreliable historical replay.
 
-        The state is inferred from the most recent BUY/SELL in the
-        signal history. This means the caller should pass enough recent
-        candles so the strategy can determine its own position state.
+        Parameters
+        ----------
+        df          : Recent OHLCV candles (at least rsi_period + 1 bars).
+        in_position : True if the bot currently holds an open position.
+                      The Trader must pass this so the strategy never
+                      diverges from reality (e.g. after profit-lock or
+                      stop-loss closes the position mid-replay).
         """
-        df = self.generate_signals(df)
-        last   = df.iloc[-1]
-        rsi    = last["rsi"]
-        price  = float(last["close"])
-        signal = last["signal"]
+        df    = self._add_rsi(df)
+        last  = df.iloc[-1]
+        rsi   = last["rsi"]
+        price = float(last["close"])
 
-        # Confidence: how far RSI is from the threshold
-        if signal == Signal.BUY:
-            confidence = min(1.0, (self.oversold - rsi) / self.oversold)
-            reason = (
-                f"RSI={rsi:.2f} crossed below {self.oversold} → BUY "
-                f"(oversold entry)"
+        if pd.isna(rsi):
+            return TradeSignal(
+                signal=Signal.HOLD, price=price, confidence=0.0,
+                reason="RSI not yet computed — insufficient data",
             )
-        elif signal == Signal.SELL:
+
+        # ── Determine state from ACTUAL position, not simulation ────────
+        # States: 0 = IDLE (no position, look for RSI < oversold)
+        #         1 = IN_TRADE (position open, look for RSI > overbought)
+        #         2 = WAIT_RESET (just sold, wait for next RSI < oversold)
+        if in_position:
+            # Bot has a confirmed open position — we ARE in trade
+            state = 1
+        else:
+            # No real position.  Replay recent history only to distinguish
+            # IDLE (state 0) from WAIT_RESET (state 2) so we never miss a
+            # fresh BUY after a quick sell+dip cycle within the window.
+            state = 0
+            for i in range(self.rsi_period, len(df) - 1):
+                rsi_val = df.iloc[i]["rsi"]
+                if pd.isna(rsi_val):
+                    continue
+                if state == 0 and rsi_val < self.oversold:
+                    state = 1
+                elif state == 1 and rsi_val > self.overbought:
+                    state = 2
+                elif state == 2 and rsi_val < self.oversold:
+                    state = 1
+            # If replay ends in state=1 but we have NO real position
+            # (e.g. stopped out, or profit-lock sell diverged history),
+            # treat as WAIT_RESET — any RSI<oversold triggers a fresh BUY.
+            if state == 1:
+                state = 2
+
+        # ── Emit signal for the current (last) candle ────────────────────
+        if state in (0, 2) and rsi < self.oversold:
+            signal     = Signal.BUY
+            confidence = min(1.0, (self.oversold - rsi) / self.oversold)
+            reason     = (
+                f"RSI={rsi:.2f} < {self.oversold} → BUY "
+                f"({'idle' if state == 0 else 'post-sell reset'} entry)"
+            )
+        elif state == 1 and rsi > self.overbought:
+            signal     = Signal.SELL
             confidence = min(1.0, (rsi - self.overbought) / (100 - self.overbought))
-            reason = (
-                f"RSI={rsi:.2f} crossed above {self.overbought} → SELL "
-                f"(overbought exit)"
+            reason     = (
+                f"RSI={rsi:.2f} > {self.overbought} → SELL (overbought exit)"
             )
         else:
+            signal     = Signal.HOLD
             confidence = 0.0
-            reason = f"RSI={rsi:.2f} — no signal (between {self.oversold} and {self.overbought})"
+            reason     = (
+                f"RSI={rsi:.2f} — "
+                f"{'in trade, waiting for RSI>' + str(self.overbought) if state == 1 else 'idle, waiting for RSI<' + str(self.oversold)}"
+            )
 
         return TradeSignal(
             signal=signal,

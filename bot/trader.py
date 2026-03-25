@@ -211,9 +211,15 @@ class Trader:
                     use_market=self._use_market,
                 )
 
-        # 4. Get strategy signal
+        # 4. Get strategy signal — pass actual position state so the
+        # strategy never diverges from reality (profit-lock / stop-loss).
+        actual_in_position = self.symbol in self.positions.positions
         try:
-            signal = self.strategy.get_signal(df)
+            try:
+                signal = self.strategy.get_signal(df, in_position=actual_in_position)
+            except TypeError:
+                # Fallback for strategies that don't accept in_position yet
+                signal = self.strategy.get_signal(df)
         except Exception as e:
             logger.error("Strategy error: %s", e)
             return
@@ -228,44 +234,49 @@ class Trader:
         if self._waiting_for_profit:
             pos = self.positions.positions.get(self.symbol)
             if pos is None:
-                # Position was closed externally (stop-loss or manual) — reset flag
+                # Position was closed externally (stop-loss or manual) — clear
+                # the flag and fall through so this cycle's signal is processed.
+                # Do NOT return — a fresh BUY opportunity may exist right now.
                 self._waiting_for_profit = False
-                logger.info("_waiting_for_profit cleared: position no longer open")
-                return
-
-            pnl      = pos.unrealized_pnl(current_price)
-            at_above_70 = (signal.signal == Signal.SELL)  # strategy emits SELL when RSI>70
-
-            if at_above_70 and pnl >= 0:
-                # Green AND RSI > 70 — execute the profit-locked sell 
-                amount = self.client.amount_to_precision(self.symbol, pos.size)
                 logger.info(
-                    "[PROFIT-LOCK SELL] %s %.6f @ $%.4f | avg_entry=$%.4f "
-                    "| pnl=$%.4f | reason: RSI>70 + trade in green",
-                    self.symbol, float(amount), current_price,
-                    pos.entry_price, pnl,
-                )
-                self.orders.place_order(
-                    symbol=self.symbol,
-                    side="sell",
-                    price=self.client.price_to_precision(self.symbol, current_price),
-                    amount=amount,
-                    use_market=self._use_market,
-                )
-                self._waiting_for_profit = False
-            elif at_above_70 and pnl < 0:
-                logger.info(
-                    "[PROFIT-LOCK] RSI>70 but trade still in loss: "
-                    "pnl=$%.4f, avg_entry=$%.4f — holding until green",
-                    pnl, pos.entry_price,
+                    "_waiting_for_profit cleared: position closed externally, "
+                    "resuming normal signal processing this cycle"
                 )
             else:
-                logger.info(
-                    "[PROFIT-LOCK] RSI not above 70 — holding: "
-                    "pnl=$%.4f, avg_entry=$%.4f",
-                    pnl, pos.entry_price,
-                )
-            return  # ← never process any other signal while waiting for profit
+                # Position still open — apply profit-lock logic then return.
+                pnl         = pos.unrealized_pnl(current_price)
+                at_above_70 = (signal.signal == Signal.SELL)  # SELL emitted when RSI>70
+
+                if at_above_70 and pnl >= 0:
+                    # Green AND RSI > 70 — execute the profit-locked sell
+                    amount = self.client.amount_to_precision(self.symbol, pos.size)
+                    logger.info(
+                        "[PROFIT-LOCK SELL] %s %.6f @ $%.4f | avg_entry=$%.4f "
+                        "| pnl=$%.4f | reason: RSI>70 + trade in green",
+                        self.symbol, float(amount), current_price,
+                        pos.entry_price, pnl,
+                    )
+                    self.orders.place_order(
+                        symbol=self.symbol,
+                        side="sell",
+                        price=self.client.price_to_precision(self.symbol, current_price),
+                        amount=amount,
+                        use_market=self._use_market,
+                    )
+                    self._waiting_for_profit = False
+                elif at_above_70 and pnl < 0:
+                    logger.info(
+                        "[PROFIT-LOCK] RSI>70 but trade still in loss: "
+                        "pnl=$%.4f, avg_entry=$%.4f — holding until green",
+                        pnl, pos.entry_price,
+                    )
+                else:
+                    logger.info(
+                        "[PROFIT-LOCK] RSI not above 70 — holding: "
+                        "pnl=$%.4f, avg_entry=$%.4f",
+                        pnl, pos.entry_price,
+                    )
+                return  # ← block other signals only while position is still open
 
         # 5. Act on signal
         if signal.signal == Signal.HOLD:

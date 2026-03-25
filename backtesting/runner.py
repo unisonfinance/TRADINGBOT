@@ -22,7 +22,7 @@ from strategies.tema_strategy import TEMAStrategy
 from strategies.heikinashi_strategy import HeikinAshiStrategy
 from strategies.keltner_breakout_strategy import KeltnerBreakoutStrategy
 from strategies.arbitrage_ratio_strategy import ArbitrageRatioStrategy
-from strategies.rsi_swing_strategy import RSISwingStrategy
+from strategies.rsi_swing_strategy import RSISwingStrategy, RSISwingProStrategy
 from backtesting.engine import BacktestEngine, BacktestResult
 
 logger = logging.getLogger(__name__)
@@ -46,8 +46,7 @@ STRATEGY_MAP = {
     "heikinashi":       HeikinAshiStrategy,
     "keltner_breakout": KeltnerBreakoutStrategy,
     # ── RSI Swing ──────────────────────────────────────────────────────
-    "rsi_swing":        RSISwingStrategy,
-    # ── Pair / Ratio strategies ───────────────────────────────────────
+    "rsi_swing":        RSISwingStrategy,    "rsi_swing_pro":    RSISwingProStrategy,   # scale-in / BUY_MORE variant    # ── Pair / Ratio strategies ───────────────────────────────────────
     "arbitrage":        ArbitrageRatioStrategy,
 }
 

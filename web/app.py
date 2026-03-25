@@ -821,7 +821,7 @@ def api_test_railway_token():
 # ─── Run ──────────────────────────────────────────────────────────
 if __name__ == "__main__":
     print("=" * 50)
-    print("  CRYPTO RBI BOT — Web Dashboard")
+    print("  TREKBOT — Web Dashboard")
     print("  http://localhost:5050")
     print("=" * 50)
     app.run(debug=True, host="0.0.0.0", port=5050)

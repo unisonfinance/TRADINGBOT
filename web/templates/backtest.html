@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Backtest — Crypto RBI Bot{% endblock %}
+{% block title %}Backtest — TrekBot{% endblock %}
 {% block page_title %}Backtest{% endblock %}
 
 {% block content %}
@@ -525,6 +525,20 @@
                 </div>
             </div>
 
+            <!-- Clone action bar -->
+            <div class="strat-clone-bar">
+                <button class="btn strat-clone-btn" onclick="event.stopPropagation(); openCloneModal('rsi_swing','🤖 BTCUSDT PRO_1','BTC/USDT','1m',5,
+                  [{name:'Oversold RSI (Buy below)',key:'oversold',type:'number',min:5,max:45,step:1,val:30},
+                   {name:'Overbought RSI (Sell above)',key:'overbought',type:'number',min:55,max:95,step:1,val:70},
+                   {name:'RSI Period',key:'rsi_period',type:'number',min:5,max:30,step:1,val:14},
+                   {name:'Stop Loss %',key:'stop_loss_pct',type:'number',min:0.5,max:10,step:0.5,val:2},
+                   {name:'Min Trade USD ($)',key:'min_trade_usd',type:'number',min:1,max:1000,step:1,val:5},
+                   {name:'Position Size USD ($)',key:'size',type:'number',min:1,max:10000,step:1,val:5}])">
+                    🔧 Clone &amp; Tweak
+                </button>
+                <span class="strat-clone-hint">Customise RSI levels, position size and more → save as your own Quick Launch preset</span>
+            </div>
+
         </div>
     </div>
 
@@ -575,6 +589,18 @@
                     <div class="strat-prot-item"><span class="strat-prot-icon">📌</span><span>Parameters: Fast=3, Slow=15, Signal=3</span></div>
                     <div class="strat-prot-item"><span class="strat-prot-icon">📌</span><span>Trend-following — performs best in trending markets, struggles in chop</span></div>
                 </div>
+            </div>
+            <!-- Clone action bar -->
+            <div class="strat-clone-bar">
+                <button class="btn strat-clone-btn" onclick="event.stopPropagation(); openCloneModal('macd','📊 MACD (3/15/3)','BTC/USDT','4h',5,
+                  [{name:'Fast EMA',key:'fast_period',type:'number',min:2,max:20,step:1,val:3},
+                   {name:'Slow EMA',key:'slow_period',type:'number',min:5,max:50,step:1,val:15},
+                   {name:'Signal Period',key:'signal_period',type:'number',min:1,max:15,step:1,val:3},
+                   {name:'Stop Loss %',key:'stop_loss_pct',type:'number',min:0.5,max:15,step:0.5,val:2},
+                   {name:'Position Size USD ($)',key:'size',type:'number',min:1,max:10000,step:1,val:5}])">
+                    🔧 Clone &amp; Tweak
+                </button>
+                <span class="strat-clone-hint">Adjust EMA periods and save as a custom Quick Launch preset</span>
             </div>
         </div>
     </div>
@@ -627,6 +653,18 @@
                     <div class="strat-prot-item"><span class="strat-prot-icon">📌</span><span>Backtested Sharpe of ~13 is exceptional — validate with fresh data before live</span></div>
                 </div>
             </div>
+            <!-- Clone action bar -->
+            <div class="strat-clone-bar">
+                <button class="btn strat-clone-btn" onclick="event.stopPropagation(); openCloneModal('tema','⭐ TEMA Crossover','BTC/USDT','1h',5,
+                  [{name:'Fast TEMA Period',key:'fast_period',type:'number',min:3,max:30,step:1,val:9},
+                   {name:'Slow TEMA Period',key:'slow_period',type:'number',min:10,max:60,step:1,val:21},
+                   {name:'ADX Threshold (trend filter)',key:'adx_threshold',type:'number',min:10,max:40,step:1,val:20},
+                   {name:'Stop Loss %',key:'stop_loss_pct',type:'number',min:0.5,max:15,step:0.5,val:2},
+                   {name:'Position Size USD ($)',key:'size',type:'number',min:1,max:10000,step:1,val:5}])">
+                    🔧 Clone &amp; Tweak
+                </button>
+                <span class="strat-clone-hint">Tune TEMA periods and ADX filter → save as your own Quick Launch preset</span>
+            </div>
         </div>
     </div>
 
@@ -678,10 +716,65 @@
                     <div class="strat-prot-item"><span class="strat-prot-icon">📌</span><span>Live ratio monitor available on the Trading page</span></div>
                 </div>
             </div>
+            <!-- Clone action bar -->
+            <div class="strat-clone-bar">
+                <button class="btn strat-clone-btn" onclick="event.stopPropagation(); openCloneModal('arbitrage','⚡ Arbitrage Ratio','BTC/USDT','4h',5,
+                  [{name:'SMA Window (ratio rolling mean)',key:'window',type:'number',min:5,max:100,step:1,val:30},
+                   {name:'Z-Score Entry Threshold (σ)',key:'z_entry',type:'number',min:0.5,max:4,step:0.1,val:2},
+                   {name:'Z-Score Exit Threshold (σ)',key:'z_exit',type:'number',min:0.1,max:3,step:0.1,val:0.5},
+                   {name:'Position Size USD ($)',key:'size',type:'number',min:1,max:10000,step:1,val:5}])">
+                    🔧 Clone &amp; Tweak
+                </button>
+                <span class="strat-clone-hint">Adjust the SMA window and Z-score thresholds → save as your own preset</span>
+            </div>
         </div>
     </div>
 
 </div><!-- end #tabPanelStrategies -->
+
+<!-- ═══════════════════════════════════════════════════════════════
+     CLONE & TWEAK MODAL
+════════════════════════════════════════════════════════════════ -->
+<div id="cloneModal" class="clone-modal-overlay" style="display:none;" onclick="if(event.target===this)closeCloneModal()">
+    <div class="clone-modal">
+        <div class="clone-modal-header">
+            <div>
+                <div class="clone-modal-title">🔧 Clone &amp; Tweak Strategy</div>
+                <div class="clone-modal-subtitle" id="cloneBaseLabel">Based on: —</div>
+            </div>
+            <button class="clone-modal-close" onclick="closeCloneModal()">✕</button>
+        </div>
+        <div class="clone-modal-body">
+            <div class="clone-field-row">
+                <label class="clone-field-label">Preset Name <span style="color:#e5484d">*</span></label>
+                <input id="cloneName" class="form-input" type="text" placeholder="e.g. My RSI 20/60 Aggressive" maxlength="50">
+                <div class="clone-field-hint">This name will appear in Quick Launch on the Trading tab</div>
+            </div>
+            <div class="clone-field-row">
+                <label class="clone-field-label">Symbol</label>
+                <input id="cloneSymbol" class="form-input" type="text" placeholder="BTC/USDT">
+            </div>
+            <div class="clone-field-row">
+                <label class="clone-field-label">Timeframe</label>
+                <select id="cloneTimeframe" class="form-input">
+                    <option value="1m">1 Minute</option>
+                    <option value="5m">5 Minutes</option>
+                    <option value="15m">15 Minutes</option>
+                    <option value="1h">1 Hour</option>
+                    <option value="4h">4 Hours</option>
+                    <option value="1d">1 Day</option>
+                </select>
+            </div>
+            <div id="cloneDynamicFields"></div>
+        </div>
+        <div class="clone-modal-footer">
+            <button class="btn btn-sm" onclick="closeCloneModal()">Cancel</button>
+            <button class="btn bt-act-green clone-save-btn" onclick="saveClonePreset()">
+                ⚡ Save to Quick Launch
+            </button>
+        </div>
+    </div>
+</div>
 
 {% endblock %}<!-- end block content -->
 
@@ -1099,7 +1192,82 @@
 .strat-ex-buy  { background: #05F26C12; border-left: 2px solid #05F26C; }
 .strat-ex-sell { background: #ff6b6b12; border-left: 2px solid #ff6b6b; }
 .strat-ex-hold { background: #ffd60a10; border-left: 2px solid #ffd60a88; }
-</style>
+
+/* ── Clone & Tweak action bar ───────────────────────────────────── */
+.strat-clone-bar {
+    display: flex; align-items: center; gap: 1rem;
+    margin-top: 1.1rem; padding-top: 1rem;
+    border-top: 1px solid var(--border, #2a3240);
+    flex-wrap: wrap;
+}
+.strat-clone-btn {
+    font-size: 0.8rem !important; font-weight: 700 !important;
+    padding: 0.42rem 1rem !important; border-radius: 6px !important;
+    border: 1px solid #05F26C66 !important; color: #05F26Ccc !important;
+    background: transparent !important; cursor: pointer !important;
+    transition: all 0.18s !important;
+    white-space: nowrap;
+}
+.strat-clone-btn:hover { background: #05F26C15 !important; border-color: #05F26C !important; color: #05F26C !important; box-shadow: 0 0 10px #05F26C33 !important; }
+.strat-clone-hint { font-size: 0.75rem; color: var(--text-muted, #7a8899); }
+
+/* ── Clone Modal ─────────────────────────────────────────────────── */
+.clone-modal-overlay {
+    position: fixed; inset: 0; z-index: 9000;
+    background: rgba(0,0,0,0.65); backdrop-filter: blur(4px);
+    display: flex; align-items: center; justify-content: center;
+    padding: 1rem;
+}
+.clone-modal {
+    background: var(--bg-secondary, #181f2a);
+    border: 1px solid #05F26C44;
+    border-radius: 14px;
+    width: 100%; max-width: 520px;
+    max-height: 90vh; overflow-y: auto;
+    box-shadow: 0 0 40px #05F26C22, 0 16px 48px rgba(0,0,0,0.5);
+    animation: cloneModalIn 0.18s ease;
+}
+@keyframes cloneModalIn {
+    from { opacity: 0; transform: scale(0.96) translateY(-8px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+.clone-modal-header {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    padding: 1.25rem 1.5rem 1rem;
+    border-bottom: 1px solid var(--border, #2a3240);
+}
+.clone-modal-title {
+    font-size: 1rem; font-weight: 800; color: var(--text-primary, #e8eaf0);
+    margin-bottom: 0.2rem;
+}
+.clone-modal-subtitle { font-size: 0.78rem; color: #05F26C; }
+.clone-modal-close {
+    background: none; border: none; color: var(--text-muted); cursor: pointer;
+    font-size: 1.1rem; padding: 0.25rem 0.4rem; border-radius: 5px;
+    transition: color 0.15s;
+}
+.clone-modal-close:hover { color: #ff6b6b; }
+.clone-modal-body { padding: 1.25rem 1.5rem; display: flex; flex-direction: column; gap: 1rem; }
+.clone-modal-footer {
+    padding: 1rem 1.5rem; border-top: 1px solid var(--border, #2a3240);
+    display: flex; justify-content: flex-end; gap: 0.75rem;
+}
+.clone-field-row { display: flex; flex-direction: column; gap: 0.35rem; }
+.clone-field-label { font-size: 0.78rem; font-weight: 700; color: var(--text-secondary, #b0bac8); text-transform: uppercase; letter-spacing: 0.05em; }
+.clone-field-hint { font-size: 0.72rem; color: var(--text-muted, #7a8899); margin-top: 0.1rem; }
+.clone-dynamic-param {
+    display: grid; grid-template-columns: 1fr 140px; gap: 0.5rem 1rem; align-items: center;
+    background: var(--bg-primary, #111827); border: 1px solid var(--border, #2a3240);
+    border-radius: 8px; padding: 0.65rem 0.85rem;
+}
+.clone-param-label { font-size: 0.82rem; color: var(--text-secondary, #b0bac8); font-weight: 600; }
+.clone-save-btn {
+    border: 1px solid #05F26C88 !important; color: #05F26Ccc !important;
+    background: transparent !important; font-size: 0.84rem !important;
+    font-weight: 700 !important; padding: 0.5rem 1.2rem !important;
+    border-radius: 7px !important; cursor: pointer !important; transition: all 0.18s !important;
+}
+.clone-save-btn:hover { background: #05F26C18 !important; border-color: #05F26C !important; color: #05F26C !important; }</style>
 
 <script>
 // ── Tab switching ────────────────────────────────────────────────
@@ -1122,6 +1290,96 @@ function toggleStratCard(id) {
     arrow.textContent = isOpen ? '▲' : '▼';
     card.classList.toggle('strat-card-open', isOpen);
 }
+
+// ── Clone & Tweak Modal ──────────────────────────────────────────
+let _cloneCtx = {};
+
+function openCloneModal(stratKey, stratLabel, defaultSymbol, defaultTf, defaultSize, params) {
+    _cloneCtx = { stratKey, stratLabel, params };
+    document.getElementById('cloneBaseLabel').textContent = 'Based on: ' + stratLabel;
+    document.getElementById('cloneName').value = stratLabel + ' (Clone)';
+    document.getElementById('cloneSymbol').value = defaultSymbol;
+    // Set timeframe
+    const tfSel = document.getElementById('cloneTimeframe');
+    for (const opt of tfSel.options) { opt.selected = (opt.value === defaultTf); }
+    // Render dynamic param fields
+    const container = document.getElementById('cloneDynamicFields');
+    container.innerHTML = '';
+    for (const p of params) {
+        const row = document.createElement('div');
+        row.className = 'clone-dynamic-param';
+        const label = document.createElement('span');
+        label.className = 'clone-param-label';
+        label.textContent = p.name;
+        const input = document.createElement('input');
+        input.className = 'form-input';
+        input.type = p.type || 'number';
+        input.id = 'clone_param_' + p.key;
+        input.value = p.val;
+        if (p.min !== undefined) input.min = p.min;
+        if (p.max !== undefined) input.max = p.max;
+        if (p.step !== undefined) input.step = p.step;
+        row.appendChild(label);
+        row.appendChild(input);
+        container.appendChild(row);
+    }
+    document.getElementById('cloneModal').style.display = 'flex';
+    setTimeout(() => document.getElementById('cloneName').focus(), 50);
+}
+
+function closeCloneModal() {
+    document.getElementById('cloneModal').style.display = 'none';
+}
+
+function saveClonePreset() {
+    const name = document.getElementById('cloneName').value.trim();
+    if (!name) { document.getElementById('cloneName').focus(); return; }
+    const symbol    = document.getElementById('cloneSymbol').value.trim() || 'BTC/USDT';
+    const timeframe = document.getElementById('cloneTimeframe').value;
+
+    // Gather dynamic param values
+    const extras = {};
+    for (const p of _cloneCtx.params || []) {
+        const el = document.getElementById('clone_param_' + p.key);
+        if (!el) continue;
+        extras[p.key] = p.type === 'number' ? parseFloat(el.value) : el.value;
+    }
+    const size = extras.size || 5;
+
+    const preset = {
+        name,
+        strategy: _cloneCtx.stratKey,
+        symbol,
+        timeframe,
+        size,
+        extras,   // stored extras for future backtest use
+        // Human-readable hint shown in Quick Launch tooltip
+        hint: Object.entries(extras)
+            .filter(([k]) => k !== 'size')
+            .map(([k, v]) => `${k}=${v}`)
+            .join(' · '),
+        clonedFrom: _cloneCtx.stratKey,
+    };
+
+    try {
+        const existing = JSON.parse(localStorage.getItem('userQuickPresets') || '[]');
+        // Allow duplicate names — let user manage
+        existing.push(preset);
+        localStorage.setItem('userQuickPresets', JSON.stringify(existing));
+        closeCloneModal();
+        showToast('⚡ "' + name + '" saved to Quick Launch!', 'success');
+        // If on trading tab the preset list will reload on next visit
+    } catch(e) {
+        showToast('Failed to save preset', 'error');
+    }
+}
+
+// Close modal on Escape
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && document.getElementById('cloneModal').style.display !== 'none') {
+        closeCloneModal();
+    }
+});
 
 // ── Benchmark thresholds (loaded once, updated on save) ──────────
 let _bm = { min_win_rate: 55, min_profit_factor: 1.5, max_drawdown: 20, min_trades: 100, min_sharpe: 1.0 };

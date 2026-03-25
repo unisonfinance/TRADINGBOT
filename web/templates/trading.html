@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Trading — Crypto RBI Bot{% endblock %}
+{% block title %}Trading — TrekBot{% endblock %}
 {% block page_title %}Trading{% endblock %}
 
 {% block content %}
@@ -41,7 +41,7 @@
                     <label>Strategy</label>
                     <select id="strategySelect" class="form-input">
                         <optgroup label="── Original ──────────────────">
-                            <option value="macd" selected>MACD Histogram (3/15/3)</option>
+                            <option value="macd">MACD Histogram (3/15/3)</option>
                             <option value="supertrend">Supertrend (7/3.0) + EMA200</option>
                             <option value="rsi">RSI Mean Reversion (14)</option>
                             <option value="cvd">CVD Divergence (20)</option>
@@ -61,7 +61,7 @@
                             <option value="funding_meanrev">Funding Rate Mean Reversion</option>
                         </optgroup>
                         <optgroup label="── RSI Swing ──────────────────">
-                            <option value="rsi_swing">🤖 BTCUSDT PRO_1 — RSI Swing &lt;30/&gt;70 · Scale-In</option>
+                            <option value="rsi_swing" selected>🤖 BTCUSDT PRO_1 — RSI Swing &lt;30/&gt;70 · Scale-In</option>
                         </optgroup>
                         <optgroup label="── Arbitrage ──────────────────">
                             <option value="arbitrage">⚡ Arbitrage Ratio (BTC/ETH)</option>
@@ -75,11 +75,11 @@
                 <div class="form-group">
                     <label>Timeframe</label>
                     <select id="timeframeSelect" class="form-input">
-                        <option value="1m">1 Minute</option>
+                        <option value="1m" selected>1 Minute</option>
                         <option value="5m">5 Minutes</option>
                         <option value="15m">15 Minutes</option>
                         <option value="1h">1 Hour</option>
-                        <option value="4h" selected>4 Hours ★ Recommended</option>
+                        <option value="4h">4 Hours ★ Recommended</option>
                         <option value="1d">1 Day</option>
                     </select>
                 </div>
@@ -809,7 +809,7 @@ async function loadRunningBots() {
                 <td class="mono">$${bot.size}</td>
                 <td class="mono">${bot.cycles}</td>
                 <td class="mono">${bot.positions}</td>
-                <td><span class="badge badge-green">Running</span></td>
+                <td><span class="badge-running">Running</span></td>
                 <td><button class="btn btn-red btn-sm" onclick="stopBot('${bot.name}')">🔴 Stop</button></td>
             </tr>`;
         });
