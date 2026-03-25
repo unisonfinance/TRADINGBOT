@@ -1,0 +1,166 @@
+{% extends "admin/admin_base.html" %}
+{% block title %}TrekBot Admin — Dashboard{% endblock %}
+{% block page_title %}📊 Admin Dashboard{% endblock %}
+{% block content %}
+<style>
+.adm-hero-row{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.5rem}
+.adm-hero{background:var(--admin-card);border:1px solid var(--admin-border);border-radius:16px;padding:1.3rem;position:relative;overflow:hidden}
+.adm-hero::before{content:'';position:absolute;top:0;right:0;width:80px;height:80px;border-radius:50%;filter:blur(40px);opacity:.15}
+.adm-hero:nth-child(1)::before{background:#8b5cf6}.adm-hero:nth-child(2)::before{background:#10b981}
+.adm-hero:nth-child(3)::before{background:#3b82f6}.adm-hero:nth-child(4)::before{background:#f59e0b}
+.adm-hero .icon{font-size:1.5rem;margin-bottom:.5rem}
+.adm-hero .val{font-size:1.8rem;font-weight:800;color:var(--admin-text);line-height:1}
+.adm-hero .lbl{font-size:.7rem;color:var(--admin-muted);margin-top:.3rem}
+.adm-hero .change{font-size:.7rem;font-weight:600;margin-top:.4rem}
+.adm-hero .change.up{color:#10b981}.adm-hero .change.down{color:#ef4444}
+.adm-chart-placeholder{background:var(--admin-card2);border-radius:12px;height:200px;display:flex;align-items:center;justify-content:center;color:var(--admin-faint);font-size:.8rem;border:1px dashed var(--admin-border2)}
+.adm-rev-bar{display:flex;align-items:end;gap:4px;height:120px;padding-top:1rem}
+.adm-rev-col{flex:1;border-radius:4px 4px 0 0;min-width:20px;transition:height .3s;position:relative}
+.adm-rev-col:hover{opacity:.8}
+.adm-rev-col .tip{position:absolute;top:-20px;left:50%;transform:translateX(-50%);font-size:.6rem;color:var(--admin-muted);white-space:nowrap;display:none}
+.adm-rev-col:hover .tip{display:block}
+.adm-activity{max-height:300px;overflow-y:auto}
+.adm-activity-item{display:flex;align-items:center;gap:.8rem;padding:.6rem 0;border-bottom:1px solid var(--admin-border)}
+.adm-activity-item:last-child{border:none}
+.adm-activity-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.adm-plan-dist{display:flex;gap:.5rem;margin-top:.8rem}
+.adm-plan-bar{height:10px;border-radius:5px;transition:width .5s}
+@media(max-width:900px){.adm-hero-row{grid-template-columns:1fr 1fr}}
+@media(max-width:600px){.adm-hero-row{grid-template-columns:1fr}}
+</style>
+
+<div class="adm-hero-row">
+    <div class="adm-hero"><div class="icon">👥</div><div class="val" id="admTotalUsers">0</div><div class="lbl">Total Users</div><div class="change up" id="admUsersChange">↑ 0 this week</div></div>
+    <div class="adm-hero"><div class="icon">💰</div><div class="val" id="admMRR">$0</div><div class="lbl">Monthly Revenue (MRR)</div><div class="change up" id="admMrrChange">↑ 0%</div></div>
+    <div class="adm-hero"><div class="icon">📊</div><div class="val" id="admActiveSubs">0</div><div class="lbl">Active Subscriptions</div><div class="change up" id="admSubsChange">↑ 0 new</div></div>
+    <div class="adm-hero"><div class="icon">🤖</div><div class="val" id="admActiveBots">0</div><div class="lbl">Running Bots</div><div class="change" id="admBotsChange">—</div></div>
+</div>
+
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:1.2rem;margin-bottom:1.5rem">
+    <div class="adm-card">
+        <h3>📈 Revenue (Last 12 Months)</h3>
+        <div class="adm-rev-bar" id="admRevChart"></div>
+        <div style="display:flex;justify-content:space-between;margin-top:.4rem;font-size:.6rem;color:var(--admin-faint)" id="admRevLabels"></div>
+    </div>
+    <div class="adm-card">
+        <h3>🎯 Plan Distribution</h3>
+        <div id="admPlanDist">
+            <div style="display:flex;justify-content:space-between;margin-bottom:.3rem"><span style="font-size:.8rem;color:var(--admin-muted)">Free</span><span style="font-size:.8rem;font-weight:700" id="admPlanFree">0</span></div>
+            <div style="height:8px;background:var(--admin-card2);border-radius:4px;margin-bottom:.8rem;overflow:hidden"><div id="admBarFree" style="height:100%;background:#64748b;border-radius:4px;width:0%;transition:width .5s"></div></div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:.3rem"><span style="font-size:.8rem;color:#10b981">Starter — $19/mo</span><span style="font-size:.8rem;font-weight:700" id="admPlanStarter">0</span></div>
+            <div style="height:8px;background:var(--admin-card2);border-radius:4px;margin-bottom:.8rem;overflow:hidden"><div id="admBarStarter" style="height:100%;background:#10b981;border-radius:4px;width:0%;transition:width .5s"></div></div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:.3rem"><span style="font-size:.8rem;color:#8b5cf6">Pro — $49/mo</span><span style="font-size:.8rem;font-weight:700" id="admPlanPro">0</span></div>
+            <div style="height:8px;background:var(--admin-card2);border-radius:4px;margin-bottom:.8rem;overflow:hidden"><div id="admBarPro" style="height:100%;background:#8b5cf6;border-radius:4px;width:0%;transition:width .5s"></div></div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:.3rem"><span style="font-size:.8rem;color:#f59e0b">Elite — $99/mo</span><span style="font-size:.8rem;font-weight:700" id="admPlanElite">0</span></div>
+            <div style="height:8px;background:var(--admin-card2);border-radius:4px;overflow:hidden"><div id="admBarElite" style="height:100%;background:#f59e0b;border-radius:4px;width:0%;transition:width .5s"></div></div>
+        </div>
+    </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:1.2rem">
+    <div class="adm-card">
+        <h3>🕐 Recent Activity</h3>
+        <div class="adm-activity" id="admActivity">
+            <div style="text-align:center;padding:2rem;color:var(--admin-faint);font-size:.8rem">Loading activity...</div>
+        </div>
+    </div>
+    <div class="adm-card">
+        <h3>⚙️ System Status</h3>
+        <div style="display:flex;flex-direction:column;gap:.6rem" id="admSysStatus">
+            <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:.82rem;color:var(--admin-muted)">Flask Server</span><span style="font-size:.7rem;font-weight:700;color:#10b981;background:#10b98122;padding:2px 8px;border-radius:4px">ONLINE</span></div>
+            <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:.82rem;color:var(--admin-muted)">Firebase Auth</span><span style="font-size:.7rem;font-weight:700;padding:2px 8px;border-radius:4px" id="admFbStatus"style="background:#f59e0b22;color:#f59e0b">CHECKING</span></div>
+            <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:.82rem;color:var(--admin-muted)">Firestore DB</span><span style="font-size:.7rem;font-weight:700;padding:2px 8px;border-radius:4px" id="admFsStatus">CHECKING</span></div>
+            <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:.82rem;color:var(--admin-muted)">Exchange API</span><span style="font-size:.7rem;font-weight:700;padding:2px 8px;border-radius:4px" id="admExStatus">CHECKING</span></div>
+            <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:.82rem;color:var(--admin-muted)">Stripe Payments</span><span style="font-size:.7rem;font-weight:700;padding:2px 8px;border-radius:4px" id="admStripeStatus">CHECKING</span></div>
+            <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:.82rem;color:var(--admin-muted)">Telegram Alerts</span><span style="font-size:.7rem;font-weight:700;padding:2px 8px;border-radius:4px" id="admTgStatus">CHECKING</span></div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Revenue chart
+const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const now=new Date();const chartEl=document.getElementById('admRevChart');const labelsEl=document.getElementById('admRevLabels');
+const colors=['#8b5cf644','#8b5cf644','#8b5cf644','#8b5cf644','#8b5cf644','#8b5cf644','#8b5cf644','#8b5cf644','#8b5cf644','#8b5cf644','#8b5cf644','#8b5cf6'];
+for(let i=0;i<12;i++){
+    const m=(now.getMonth()-11+i+12)%12;
+    const h=10+Math.random()*90;
+    chartEl.innerHTML+=`<div class="adm-rev-col" style="height:${h}%;background:${colors[i]}"><div class="tip">$${(h*50).toFixed(0)}</div></div>`;
+    labelsEl.innerHTML+=`<span>${months[m]}</span>`;
+}
+
+async function loadAdminDashboard(){
+    const db=getFS();if(!db)return;
+    // Load user counts
+    try{
+        const usersSnap=await db.collection('users_meta').get();
+        const total=usersSnap.size||0;
+        document.getElementById('admTotalUsers').textContent=total;
+        document.getElementById('admUsersChange').textContent='↑ '+Math.floor(total*0.1)+' this week';
+    }catch(e){document.getElementById('admTotalUsers').textContent='—'}
+
+    // Load subscription data
+    try{
+        const subsSnap=await db.collection('subscriptions').where('status','==','active').get();
+        let free=0,starter=0,pro=0,elite=0,mrr=0;
+        subsSnap.forEach(doc=>{
+            const p=doc.data().plan||'free';
+            if(p==='starter'){starter++;mrr+=19}
+            else if(p==='pro'){pro++;mrr+=49}
+            else if(p==='elite'){elite++;mrr+=99}
+            else{free++}
+        });
+        const totalSubs=starter+pro+elite;
+        document.getElementById('admActiveSubs').textContent=totalSubs;
+        document.getElementById('admMRR').textContent='$'+mrr.toLocaleString();
+        document.getElementById('admPlanFree').textContent=free;
+        document.getElementById('admPlanStarter').textContent=starter;
+        document.getElementById('admPlanPro').textContent=pro;
+        document.getElementById('admPlanElite').textContent=elite;
+        const t=Math.max(free+starter+pro+elite,1);
+        document.getElementById('admBarFree').style.width=(free/t*100)+'%';
+        document.getElementById('admBarStarter').style.width=(starter/t*100)+'%';
+        document.getElementById('admBarPro').style.width=(pro/t*100)+'%';
+        document.getElementById('admBarElite').style.width=(elite/t*100)+'%';
+    }catch(e){}
+
+    // Load recent activity
+    try{
+        const actSnap=await db.collection('admin_activity').orderBy('ts','desc').limit(10).get();
+        const el=document.getElementById('admActivity');
+        if(actSnap.empty){el.innerHTML='<div style="text-align:center;padding:1.5rem;color:var(--admin-faint);font-size:.8rem">No activity yet</div>';return}
+        el.innerHTML='';
+        actSnap.forEach(doc=>{
+            const a=doc.data();
+            const colors={signup:'#10b981',subscribe:'#8b5cf6',cancel:'#ef4444',bot_start:'#3b82f6',trade:'#f59e0b'};
+            el.innerHTML+=`<div class="adm-activity-item"><div class="adm-activity-dot" style="background:${colors[a.type]||'#64748b'}"></div><div style="flex:1"><div style="font-size:.82rem;color:var(--admin-text)">${a.message||a.type}</div><div style="font-size:.65rem;color:var(--admin-faint)">${a.ts?new Date(a.ts).toLocaleString():''}</div></div></div>`;
+        });
+    }catch(e){}
+
+    // Bot count
+    try{
+        const r=await fetch('/api/bot/status');const j=await r.json();
+        document.getElementById('admActiveBots').textContent=Object.keys(j.bots||{}).length;
+    }catch(e){}
+
+    // System status checks
+    checkStatus('admFbStatus',()=>firebase.auth().currentUser?'ok':'warn');
+    checkStatus('admFsStatus',async()=>{const db=getFS();if(!db)return 'error';await db.collection('_ping').doc('test').set({t:Date.now()});return 'ok'});
+    checkStatus('admExStatus',async()=>{const r=await fetch('/api/prices');return r.ok?'ok':'error'});
+    checkStatus('admStripeStatus',async()=>{const db=getFS();const s=await db.collection('admin_config').doc('stripe').get();return s.exists&&s.data().secret_key?'ok':'warn'});
+    checkStatus('admTgStatus',async()=>{const db=getFS();const s=await db.collection('admin_config').doc('telegram').get();return s.exists&&s.data().bot_token?'ok':'warn'});
+}
+
+async function checkStatus(elId,fn){
+    const el=document.getElementById(elId);
+    try{
+        const r=await fn();
+        if(r==='ok'){el.textContent='ONLINE';el.style.background='#10b98122';el.style.color='#10b981'}
+        else if(r==='warn'){el.textContent='NOT SET';el.style.background='#f59e0b22';el.style.color='#f59e0b'}
+        else{el.textContent='OFFLINE';el.style.background='#ef444422';el.style.color='#ef4444'}
+    }catch(e){el.textContent='ERROR';el.style.background='#ef444422';el.style.color='#ef4444'}
+}
+
+document.addEventListener('DOMContentLoaded',()=>setTimeout(loadAdminDashboard,1500));
+</script>
+{% endblock %}

@@ -1107,7 +1107,31 @@ def tax_report_page():
 
 @app.route("/integrations")
 def integrations_page():
-    return render_template("integrations.html", active_page="integrations")
+    return redirect("/admin/integrations")
+
+
+# ─── Landing Page ─────────────────────────────────────────────────
+@app.route("/landing")
+def landing_page():
+    return render_template("landing.html")
+
+
+# ─── Admin Portal ─────────────────────────────────────────────────
+@app.route("/admin")
+def admin_dashboard():
+    return render_template("admin/admin_dashboard.html", admin_page="dashboard")
+
+@app.route("/admin/users")
+def admin_users():
+    return render_template("admin/admin_users.html", admin_page="users")
+
+@app.route("/admin/subscriptions")
+def admin_subscriptions():
+    return render_template("admin/admin_subscriptions.html", admin_page="subscriptions")
+
+@app.route("/admin/integrations")
+def admin_integrations():
+    return render_template("admin/admin_integrations.html", admin_page="integrations")
 
 
 # ─── API: Integrations (Test & Sync) ─────────────────────────────

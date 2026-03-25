@@ -1,0 +1,304 @@
+{% extends "admin/admin_base.html" %}
+{% block title %}TrekBot Admin — Subscriptions{% endblock %}
+{% block page_title %}💳 Subscription Plans{% endblock %}
+{% block content %}
+<style>
+.sub-plans{display:grid;grid-template-columns:repeat(3,1fr);gap:1.2rem;margin-bottom:1.5rem}
+.sub-plan{background:var(--admin-card);border:1px solid var(--admin-border);border-radius:16px;padding:1.5rem;position:relative;transition:all .2s}
+.sub-plan:hover{border-color:var(--admin-accent);box-shadow:0 4px 20px #8b5cf611}
+.sub-plan.popular::before{content:'MOST POPULAR';position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#8b5cf6,#ec4899);color:#fff;font-size:.55rem;font-weight:800;padding:3px 12px;border-radius:10px;letter-spacing:.5px}
+.sub-plan-name{font-size:.85rem;font-weight:700;color:var(--admin-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:.5rem}
+.sub-plan-price{font-size:2.2rem;font-weight:900;color:var(--admin-text);margin-bottom:.3rem}
+.sub-plan-price span{font-size:.8rem;font-weight:400;color:var(--admin-muted)}
+.sub-plan-desc{font-size:.75rem;color:var(--admin-faint);margin-bottom:1rem}
+.sub-feature{display:flex;align-items:center;gap:.4rem;font-size:.78rem;color:var(--admin-muted);margin-bottom:.4rem}
+.sub-feature::before{content:'✓';color:var(--admin-green);font-weight:700;font-size:.7rem}
+.sub-plan-subs{margin-top:1rem;padding-top:.8rem;border-top:1px solid var(--admin-border);display:flex;justify-content:space-between;align-items:center}
+.sub-plan-count{font-size:1.4rem;font-weight:800;color:var(--admin-text)}
+.sub-plan-label{font-size:.65rem;color:var(--admin-muted)}
+.sub-config{background:var(--admin-card);border:1px solid var(--admin-border);border-radius:14px;padding:1.4rem;margin-bottom:1.2rem}
+.sub-config h3{margin:0 0 1rem;font-size:.95rem;font-weight:700;display:flex;align-items:center;gap:.5rem}
+.sub-row{display:grid;grid-template-columns:1fr 1fr;gap:.8rem;margin-bottom:.8rem}
+.sub-row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.8rem;margin-bottom:.8rem}
+.sub-feat-edit{display:flex;flex-direction:column;gap:.3rem}
+.sub-feat-edit textarea{background:#0b0e14;border:1px solid var(--admin-border);border-radius:8px;padding:.5rem;color:var(--admin-text);font-size:.78rem;font-family:inherit;resize:vertical;min-height:80px}
+.sub-feat-edit textarea:focus{border-color:var(--admin-accent);outline:none;box-shadow:0 0 0 2px #8b5cf622}
+.sub-tbl-wrap{max-height:400px;overflow-y:auto}
+@media(max-width:900px){.sub-plans{grid-template-columns:1fr}.sub-row3{grid-template-columns:1fr}}
+@media(max-width:600px){.sub-row{grid-template-columns:1fr}}
+</style>
+
+<!-- Plan Overview Cards -->
+<div class="sub-plans">
+    <div class="sub-plan">
+        <div class="sub-plan-name" style="color:#10b981">Starter</div>
+        <div class="sub-plan-price">$19<span>/mo</span></div>
+        <div class="sub-plan-desc">For beginners exploring algorithmic trading</div>
+        <div class="sub-feature">1 active trading bot</div>
+        <div class="sub-feature">5 strategies</div>
+        <div class="sub-feature">Basic backtesting</div>
+        <div class="sub-feature">Email alerts</div>
+        <div class="sub-feature">Community support</div>
+        <div class="sub-plan-subs"><div><div class="sub-plan-count" id="subCountStarter">0</div><div class="sub-plan-label">Subscribers</div></div><div style="font-size:.75rem;color:#10b981;font-weight:700" id="subRevStarter">$0/mo</div></div>
+    </div>
+    <div class="sub-plan popular">
+        <div class="sub-plan-name" style="color:#8b5cf6">Pro</div>
+        <div class="sub-plan-price">$49<span>/mo</span></div>
+        <div class="sub-plan-desc">For active traders who want an edge</div>
+        <div class="sub-feature">5 active trading bots</div>
+        <div class="sub-feature">All strategies</div>
+        <div class="sub-feature">Advanced backtesting</div>
+        <div class="sub-feature">AI Copilot access</div>
+        <div class="sub-feature">Telegram + Email alerts</div>
+        <div class="sub-feature">Whale Tracker</div>
+        <div class="sub-feature">Priority support</div>
+        <div class="sub-plan-subs"><div><div class="sub-plan-count" id="subCountPro">0</div><div class="sub-plan-label">Subscribers</div></div><div style="font-size:.75rem;color:#8b5cf6;font-weight:700" id="subRevPro">$0/mo</div></div>
+    </div>
+    <div class="sub-plan">
+        <div class="sub-plan-name" style="color:#f59e0b">Elite</div>
+        <div class="sub-plan-price">$99<span>/mo</span></div>
+        <div class="sub-plan-desc">For professional traders & fund managers</div>
+        <div class="sub-feature">Unlimited trading bots</div>
+        <div class="sub-feature">All strategies + custom</div>
+        <div class="sub-feature">Full backtesting suite</div>
+        <div class="sub-feature">AI Copilot + OpenAI</div>
+        <div class="sub-feature">All alerts + webhooks</div>
+        <div class="sub-feature">Copy Trading</div>
+        <div class="sub-feature">Tax Reports</div>
+        <div class="sub-feature">Multi-account trading</div>
+        <div class="sub-feature">Dedicated support</div>
+        <div class="sub-plan-subs"><div><div class="sub-plan-count" id="subCountElite">0</div><div class="sub-plan-label">Subscribers</div></div><div style="font-size:.75rem;color:#f59e0b;font-weight:700" id="subRevElite">$0/mo</div></div>
+    </div>
+</div>
+
+<!-- Stripe Configuration -->
+<div class="sub-config">
+    <h3>🔑 Stripe Configuration</h3>
+    <div style="background:#8b5cf611;border:1px solid #8b5cf622;border-radius:8px;padding:.6rem .9rem;margin-bottom:1rem;font-size:.75rem;color:#c4b5fd">
+        Keys are loaded from <strong>Integrations → Stripe</strong>. Configure plan-specific Stripe Price IDs below.
+    </div>
+    <div class="sub-row3">
+        <div class="adm-field">
+            <label class="adm-label">Starter Price ID</label>
+            <div class="adm-pw-wrap"><input type="text" class="adm-input" id="subPriceStarter" placeholder="price_1Nxx..."><button class="adm-pw-toggle" onclick="togglePw(this)">👁</button></div>
+            <div class="adm-hint">Stripe Price ID for $19/mo plan</div>
+        </div>
+        <div class="adm-field">
+            <label class="adm-label">Pro Price ID</label>
+            <div class="adm-pw-wrap"><input type="text" class="adm-input" id="subPricePro" placeholder="price_1Nxx..."><button class="adm-pw-toggle" onclick="togglePw(this)">👁</button></div>
+            <div class="adm-hint">Stripe Price ID for $49/mo plan</div>
+        </div>
+        <div class="adm-field">
+            <label class="adm-label">Elite Price ID</label>
+            <div class="adm-pw-wrap"><input type="text" class="adm-input" id="subPriceElite" placeholder="price_1Nxx..."><button class="adm-pw-toggle" onclick="togglePw(this)">👁</button></div>
+            <div class="adm-hint">Stripe Price ID for $99/mo plan</div>
+        </div>
+    </div>
+    <button class="adm-btn adm-btn-primary" onclick="saveStripeConfig()" style="margin-top:.5rem">💾 Save Stripe Config</button>
+</div>
+
+<!-- Plan Feature Config -->
+<div class="sub-config">
+    <h3>⚙️ Plan Features (Editable)</h3>
+    <div class="sub-row3">
+        <div class="sub-feat-edit">
+            <label class="adm-label" style="color:#10b981">Starter Features</label>
+            <textarea id="subFeatStarter">1 active trading bot
+5 strategies
+Basic backtesting
+Email alerts
+Community support</textarea>
+        </div>
+        <div class="sub-feat-edit">
+            <label class="adm-label" style="color:#8b5cf6">Pro Features</label>
+            <textarea id="subFeatPro">5 active trading bots
+All strategies
+Advanced backtesting
+AI Copilot access
+Telegram + Email alerts
+Whale Tracker
+Priority support</textarea>
+        </div>
+        <div class="sub-feat-edit">
+            <label class="adm-label" style="color:#f59e0b">Elite Features</label>
+            <textarea id="subFeatElite">Unlimited trading bots
+All strategies + custom
+Full backtesting suite
+AI Copilot + OpenAI
+All alerts + webhooks
+Copy Trading
+Tax Reports
+Multi-account trading
+Dedicated support</textarea>
+        </div>
+    </div>
+    <button class="adm-btn adm-btn-primary" onclick="savePlanFeatures()" style="margin-top:.5rem">💾 Save Features</button>
+</div>
+
+<!-- Plan Limits -->
+<div class="sub-config">
+    <h3>📊 Plan Limits</h3>
+    <div class="sub-row3">
+        <div>
+            <label class="adm-label" style="color:#10b981">Starter Limits</label>
+            <div style="display:grid;gap:.4rem;margin-top:.3rem">
+                <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:.75rem;color:var(--admin-muted)">Max Bots</span><input type="number" class="adm-input" id="limStarterBots" value="1" style="width:80px;text-align:center"></div>
+                <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:.75rem;color:var(--admin-muted)">Max Strategies</span><input type="number" class="adm-input" id="limStarterStrats" value="5" style="width:80px;text-align:center"></div>
+                <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:.75rem;color:var(--admin-muted)">Backtest Days</span><input type="number" class="adm-input" id="limStarterBtDays" value="30" style="width:80px;text-align:center"></div>
+            </div>
+        </div>
+        <div>
+            <label class="adm-label" style="color:#8b5cf6">Pro Limits</label>
+            <div style="display:grid;gap:.4rem;margin-top:.3rem">
+                <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:.75rem;color:var(--admin-muted)">Max Bots</span><input type="number" class="adm-input" id="limProBots" value="5" style="width:80px;text-align:center"></div>
+                <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:.75rem;color:var(--admin-muted)">Max Strategies</span><input type="number" class="adm-input" id="limProStrats" value="99" style="width:80px;text-align:center"></div>
+                <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:.75rem;color:var(--admin-muted)">Backtest Days</span><input type="number" class="adm-input" id="limProBtDays" value="180" style="width:80px;text-align:center"></div>
+            </div>
+        </div>
+        <div>
+            <label class="adm-label" style="color:#f59e0b">Elite Limits</label>
+            <div style="display:grid;gap:.4rem;margin-top:.3rem">
+                <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:.75rem;color:var(--admin-muted)">Max Bots</span><input type="number" class="adm-input" id="limEliteBots" value="999" style="width:80px;text-align:center"></div>
+                <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:.75rem;color:var(--admin-muted)">Max Strategies</span><input type="number" class="adm-input" id="limEliteStrats" value="999" style="width:80px;text-align:center"></div>
+                <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:.75rem;color:var(--admin-muted)">Backtest Days</span><input type="number" class="adm-input" id="limEliteBtDays" value="365" style="width:80px;text-align:center"></div>
+            </div>
+        </div>
+    </div>
+    <button class="adm-btn adm-btn-primary" onclick="saveLimits()" style="margin-top:.8rem">💾 Save Limits</button>
+</div>
+
+<!-- Recent Subscribers Table -->
+<div class="sub-config">
+    <h3>👥 Recent Subscribers</h3>
+    <div class="sub-tbl-wrap">
+        <table class="adm-tbl">
+            <thead><tr><th>User</th><th>Plan</th><th>Status</th><th>Started</th><th>MRR</th><th>Actions</th></tr></thead>
+            <tbody id="subTblBody">
+                <tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--admin-faint)">Loading subscribers...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script>
+async function loadSubscriptions(){
+    const db=getFS();if(!db)return;
+    // Load stripe config
+    try{
+        const sc=await db.collection('admin_config').doc('subscription_plans').get();
+        if(sc.exists){
+            const d=sc.data();
+            if(d.price_starter)document.getElementById('subPriceStarter').value=d.price_starter;
+            if(d.price_pro)document.getElementById('subPricePro').value=d.price_pro;
+            if(d.price_elite)document.getElementById('subPriceElite').value=d.price_elite;
+            if(d.features_starter)document.getElementById('subFeatStarter').value=d.features_starter;
+            if(d.features_pro)document.getElementById('subFeatPro').value=d.features_pro;
+            if(d.features_elite)document.getElementById('subFeatElite').value=d.features_elite;
+            if(d.limits){
+                const l=d.limits;
+                if(l.starter_bots)document.getElementById('limStarterBots').value=l.starter_bots;
+                if(l.starter_strats)document.getElementById('limStarterStrats').value=l.starter_strats;
+                if(l.starter_bt_days)document.getElementById('limStarterBtDays').value=l.starter_bt_days;
+                if(l.pro_bots)document.getElementById('limProBots').value=l.pro_bots;
+                if(l.pro_strats)document.getElementById('limProStrats').value=l.pro_strats;
+                if(l.pro_bt_days)document.getElementById('limProBtDays').value=l.pro_bt_days;
+                if(l.elite_bots)document.getElementById('limEliteBots').value=l.elite_bots;
+                if(l.elite_strats)document.getElementById('limEliteStrats').value=l.elite_strats;
+                if(l.elite_bt_days)document.getElementById('limEliteBtDays').value=l.elite_bt_days;
+            }
+        }
+    }catch(e){console.error('Load sub config:',e)}
+
+    // Load subscriber counts
+    try{
+        const snap=await db.collection('subscriptions').get();
+        let starter=0,pro=0,elite=0;
+        const rows=[];
+        snap.forEach(doc=>{
+            const d=doc.data();
+            const plan=d.plan||'free';
+            if(plan==='starter')starter++;
+            else if(plan==='pro')pro++;
+            else if(plan==='elite')elite++;
+            rows.push({uid:doc.id,...d});
+        });
+        document.getElementById('subCountStarter').textContent=starter;
+        document.getElementById('subCountPro').textContent=pro;
+        document.getElementById('subCountElite').textContent=elite;
+        document.getElementById('subRevStarter').textContent='$'+(starter*19)+'/mo';
+        document.getElementById('subRevPro').textContent='$'+(pro*49)+'/mo';
+        document.getElementById('subRevElite').textContent='$'+(elite*99)+'/mo';
+
+        // Render table
+        const tbody=document.getElementById('subTblBody');
+        if(!rows.length){tbody.innerHTML='<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--admin-faint)">No subscribers yet</td></tr>';return}
+        const colors={starter:'#10b981',pro:'#8b5cf6',elite:'#f59e0b',free:'#64748b'};
+        const prices={starter:19,pro:49,elite:99,free:0};
+        tbody.innerHTML=rows.sort((a,b)=>(b.startedAt||'').localeCompare(a.startedAt||'')).slice(0,50).map(r=>{
+            const plan=r.plan||'free';const c=colors[plan]||'#64748b';
+            return `<tr>
+                <td style="font-weight:600">${r.email||r.uid?.substring(0,8)||'—'}</td>
+                <td><span style="background:${c}22;color:${c};padding:2px 8px;border-radius:5px;font-size:.7rem;font-weight:700">${plan.toUpperCase()}</span></td>
+                <td><span style="color:${r.status==='active'?'#10b981':'#ef4444'};font-weight:600;font-size:.78rem">${r.status||'unknown'}</span></td>
+                <td style="font-size:.75rem;color:var(--admin-muted)">${r.startedAt?new Date(r.startedAt).toLocaleDateString():'—'}</td>
+                <td style="font-weight:700">$${prices[plan]||0}</td>
+                <td><button class="adm-btn adm-btn-outline" style="font-size:.65rem;padding:.2rem .5rem" onclick="cancelSub('${r.uid}')">Cancel</button></td>
+            </tr>`;
+        }).join('');
+    }catch(e){console.error('Load subs:',e)}
+}
+
+async function saveStripeConfig(){
+    const db=getFS();if(!db){admToast('Firebase not ready','error');return}
+    await db.collection('admin_config').doc('subscription_plans').set({
+        price_starter:document.getElementById('subPriceStarter').value,
+        price_pro:document.getElementById('subPricePro').value,
+        price_elite:document.getElementById('subPriceElite').value,
+        updatedAt:new Date().toISOString()
+    },{merge:true});
+    admToast('Stripe config saved!','success');
+}
+
+async function savePlanFeatures(){
+    const db=getFS();if(!db){admToast('Firebase not ready','error');return}
+    await db.collection('admin_config').doc('subscription_plans').set({
+        features_starter:document.getElementById('subFeatStarter').value,
+        features_pro:document.getElementById('subFeatPro').value,
+        features_elite:document.getElementById('subFeatElite').value,
+        updatedAt:new Date().toISOString()
+    },{merge:true});
+    admToast('Plan features saved!','success');
+}
+
+async function saveLimits(){
+    const db=getFS();if(!db){admToast('Firebase not ready','error');return}
+    await db.collection('admin_config').doc('subscription_plans').set({
+        limits:{
+            starter_bots:+document.getElementById('limStarterBots').value,
+            starter_strats:+document.getElementById('limStarterStrats').value,
+            starter_bt_days:+document.getElementById('limStarterBtDays').value,
+            pro_bots:+document.getElementById('limProBots').value,
+            pro_strats:+document.getElementById('limProStrats').value,
+            pro_bt_days:+document.getElementById('limProBtDays').value,
+            elite_bots:+document.getElementById('limEliteBots').value,
+            elite_strats:+document.getElementById('limEliteStrats').value,
+            elite_bt_days:+document.getElementById('limEliteBtDays').value,
+        },
+        updatedAt:new Date().toISOString()
+    },{merge:true});
+    admToast('Plan limits saved!','success');
+}
+
+async function cancelSub(uid){
+    if(!confirm('Cancel subscription for this user?'))return;
+    const db=getFS();if(!db)return;
+    await db.collection('subscriptions').doc(uid).update({status:'cancelled',cancelledAt:new Date().toISOString()});
+    admToast('Subscription cancelled','success');
+    loadSubscriptions();
+}
+
+document.addEventListener('DOMContentLoaded',()=>setTimeout(loadSubscriptions,1500));
+</script>
+{% endblock %}

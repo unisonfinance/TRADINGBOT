@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TrekBot — AI-Powered Crypto Trading Platform</title>
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#050810;--bg2:#0b0f1a;--bg3:#111827;--card:#141b2d;--border:#1e293b;--text:#f8fafc;--muted:#94a3b8;--faint:#64748b;--accent:#8b5cf6;--accent2:#a855f7;--green:#10b981;--blue:#3b82f6;--red:#ef4444;--orange:#f59e0b;--pink:#ec4899;--cyan:#06b6d4}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden;min-height:100vh}
+a{color:inherit;text-decoration:none}
+
+/* ─── Navbar ─── */
+.nav{position:fixed;top:0;left:0;right:0;z-index:999;padding:.8rem 0;transition:all .3s}
+.nav.scrolled{background:rgba(5,8,16,.92);backdrop-filter:blur(20px);border-bottom:1px solid var(--border)}
+.nav-inner{max-width:1200px;margin:0 auto;padding:0 2rem;display:flex;align-items:center;justify-content:space-between}
+.nav-logo{display:flex;align-items:center;gap:.6rem}
+.nav-logo-orb{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#8b5cf6,#ec4899);display:flex;align-items:center;justify-content:center;font-size:1rem;font-weight:900;color:#fff}
+.nav-logo-text{font-size:1.1rem;font-weight:800;letter-spacing:1px}
+.nav-links{display:flex;align-items:center;gap:1.5rem}
+.nav-link{font-size:.85rem;color:var(--muted);font-weight:500;transition:color .2s;cursor:pointer}
+.nav-link:hover{color:var(--text)}
+.nav-cta{padding:.5rem 1.2rem;border-radius:8px;background:linear-gradient(135deg,#8b5cf6,#a855f7);color:#fff;font-size:.82rem;font-weight:700;border:none;cursor:pointer;transition:all .2s}
+.nav-cta:hover{box-shadow:0 4px 20px #8b5cf644;transform:translateY(-1px)}
+
+/* ─── Hero ─── */
+.hero{min-height:100vh;display:flex;align-items:center;position:relative;overflow:hidden;padding:6rem 2rem 4rem}
+.hero::before{content:'';position:absolute;top:-200px;right:-200px;width:600px;height:600px;border-radius:50%;background:radial-gradient(circle,#8b5cf622 0%,transparent 70%);pointer-events:none}
+.hero::after{content:'';position:absolute;bottom:-100px;left:-100px;width:400px;height:400px;border-radius:50%;background:radial-gradient(circle,#ec489922 0%,transparent 70%);pointer-events:none}
+.hero-inner{max-width:1200px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr;gap:4rem;align-items:center;position:relative;z-index:1}
+.hero-badge{display:inline-flex;align-items:center;gap:.4rem;background:#8b5cf622;color:#c4b5fd;padding:.3rem .8rem;border-radius:20px;font-size:.7rem;font-weight:600;margin-bottom:1.5rem;border:1px solid #8b5cf633}
+.hero h1{font-size:3.2rem;font-weight:900;line-height:1.1;margin-bottom:1rem;background:linear-gradient(135deg,#f8fafc 30%,#8b5cf6 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hero-sub{font-size:1.05rem;color:var(--muted);line-height:1.7;margin-bottom:2rem;max-width:520px}
+.hero-actions{display:flex;gap:.8rem;flex-wrap:wrap}
+.hero-btn{padding:.75rem 1.8rem;border-radius:10px;font-size:.9rem;font-weight:700;cursor:pointer;transition:all .2s;border:none}
+.btn-primary{background:linear-gradient(135deg,#8b5cf6,#a855f7);color:#fff}
+.btn-primary:hover{box-shadow:0 6px 25px #8b5cf644;transform:translateY(-2px)}
+.btn-outline{background:transparent;color:var(--text);border:1px solid var(--border)}
+.btn-outline:hover{border-color:var(--accent);color:var(--accent)}
+.hero-stats{display:flex;gap:2rem;margin-top:2.5rem}
+.hero-stat .num{font-size:1.5rem;font-weight:800;color:var(--text)}
+.hero-stat .label{font-size:.7rem;color:var(--faint);margin-top:.1rem}
+
+/* Hero visual */
+.hero-visual{position:relative}
+.hero-card{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:1.5rem;position:relative;overflow:hidden}
+.hero-card::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,#8b5cf608,#ec489808);pointer-events:none;border-radius:20px}
+.hero-card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem}
+.hero-card-title{font-size:.85rem;font-weight:700;color:var(--text)}
+.hero-card-badge{font-size:.6rem;font-weight:700;padding:3px 8px;border-radius:5px;background:#10b98122;color:#10b981}
+.hero-chart{display:flex;align-items:end;gap:4px;height:160px;padding:1rem 0}
+.hero-chart-bar{flex:1;border-radius:3px 3px 0 0;transition:height .4s;min-width:8px}
+.hero-mini-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.6rem;margin-top:1rem}
+.hero-mini{background:var(--bg2);border-radius:10px;padding:.6rem;text-align:center}
+.hero-mini .v{font-size:.9rem;font-weight:700}.hero-mini .l{font-size:.55rem;color:var(--faint);margin-top:.1rem}
+
+/* ─── Features ─── */
+.section{padding:5rem 2rem}
+.section-inner{max-width:1200px;margin:0 auto}
+.section-head{text-align:center;margin-bottom:3rem}
+.section-head h2{font-size:2rem;font-weight:800;margin-bottom:.6rem}
+.section-head p{color:var(--muted);font-size:.95rem;max-width:600px;margin:0 auto}
+.feat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1.2rem}
+.feat-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:1.5rem;transition:all .2s;position:relative;overflow:hidden}
+.feat-card:hover{border-color:#8b5cf644;transform:translateY(-3px);box-shadow:0 8px 30px rgba(0,0,0,.3)}
+.feat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--accent),var(--pink));opacity:0;transition:opacity .2s}
+.feat-card:hover::before{opacity:1}
+.feat-icon{font-size:1.8rem;margin-bottom:.8rem}
+.feat-card h3{font-size:.95rem;font-weight:700;margin-bottom:.4rem;color:var(--text)}
+.feat-card p{font-size:.78rem;color:var(--muted);line-height:1.5}
+
+/* ─── How It Works ─── */
+.how-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1.5rem}
+.how-step{text-align:center;position:relative}
+.how-num{width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#8b5cf6,#a855f7);display:flex;align-items:center;justify-content:center;font-size:1.1rem;font-weight:800;color:#fff;margin:0 auto .8rem}
+.how-step h4{font-size:.9rem;font-weight:700;margin-bottom:.3rem}
+.how-step p{font-size:.75rem;color:var(--muted);line-height:1.5}
+
+/* ─── Pricing ─── */
+.pricing-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1.5rem;align-items:start}
+.price-card{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:2rem 1.5rem;position:relative;transition:all .2s}
+.price-card:hover{transform:translateY(-4px)}
+.price-card.featured{border-color:#8b5cf6;box-shadow:0 8px 40px #8b5cf622}
+.price-card.featured::before{content:'MOST POPULAR';position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#8b5cf6,#ec4899);color:#fff;font-size:.55rem;font-weight:800;padding:4px 14px;border-radius:12px;letter-spacing:.5px}
+.price-name{font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--faint);margin-bottom:.5rem}
+.price-amount{font-size:2.8rem;font-weight:900;margin-bottom:.3rem}
+.price-amount span{font-size:.85rem;font-weight:400;color:var(--muted)}
+.price-desc{font-size:.78rem;color:var(--muted);margin-bottom:1.5rem;line-height:1.4}
+.price-features{list-style:none;margin-bottom:1.5rem}
+.price-features li{display:flex;align-items:center;gap:.5rem;font-size:.8rem;color:var(--muted);padding:.35rem 0}
+.price-features li::before{content:'✓';color:var(--green);font-weight:700;font-size:.7rem}
+.price-btn{width:100%;padding:.7rem;border-radius:10px;font-size:.85rem;font-weight:700;cursor:pointer;transition:all .2s;border:none;text-align:center;display:block}
+.price-btn-primary{background:linear-gradient(135deg,#8b5cf6,#a855f7);color:#fff}
+.price-btn-primary:hover{box-shadow:0 4px 20px #8b5cf644}
+.price-btn-outline{background:transparent;color:var(--text);border:1px solid var(--border)}
+.price-btn-outline:hover{border-color:var(--accent)}
+
+/* ─── Testimonials ─── */
+.test-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1.2rem}
+.test-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:1.3rem}
+.test-quote{font-size:.82rem;color:var(--muted);line-height:1.6;margin-bottom:1rem;font-style:italic}
+.test-author{display:flex;align-items:center;gap:.6rem}
+.test-avatar{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--pink));display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;color:#fff}
+.test-name{font-size:.82rem;font-weight:700}.test-role{font-size:.65rem;color:var(--faint)}
+
+/* ─── Auth Modal ─── */
+.auth-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.75);z-index:9990;display:none;align-items:center;justify-content:center}
+.auth-overlay.show{display:flex}
+.auth-box{background:var(--card);border:1px solid var(--border);border-radius:20px;width:420px;max-width:90vw;padding:2rem;position:relative}
+.auth-close{position:absolute;top:1rem;right:1rem;background:none;border:none;color:var(--muted);font-size:1.2rem;cursor:pointer}
+.auth-box h2{font-size:1.2rem;font-weight:800;margin-bottom:.3rem;text-align:center}
+.auth-box .auth-sub{font-size:.8rem;color:var(--muted);text-align:center;margin-bottom:1.5rem}
+.auth-field{margin-bottom:.8rem}
+.auth-field label{font-size:.72rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;display:block;margin-bottom:.3rem}
+.auth-field input{width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:.65rem .9rem;color:var(--text);font-size:.85rem;font-family:inherit}
+.auth-field input:focus{border-color:var(--accent);outline:none;box-shadow:0 0 0 3px #8b5cf622}
+.auth-submit{width:100%;padding:.7rem;border-radius:10px;background:linear-gradient(135deg,#8b5cf6,#a855f7);color:#fff;font-size:.9rem;font-weight:700;border:none;cursor:pointer;margin-top:.5rem;transition:all .2s}
+.auth-submit:hover{box-shadow:0 4px 20px #8b5cf644}
+.auth-switch{text-align:center;margin-top:1rem;font-size:.8rem;color:var(--muted)}
+.auth-switch a{color:var(--accent);font-weight:600;cursor:pointer}
+.auth-switch a:hover{text-decoration:underline}
+.auth-error{background:#ef444422;color:#ef4444;border:1px solid #ef444433;padding:.5rem .8rem;border-radius:8px;font-size:.78rem;margin-bottom:.8rem;display:none}
+.auth-divider{display:flex;align-items:center;gap:.6rem;margin:1rem 0;color:var(--faint);font-size:.7rem}
+.auth-divider::before,.auth-divider::after{content:'';flex:1;height:1px;background:var(--border)}
+.auth-google{width:100%;padding:.6rem;border-radius:10px;background:var(--bg2);border:1px solid var(--border);color:var(--text);font-size:.82rem;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:.5rem;transition:all .2s}
+.auth-google:hover{border-color:var(--accent);background:var(--bg3)}
+
+/* ─── CTA ─── */
+.cta-section{background:linear-gradient(135deg,#1e1248 0%,#0d0b1a 100%);border-top:1px solid #8b5cf622;border-bottom:1px solid #8b5cf622;text-align:center;padding:4rem 2rem}
+.cta-section h2{font-size:2rem;font-weight:800;margin-bottom:.6rem}
+.cta-section p{color:var(--muted);margin-bottom:1.5rem;font-size:.95rem}
+
+/* ─── Footer ─── */
+.footer{background:var(--bg2);border-top:1px solid var(--border);padding:3rem 2rem 1.5rem}
+.footer-inner{max-width:1200px;margin:0 auto;display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:2rem}
+.footer-brand{font-size:.82rem;color:var(--muted);line-height:1.6;margin-top:.5rem}
+.footer h4{font-size:.8rem;font-weight:700;margin-bottom:.6rem;color:var(--text)}
+.footer a{display:block;font-size:.78rem;color:var(--muted);padding:.2rem 0;transition:color .2s}
+.footer a:hover{color:var(--accent)}
+.footer-bottom{max-width:1200px;margin:1.5rem auto 0;padding-top:1rem;border-top:1px solid var(--border);display:flex;justify-content:space-between;font-size:.7rem;color:var(--faint)}
+
+/* ─── Responsive ─── */
+@media(max-width:900px){
+    .hero-inner{grid-template-columns:1fr}.hero-visual{display:none}.hero h1{font-size:2.2rem}
+    .feat-grid,.pricing-grid,.test-grid{grid-template-columns:1fr}.how-grid{grid-template-columns:1fr 1fr}
+    .footer-inner{grid-template-columns:1fr 1fr}
+}
+@media(max-width:600px){
+    .hero h1{font-size:1.7rem}.nav-links{display:none}.hero-stats{flex-direction:column;gap:1rem}
+    .how-grid{grid-template-columns:1fr}.footer-inner{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- ═══ Navbar ═══ -->
+<nav class="nav" id="navbar">
+    <div class="nav-inner">
+        <div class="nav-logo">
+            <div class="nav-logo-orb">T</div>
+            <div class="nav-logo-text">TREKBOT</div>
+        </div>
+        <div class="nav-links">
+            <span class="nav-link" onclick="scrollTo('#features')">Features</span>
+            <span class="nav-link" onclick="scrollTo('#pricing')">Pricing</span>
+            <span class="nav-link" onclick="scrollTo('#how')">How It Works</span>
+            <span class="nav-link" onclick="openAuth('login')">Sign In</span>
+            <button class="nav-cta" onclick="openAuth('register')">Get Started Free</button>
+        </div>
+    </div>
+</nav>
+
+<!-- ═══ Hero ═══ -->
+<section class="hero">
+    <div class="hero-inner">
+        <div>
+            <div class="hero-badge">🚀 Powered by AI &amp; Machine Learning</div>
+            <h1>Trade Smarter with Automated Crypto Bots</h1>
+            <p class="hero-sub">Deploy AI-powered trading bots across multiple exchanges. Backtest strategies, track whale movements, and maximize your returns — all from one platform.</p>
+            <div class="hero-actions">
+                <button class="hero-btn btn-primary" onclick="openAuth('register')">Start Trading Free →</button>
+                <button class="hero-btn btn-outline" onclick="scrollTo('#features')">See Features</button>
+            </div>
+            <div class="hero-stats">
+                <div class="hero-stat"><div class="num">17+</div><div class="label">Trading Strategies</div></div>
+                <div class="hero-stat"><div class="num">10+</div><div class="label">Exchanges Supported</div></div>
+                <div class="hero-stat"><div class="num">24/7</div><div class="label">Automated Trading</div></div>
+            </div>
+        </div>
+        <div class="hero-visual">
+            <div class="hero-card">
+                <div class="hero-card-header">
+                    <div class="hero-card-title">📊 Portfolio Performance</div>
+                    <div class="hero-card-badge">+34.2%</div>
+                </div>
+                <div class="hero-chart" id="heroChart"></div>
+                <div class="hero-mini-stats">
+                    <div class="hero-mini"><div class="v" style="color:#10b981">$12,847</div><div class="l">Total Value</div></div>
+                    <div class="hero-mini"><div class="v" style="color:#8b5cf6">5</div><div class="l">Active Bots</div></div>
+                    <div class="hero-mini"><div class="v" style="color:#f59e0b">143</div><div class="l">Trades Today</div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ═══ Features ═══ -->
+<section class="section" id="features" style="background:var(--bg2)">
+    <div class="section-inner">
+        <div class="section-head">
+            <h2>Everything You Need to Trade Like a Pro</h2>
+            <p>From AI-powered analysis to automated execution — our suite of tools gives you the edge.</p>
+        </div>
+        <div class="feat-grid">
+            <div class="feat-card"><div class="feat-icon">🤖</div><h3>AI Copilot</h3><p>Get real-time trade suggestions powered by Gemini AI and GPT. Natural language market analysis at your fingertips.</p></div>
+            <div class="feat-card"><div class="feat-icon">🐋</div><h3>Whale Tracker</h3><p>Monitor large wallet movements and smart money flows. Receive alerts when whales move the market.</p></div>
+            <div class="feat-card"><div class="feat-icon">📊</div><h3>Advanced Backtesting</h3><p>Test any strategy against historical data with detailed metrics. Sharpe ratio, max drawdown, win rate and more.</p></div>
+            <div class="feat-card"><div class="feat-icon">🔥</div><h3>17+ Strategies</h3><p>From RSI Mean Reversion to Ichimoku Cloud — deploy proven strategies or build your own.</p></div>
+            <div class="feat-card"><div class="feat-icon">🌊</div><h3>Multi-Exchange</h3><p>Connect Binance, Bybit, OKX, Kraken and more. Trade across 10+ exchanges from one dashboard.</p></div>
+            <div class="feat-card"><div class="feat-icon">📱</div><h3>Telegram Alerts</h3><p>Get instant notifications for trades, whale movements, and bot status directly to your phone.</p></div>
+            <div class="feat-card"><div class="feat-icon">🔄</div><h3>Copy Trading</h3><p>Follow top-performing traders and automatically mirror their positions in your account.</p></div>
+            <div class="feat-card"><div class="feat-icon">📈</div><h3>Correlation Heatmap</h3><p>Visualize asset relationships to diversify your portfolio and reduce risk exposure.</p></div>
+            <div class="feat-card"><div class="feat-icon">🧾</div><h3>Tax Reports</h3><p>Auto-generate tax reports for your trades. Compatible with major tax jurisdictions.</p></div>
+        </div>
+    </div>
+</section>
+
+<!-- ═══ How It Works ═══ -->
+<section class="section" id="how">
+    <div class="section-inner">
+        <div class="section-head">
+            <h2>Start Trading in 4 Simple Steps</h2>
+            <p>No coding required. Set up in minutes.</p>
+        </div>
+        <div class="how-grid">
+            <div class="how-step"><div class="how-num">1</div><h4>Create Account</h4><p>Sign up free with email or Google. No credit card required to start.</p></div>
+            <div class="how-step"><div class="how-num">2</div><h4>Connect Exchange</h4><p>Link your Binance, Bybit, or any supported exchange via read-only API keys.</p></div>
+            <div class="how-step"><div class="how-num">3</div><h4>Choose Strategy</h4><p>Pick from 17+ proven strategies or customize parameters to match your risk tolerance.</p></div>
+            <div class="how-step"><div class="how-num">4</div><h4>Deploy & Profit</h4><p>Launch your bot and let it trade 24/7. Monitor performance from your dashboard.</p></div>
+        </div>
+    </div>
+</section>
+
+<!-- ═══ Pricing ═══ -->
+<section class="section" id="pricing" style="background:var(--bg2)">
+    <div class="section-inner">
+        <div class="section-head">
+            <h2>Simple, Transparent Pricing</h2>
+            <p>Start free. Upgrade when you're ready to scale.</p>
+        </div>
+        <div class="pricing-grid">
+            <div class="price-card">
+                <div class="price-name" style="color:var(--green)">Starter</div>
+                <div class="price-amount">$19<span>/mo</span></div>
+                <div class="price-desc">Perfect for beginners exploring algorithmic trading</div>
+                <ul class="price-features">
+                    <li>1 active trading bot</li>
+                    <li>5 strategies</li>
+                    <li>Basic backtesting (30 days)</li>
+                    <li>Email alerts</li>
+                    <li>Community support</li>
+                </ul>
+                <button class="price-btn price-btn-outline" onclick="openAuth('register')">Get Started</button>
+            </div>
+            <div class="price-card featured">
+                <div class="price-name" style="color:var(--accent)">Pro</div>
+                <div class="price-amount">$49<span>/mo</span></div>
+                <div class="price-desc">For active traders who want a real edge</div>
+                <ul class="price-features">
+                    <li>5 active trading bots</li>
+                    <li>All strategies</li>
+                    <li>Advanced backtesting (180 days)</li>
+                    <li>AI Copilot access</li>
+                    <li>Telegram + Email alerts</li>
+                    <li>Whale Tracker</li>
+                    <li>Priority support</li>
+                </ul>
+                <button class="price-btn price-btn-primary" onclick="openAuth('register')">Start Pro Trial</button>
+            </div>
+            <div class="price-card">
+                <div class="price-name" style="color:var(--orange)">Elite</div>
+                <div class="price-amount">$99<span>/mo</span></div>
+                <div class="price-desc">For professional traders &amp; fund managers</div>
+                <ul class="price-features">
+                    <li>Unlimited trading bots</li>
+                    <li>All strategies + custom</li>
+                    <li>Full backtesting suite (365 days)</li>
+                    <li>AI Copilot + OpenAI</li>
+                    <li>All alerts + webhooks</li>
+                    <li>Copy Trading</li>
+                    <li>Tax Reports</li>
+                    <li>Multi-account trading</li>
+                    <li>Dedicated support</li>
+                </ul>
+                <button class="price-btn price-btn-outline" onclick="openAuth('register')">Go Elite</button>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ═══ Testimonials ═══ -->
+<section class="section">
+    <div class="section-inner">
+        <div class="section-head">
+            <h2>Trusted by Traders Worldwide</h2>
+        </div>
+        <div class="test-grid">
+            <div class="test-card">
+                <div class="test-quote">"TrekBot's backtesting saved me from deploying a losing strategy. The Sharpe ratio analysis alone is worth the subscription."</div>
+                <div class="test-author"><div class="test-avatar">MK</div><div><div class="test-name">Marcus K.</div><div class="test-role">Crypto Trader, 3 years</div></div></div>
+            </div>
+            <div class="test-card">
+                <div class="test-quote">"The whale tracker alerts helped me catch a 40% ETH move before it hit mainstream news. Incredible tool."</div>
+                <div class="test-author"><div class="test-avatar">SL</div><div><div class="test-name">Sarah L.</div><div class="test-role">DeFi Analyst</div></div></div>
+            </div>
+            <div class="test-card">
+                <div class="test-quote">"Running 5 bots across Binance and Bybit automatically. I wake up to profits instead of watching charts all night."</div>
+                <div class="test-author"><div class="test-avatar">JR</div><div><div class="test-name">James R.</div><div class="test-role">Full-time Trader</div></div></div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ═══ CTA ═══ -->
+<section class="cta-section">
+    <h2>Ready to Automate Your Trading?</h2>
+    <p>Join thousands of traders using TrekBot to trade smarter, not harder.</p>
+    <button class="hero-btn btn-primary" onclick="openAuth('register')" style="font-size:1rem;padding:.85rem 2.5rem">Create Free Account →</button>
+</section>
+
+<!-- ═══ Footer ═══ -->
+<footer class="footer">
+    <div class="footer-inner">
+        <div>
+            <div class="nav-logo" style="margin-bottom:.5rem"><div class="nav-logo-orb">T</div><div class="nav-logo-text">TREKBOT</div></div>
+            <div class="footer-brand">AI-powered crypto trading platform. Deploy automated strategies across multiple exchanges with advanced risk management.</div>
+        </div>
+        <div><h4>Product</h4><a href="#features">Features</a><a href="#pricing">Pricing</a><a href="#how">How It Works</a><a href="/dashboard">Dashboard</a></div>
+        <div><h4>Resources</h4><a href="#">Documentation</a><a href="#">API Reference</a><a href="#">Status Page</a><a href="#">Changelog</a></div>
+        <div><h4>Legal</h4><a href="#">Privacy Policy</a><a href="#">Terms of Service</a><a href="#">Risk Disclaimer</a><a href="#">Cookie Policy</a></div>
+    </div>
+    <div class="footer-bottom">
+        <span>&copy; 2025 TrekBot. All rights reserved.</span>
+        <span>Trading involves risk. Past performance does not guarantee future results.</span>
+    </div>
+</footer>
+
+<!-- ═══ Auth Modal ═══ -->
+<div class="auth-overlay" id="authOverlay">
+    <div class="auth-box">
+        <button class="auth-close" onclick="closeAuth()">✕</button>
+        <h2 id="authTitle">Create Account</h2>
+        <p class="auth-sub" id="authSub">Start trading in minutes — no credit card required</p>
+        <div class="auth-error" id="authError"></div>
+
+        <form id="authForm" onsubmit="handleAuth(event)">
+            <div class="auth-field" id="authNameField" style="display:none">
+                <label>Full Name</label>
+                <input type="text" id="authName" placeholder="Your name">
+            </div>
+            <div class="auth-field">
+                <label>Email Address</label>
+                <input type="email" id="authEmail" placeholder="you@example.com" required>
+            </div>
+            <div class="auth-field">
+                <label>Password</label>
+                <input type="password" id="authPassword" placeholder="Min 6 characters" required minlength="6">
+            </div>
+            <button type="submit" class="auth-submit" id="authSubmitBtn">Create Account</button>
+        </form>
+
+        <div class="auth-divider">or</div>
+        <button class="auth-google" onclick="googleSignIn()">
+            <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+            Continue with Google
+        </button>
+
+        <div class="auth-switch" id="authSwitch">
+            Already have an account? <a onclick="switchAuthMode()">Sign In</a>
+        </div>
+    </div>
+</div>
+
+<script src="{{ url_for('static', filename='firebase-config.js') }}"></script>
+<script>
+// Navbar scroll
+window.addEventListener('scroll',()=>{document.getElementById('navbar').classList.toggle('scrolled',window.scrollY>50)});
+
+// Smooth scroll
+function scrollTo(sel){const el=document.querySelector(sel);if(el)el.scrollIntoView({behavior:'smooth',block:'start'})}
+
+// Hero chart animation
+(function(){
+    const chart=document.getElementById('heroChart');
+    const vals=[30,45,35,60,50,75,40,85,55,90,70,95,65,88,72,98,80,92,85,100];
+    const colors=['#8b5cf6','#a855f7','#8b5cf6','#10b981','#8b5cf6','#10b981','#f59e0b','#10b981','#8b5cf6','#10b981','#8b5cf6','#10b981','#f59e0b','#10b981','#8b5cf6','#10b981','#8b5cf6','#10b981','#8b5cf6','#10b981'];
+    vals.forEach((v,i)=>{
+        const bar=document.createElement('div');bar.className='hero-chart-bar';
+        bar.style.height=v+'%';bar.style.background=colors[i]+'66';
+        chart.appendChild(bar);
+    });
+})();
+
+// Auth modal
+let authMode='register';
+function openAuth(mode){
+    authMode=mode||'register';
+    document.getElementById('authOverlay').classList.add('show');
+    updateAuthUI();
+}
+function closeAuth(){document.getElementById('authOverlay').classList.remove('show')}
+function switchAuthMode(){authMode=authMode==='register'?'login':'register';updateAuthUI()}
+function updateAuthUI(){
+    const isReg=authMode==='register';
+    document.getElementById('authTitle').textContent=isReg?'Create Account':'Welcome Back';
+    document.getElementById('authSub').textContent=isReg?'Start trading in minutes — no credit card required':'Sign in to your trading dashboard';
+    document.getElementById('authSubmitBtn').textContent=isReg?'Create Account':'Sign In';
+    document.getElementById('authNameField').style.display=isReg?'block':'none';
+    document.getElementById('authSwitch').innerHTML=isReg?'Already have an account? <a onclick="switchAuthMode()">Sign In</a>':'Don\'t have an account? <a onclick="switchAuthMode()">Sign Up</a>';
+    document.getElementById('authError').style.display='none';
+}
+
+function showAuthError(msg){
+    const el=document.getElementById('authError');el.textContent=msg;el.style.display='block';
+}
+
+async function handleAuth(e){
+    e.preventDefault();
+    const email=document.getElementById('authEmail').value;
+    const pass=document.getElementById('authPassword').value;
+    document.getElementById('authError').style.display='none';
+
+    try{
+        if(authMode==='register'){
+            const cred=await firebase.auth().createUserWithEmailAndPassword(email,pass);
+            const name=document.getElementById('authName').value;
+            if(name)await cred.user.updateProfile({displayName:name});
+            // Create user meta
+            const db=firebase.firestore();
+            await db.collection('users_meta').doc(cred.user.uid).set({email:email,name:name||'',plan:'free',status:'active',createdAt:new Date().toISOString()});
+            // Log admin activity
+            await db.collection('admin_activity').add({type:'signup',message:email+' signed up',ts:new Date().toISOString()});
+            window.location.href='/dashboard';
+        }else{
+            await firebase.auth().signInWithEmailAndPassword(email,pass);
+            window.location.href='/dashboard';
+        }
+    }catch(err){
+        let msg=err.message||'Something went wrong';
+        if(err.code==='auth/email-already-in-use')msg='Email already registered. Try signing in.';
+        if(err.code==='auth/wrong-password')msg='Incorrect password.';
+        if(err.code==='auth/user-not-found')msg='No account found with this email.';
+        if(err.code==='auth/weak-password')msg='Password must be at least 6 characters.';
+        showAuthError(msg);
+    }
+}
+
+async function googleSignIn(){
+    try{
+        const provider=new firebase.auth.GoogleAuthProvider();
+        const result=await firebase.auth().signInWithPopup(provider);
+        const db=firebase.firestore();
+        const doc=await db.collection('users_meta').doc(result.user.uid).get();
+        if(!doc.exists){
+            await db.collection('users_meta').doc(result.user.uid).set({email:result.user.email,name:result.user.displayName||'',plan:'free',status:'active',createdAt:new Date().toISOString()});
+            await db.collection('admin_activity').add({type:'signup',message:(result.user.email||'Google user')+' signed up (Google)',ts:new Date().toISOString()});
+        }
+        window.location.href='/dashboard';
+    }catch(err){showAuthError(err.message||'Google sign-in failed')}
+}
+
+// Close modal on overlay click
+document.getElementById('authOverlay').addEventListener('click',function(e){if(e.target===this)closeAuth()});
+
+// If already logged in, redirect to dashboard
+firebase.auth().onAuthStateChanged(user=>{
+    if(user&&window.location.pathname==='/landing'){
+        window.location.href='/dashboard';
+    }
+});
+</script>
+</body>
+</html>

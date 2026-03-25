@@ -1,0 +1,237 @@
+{% extends "admin/admin_base.html" %}
+{% block title %}TrekBot Admin — Users{% endblock %}
+{% block page_title %}👥 User Management{% endblock %}
+{% block content %}
+<style>
+.usr-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.5rem}
+.usr-stat{background:var(--admin-card);border:1px solid var(--admin-border);border-radius:14px;padding:1.1rem;position:relative;overflow:hidden}
+.usr-stat::after{content:'';position:absolute;top:0;right:0;width:60px;height:60px;border-radius:50%;filter:blur(30px);opacity:.1}
+.usr-stat:nth-child(1)::after{background:#8b5cf6}.usr-stat:nth-child(2)::after{background:#10b981}
+.usr-stat:nth-child(3)::after{background:#f59e0b}.usr-stat:nth-child(4)::after{background:#3b82f6}
+.usr-stat .icon{font-size:1.3rem;margin-bottom:.4rem}
+.usr-stat .val{font-size:1.5rem;font-weight:800;color:var(--admin-text)}
+.usr-stat .lbl{font-size:.65rem;color:var(--admin-muted);margin-top:.2rem}
+.usr-toolbar{display:flex;gap:.6rem;margin-bottom:1rem;flex-wrap:wrap}
+.usr-search{background:#0b0e14;border:1px solid var(--admin-border);border-radius:8px;padding:.45rem .8rem;color:var(--admin-text);font-size:.82rem;flex:1;min-width:200px;font-family:inherit}
+.usr-search:focus{border-color:var(--admin-accent);outline:none}
+.usr-filter{background:#0b0e14;border:1px solid var(--admin-border);border-radius:8px;padding:.45rem .6rem;color:var(--admin-text);font-size:.8rem;font-family:inherit;cursor:pointer}
+.usr-tbl-wrap{background:var(--admin-card);border:1px solid var(--admin-border);border-radius:14px;overflow:hidden}
+.usr-tbl{width:100%;border-collapse:collapse;font-size:.8rem}
+.usr-tbl th{text-align:left;padding:.7rem .8rem;color:var(--admin-muted);font-size:.68rem;text-transform:uppercase;letter-spacing:.3px;background:var(--admin-card2);border-bottom:2px solid var(--admin-border)}
+.usr-tbl td{padding:.65rem .8rem;border-bottom:1px solid var(--admin-border);color:var(--admin-text);vertical-align:middle}
+.usr-tbl tr:hover{background:#8b5cf606}
+.usr-avatar{width:30px;height:30px;border-radius:50%;background:var(--admin-card2);display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;color:var(--admin-accent)}
+.usr-email{font-weight:600;font-size:.82rem}.usr-uid{font-size:.6rem;color:var(--admin-faint);font-family:'Consolas',monospace}
+.usr-badge{font-size:.6rem;font-weight:700;padding:2px 7px;border-radius:5px;display:inline-block}
+.usr-active{background:#10b98122;color:#10b981}.usr-banned{background:#ef444422;color:#ef4444}.usr-pending{background:#f59e0b22;color:#f59e0b}
+.usr-plan-badge{font-size:.6rem;font-weight:700;padding:2px 7px;border-radius:5px;display:inline-block}
+.usr-actions-cell{display:flex;gap:.3rem;flex-wrap:wrap}
+.usr-btn{padding:.2rem .5rem;border:none;border-radius:5px;cursor:pointer;font-weight:600;font-size:.6rem;transition:all .15s}
+.usr-btn-view{background:#3b82f622;color:#3b82f6}.usr-btn-ban{background:#ef444422;color:#ef4444}
+.usr-btn-admin{background:#8b5cf622;color:#8b5cf6}.usr-btn-activate{background:#10b98122;color:#10b981}
+.usr-modal{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.7);z-index:9990;display:none;align-items:center;justify-content:center}
+.usr-modal.show{display:flex}
+.usr-modal-box{background:var(--admin-card);border:1px solid var(--admin-border);border-radius:16px;width:500px;max-width:90vw;max-height:80vh;overflow-y:auto;padding:1.5rem}
+.usr-modal-box h3{margin:0 0 1rem;font-size:1rem;font-weight:700;display:flex;align-items:center;gap:.5rem}
+.usr-detail-row{display:flex;justify-content:space-between;padding:.5rem 0;border-bottom:1px solid var(--admin-border);font-size:.82rem}
+.usr-detail-row .label{color:var(--admin-muted)}.usr-detail-row .value{color:var(--admin-text);font-weight:600}
+.usr-modal-close{background:none;border:none;color:var(--admin-muted);font-size:1.2rem;cursor:pointer;float:right}
+.usr-pagination{display:flex;justify-content:center;gap:.4rem;margin-top:1rem}
+.usr-page-btn{padding:.3rem .6rem;border:1px solid var(--admin-border);border-radius:6px;background:transparent;color:var(--admin-muted);cursor:pointer;font-size:.75rem;font-weight:600}
+.usr-page-btn.active{background:var(--admin-accent);color:#fff;border-color:var(--admin-accent)}
+@media(max-width:900px){.usr-stats{grid-template-columns:1fr 1fr}}
+@media(max-width:600px){.usr-stats{grid-template-columns:1fr}}
+</style>
+
+<div class="usr-stats">
+    <div class="usr-stat"><div class="icon">👥</div><div class="val" id="usrTotal">0</div><div class="lbl">Total Users</div></div>
+    <div class="usr-stat"><div class="icon">✅</div><div class="val" id="usrActive" style="color:#10b981">0</div><div class="lbl">Active</div></div>
+    <div class="usr-stat"><div class="icon">💳</div><div class="val" id="usrPaid" style="color:#8b5cf6">0</div><div class="lbl">Paid Subscribers</div></div>
+    <div class="usr-stat"><div class="icon">🚫</div><div class="val" id="usrBanned" style="color:#ef4444">0</div><div class="lbl">Banned</div></div>
+</div>
+
+<div class="usr-toolbar">
+    <input type="text" class="usr-search" id="usrSearch" placeholder="🔍 Search users by email..." oninput="filterUsers()">
+    <select class="usr-filter" id="usrPlanFilter" onchange="filterUsers()">
+        <option value="all">All Plans</option>
+        <option value="free">Free</option>
+        <option value="starter">Starter</option>
+        <option value="pro">Pro</option>
+        <option value="elite">Elite</option>
+    </select>
+    <select class="usr-filter" id="usrStatusFilter" onchange="filterUsers()">
+        <option value="all">All Status</option>
+        <option value="active">Active</option>
+        <option value="banned">Banned</option>
+    </select>
+    <button class="adm-btn adm-btn-primary" onclick="refreshUsers()">🔄 Refresh</button>
+</div>
+
+<div class="usr-tbl-wrap">
+    <table class="usr-tbl">
+        <thead><tr><th></th><th>Email</th><th>Plan</th><th>Status</th><th>Bots</th><th>Joined</th><th>Last Seen</th><th>Actions</th></tr></thead>
+        <tbody id="usrTblBody">
+            <tr><td colspan="8" style="text-align:center;padding:2.5rem;color:var(--admin-faint);font-size:.85rem">Loading users...</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<div class="usr-pagination" id="usrPagination"></div>
+
+<!-- User Detail Modal -->
+<div class="usr-modal" id="usrModal">
+    <div class="usr-modal-box">
+        <button class="usr-modal-close" onclick="closeUserModal()">✕</button>
+        <h3>👤 User Details</h3>
+        <div id="usrModalContent"></div>
+        <div style="display:flex;gap:.5rem;margin-top:1rem" id="usrModalActions"></div>
+    </div>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script>
+let allUsers=[];
+let currentPage=1;
+const PAGE_SIZE=20;
+
+async function loadUsers(){
+    const db=getFS();if(!db)return;
+    allUsers=[];
+    try{
+        // Load users_meta or fall back to users collection
+        let snap=await db.collection('users_meta').get();
+        if(snap.empty)snap=await db.collection('users').get();
+        snap.forEach(doc=>{allUsers.push({uid:doc.id,...doc.data()})});
+
+        // Merge subscription data
+        const subSnap=await db.collection('subscriptions').get();
+        const subMap={};
+        subSnap.forEach(doc=>subMap[doc.id]=doc.data());
+        allUsers.forEach(u=>{
+            if(subMap[u.uid]){u.plan=subMap[u.uid].plan||'free';u.subStatus=subMap[u.uid].status||'active'}
+            else{u.plan=u.plan||'free';u.subStatus='none'}
+        });
+    }catch(e){console.error('Load users:',e)}
+
+    updateStats();
+    renderUsers();
+}
+
+function updateStats(){
+    const total=allUsers.length;
+    const active=allUsers.filter(u=>u.status!=='banned').length;
+    const paid=allUsers.filter(u=>['starter','pro','elite'].includes(u.plan)).length;
+    const banned=allUsers.filter(u=>u.status==='banned').length;
+    document.getElementById('usrTotal').textContent=total;
+    document.getElementById('usrActive').textContent=active;
+    document.getElementById('usrPaid').textContent=paid;
+    document.getElementById('usrBanned').textContent=banned;
+}
+
+function filterUsers(){
+    currentPage=1;
+    renderUsers();
+}
+
+function getFiltered(){
+    let list=[...allUsers];
+    const q=(document.getElementById('usrSearch').value||'').toLowerCase();
+    const plan=document.getElementById('usrPlanFilter').value;
+    const status=document.getElementById('usrStatusFilter').value;
+    if(q)list=list.filter(u=>(u.email||'').toLowerCase().includes(q)||(u.uid||'').toLowerCase().includes(q));
+    if(plan!=='all')list=list.filter(u=>(u.plan||'free')===plan);
+    if(status!=='all'){
+        if(status==='banned')list=list.filter(u=>u.status==='banned');
+        else list=list.filter(u=>u.status!=='banned');
+    }
+    return list;
+}
+
+function renderUsers(){
+    const filtered=getFiltered();
+    const totalPages=Math.max(1,Math.ceil(filtered.length/PAGE_SIZE));
+    if(currentPage>totalPages)currentPage=totalPages;
+    const start=(currentPage-1)*PAGE_SIZE;
+    const page=filtered.slice(start,start+PAGE_SIZE);
+
+    const planColors={free:'#64748b',starter:'#10b981',pro:'#8b5cf6',elite:'#f59e0b'};
+    const tbody=document.getElementById('usrTblBody');
+    if(!page.length){tbody.innerHTML='<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--admin-faint)">No users found</td></tr>';return}
+
+    tbody.innerHTML=page.map(u=>{
+        const plan=u.plan||'free';const c=planColors[plan]||'#64748b';
+        const initials=(u.email||'??').substring(0,2).toUpperCase();
+        const isBanned=u.status==='banned';
+        return `<tr>
+            <td><div class="usr-avatar">${initials}</div></td>
+            <td><div class="usr-email">${u.email||'—'}</div><div class="usr-uid">${u.uid?.substring(0,16)||'—'}...</div></td>
+            <td><span class="usr-plan-badge" style="background:${c}22;color:${c}">${plan.toUpperCase()}</span></td>
+            <td><span class="usr-badge ${isBanned?'usr-banned':'usr-active'}">${isBanned?'BANNED':'ACTIVE'}</span></td>
+            <td style="font-size:.78rem">${u.active_bots||0}</td>
+            <td style="font-size:.75rem;color:var(--admin-muted)">${u.createdAt?new Date(u.createdAt).toLocaleDateString():'—'}</td>
+            <td style="font-size:.75rem;color:var(--admin-muted)">${u.lastSeen?new Date(u.lastSeen).toLocaleDateString():'—'}</td>
+            <td><div class="usr-actions-cell">
+                <button class="usr-btn usr-btn-view" onclick="viewUser('${u.uid}')">View</button>
+                ${isBanned?`<button class="usr-btn usr-btn-activate" onclick="toggleBan('${u.uid}',false)">Unban</button>`:`<button class="usr-btn usr-btn-ban" onclick="toggleBan('${u.uid}',true)">Ban</button>`}
+                <button class="usr-btn usr-btn-admin" onclick="makeAdmin('${u.uid}')">Admin</button>
+            </div></td>
+        </tr>`;
+    }).join('');
+
+    // Pagination
+    const pag=document.getElementById('usrPagination');
+    if(totalPages<=1){pag.innerHTML='';return}
+    let html='';
+    for(let i=1;i<=totalPages;i++){
+        html+=`<button class="usr-page-btn ${i===currentPage?'active':''}" onclick="currentPage=${i};renderUsers()">${i}</button>`;
+    }
+    pag.innerHTML=html;
+}
+
+function viewUser(uid){
+    const u=allUsers.find(x=>x.uid===uid);if(!u)return;
+    const m=document.getElementById('usrModalContent');
+    const details=[
+        ['UID',u.uid],['Email',u.email||'—'],['Plan',(u.plan||'free').toUpperCase()],
+        ['Status',u.status==='banned'?'BANNED':'ACTIVE'],['Subscription',u.subStatus||'none'],
+        ['Active Bots',u.active_bots||0],['Joined',u.createdAt?new Date(u.createdAt).toLocaleString():'—'],
+        ['Last Seen',u.lastSeen?new Date(u.lastSeen).toLocaleString():'—'],
+        ['Total Trades',u.total_trades||0],['PnL','$'+(u.total_pnl||0).toFixed(2)]
+    ];
+    m.innerHTML=details.map(([l,v])=>`<div class="usr-detail-row"><span class="label">${l}</span><span class="value">${v}</span></div>`).join('');
+
+    const isBanned=u.status==='banned';
+    document.getElementById('usrModalActions').innerHTML=`
+        ${isBanned?'<button class="adm-btn adm-btn-green" onclick="toggleBan(\''+uid+'\',false);closeUserModal()">✅ Unban</button>':'<button class="adm-btn adm-btn-red" onclick="toggleBan(\''+uid+'\',true);closeUserModal()">🚫 Ban User</button>'}
+        <button class="adm-btn adm-btn-primary" onclick="makeAdmin('${uid}');closeUserModal()">👑 Make Admin</button>
+        <button class="adm-btn adm-btn-outline" onclick="closeUserModal()">Close</button>
+    `;
+    document.getElementById('usrModal').classList.add('show');
+}
+
+function closeUserModal(){document.getElementById('usrModal').classList.remove('show')}
+
+async function toggleBan(uid,ban){
+    if(!confirm(ban?'Ban this user?':'Unban this user?'))return;
+    const db=getFS();if(!db)return;
+    await db.collection('users_meta').doc(uid).set({status:ban?'banned':'active',updatedAt:new Date().toISOString()},{merge:true});
+    const u=allUsers.find(x=>x.uid===uid);if(u)u.status=ban?'banned':'active';
+    updateStats();renderUsers();
+    admToast(ban?'User banned':'User unbanned','success');
+}
+
+async function makeAdmin(uid){
+    if(!confirm('Grant admin access to this user?'))return;
+    const db=getFS();if(!db)return;
+    const u=allUsers.find(x=>x.uid===uid);
+    await db.collection('admins').doc(uid).set({email:u?.email||'',role:'admin',grantedAt:new Date().toISOString(),grantedBy:getUID()});
+    admToast('Admin access granted!','success');
+}
+
+function refreshUsers(){loadUsers()}
+
+document.addEventListener('DOMContentLoaded',()=>setTimeout(loadUsers,1500));
+document.getElementById('usrModal').addEventListener('click',function(e){if(e.target===this)closeUserModal()});
+</script>
+{% endblock %}

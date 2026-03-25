@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}TrekBot Admin{% endblock %}</title>
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<style>
+:root{--admin-bg:#0b0e14;--admin-card:#141820;--admin-card2:#1a1f2b;--admin-border:#1e2433;--admin-border2:#2a3040;--admin-text:#e2e8f0;--admin-muted:#64748b;--admin-faint:#475569;--admin-accent:#8b5cf6;--admin-accent2:#a855f7;--admin-green:#10b981;--admin-red:#ef4444;--admin-orange:#f59e0b;--admin-blue:#3b82f6;--admin-sidebar:240px;--admin-topbar:56px}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',sans-serif;background:var(--admin-bg);color:var(--admin-text);min-height:100vh;display:flex}
+
+/* ─── Sidebar ─── */
+.adm-sidebar{width:var(--admin-sidebar);background:var(--admin-card);border-right:1px solid var(--admin-border);display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;z-index:200}
+.adm-logo{padding:1rem 1.2rem;display:flex;align-items:center;gap:.7rem;border-bottom:1px solid var(--admin-border)}
+.adm-logo-orb{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#8b5cf6,#ec4899);display:flex;align-items:center;justify-content:center;font-size:1.1rem;font-weight:800;color:#fff}
+.adm-logo-text{font-size:.85rem;font-weight:800;letter-spacing:1px;color:var(--admin-text)}
+.adm-logo-sub{font-size:.55rem;color:var(--admin-accent);font-weight:600;letter-spacing:.5px}
+.adm-nav{flex:1;overflow-y:auto;padding:.8rem 0}
+.adm-nav-section{padding:.3rem 1.2rem;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:var(--admin-faint);margin-top:.8rem}
+.adm-nav-section:first-child{margin-top:0}
+.adm-nav a{display:flex;align-items:center;gap:.7rem;padding:.55rem 1.2rem;font-size:.82rem;font-weight:500;color:var(--admin-muted);text-decoration:none;transition:all .15s;border-left:3px solid transparent;margin:1px 0}
+.adm-nav a:hover{background:#8b5cf608;color:var(--admin-text)}
+.adm-nav a.active{background:#8b5cf612;color:var(--admin-accent);border-left-color:var(--admin-accent);font-weight:600}
+.adm-nav a .nav-icon{width:20px;text-align:center;font-size:.9rem}
+.adm-nav-back{padding:1rem 1.2rem;border-top:1px solid var(--admin-border)}
+.adm-nav-back a{display:flex;align-items:center;gap:.5rem;font-size:.8rem;color:var(--admin-muted);text-decoration:none;font-weight:500}
+.adm-nav-back a:hover{color:var(--admin-accent)}
+
+/* ─── Main ─── */
+.adm-main{margin-left:var(--admin-sidebar);flex:1;min-height:100vh;display:flex;flex-direction:column}
+.adm-topbar{height:var(--admin-topbar);display:flex;align-items:center;justify-content:space-between;padding:0 1.5rem;border-bottom:1px solid var(--admin-border);background:var(--admin-card);position:sticky;top:0;z-index:100}
+.adm-topbar h1{font-size:1rem;font-weight:700;color:var(--admin-text)}
+.adm-topbar-right{display:flex;align-items:center;gap:.8rem}
+.adm-badge{font-size:.65rem;font-weight:700;padding:3px 8px;border-radius:6px;background:#8b5cf622;color:#8b5cf6}
+.adm-content{flex:1;padding:1.5rem;overflow-y:auto}
+
+/* ─── Common Components ─── */
+.adm-grid{display:grid;gap:1.2rem}
+.adm-grid-4{grid-template-columns:repeat(4,1fr)}
+.adm-grid-3{grid-template-columns:repeat(3,1fr)}
+.adm-grid-2{grid-template-columns:repeat(2,1fr)}
+.adm-stat{background:var(--admin-card);border:1px solid var(--admin-border);border-radius:14px;padding:1.2rem}
+.adm-stat .val{font-size:1.6rem;font-weight:800;color:var(--admin-text)}
+.adm-stat .lbl{font-size:.7rem;color:var(--admin-muted);margin-top:.2rem}
+.adm-stat .trend{font-size:.7rem;font-weight:600;margin-top:.3rem}
+.adm-stat .trend.up{color:var(--admin-green)}.adm-stat .trend.down{color:var(--admin-red)}
+.adm-card{background:var(--admin-card);border:1px solid var(--admin-border);border-radius:14px;padding:1.4rem}
+.adm-card h3{margin:0 0 1rem;font-size:.95rem;font-weight:700;color:var(--admin-text);display:flex;align-items:center;gap:.5rem}
+.adm-tbl{width:100%;border-collapse:collapse;font-size:.8rem}
+.adm-tbl th{text-align:left;padding:.6rem .8rem;color:var(--admin-muted);font-size:.7rem;text-transform:uppercase;letter-spacing:.3px;border-bottom:2px solid var(--admin-border)}
+.adm-tbl td{padding:.6rem .8rem;border-bottom:1px solid var(--admin-border);color:var(--admin-text);vertical-align:middle}
+.adm-tbl tr:hover{background:#8b5cf606}
+.adm-btn{padding:.5rem 1rem;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:.8rem;display:inline-flex;align-items:center;gap:.3rem;transition:all .15s}
+.adm-btn-primary{background:linear-gradient(135deg,#8b5cf6,#a855f7);color:#fff}
+.adm-btn-primary:hover{box-shadow:0 4px 15px #8b5cf644}
+.adm-btn-green{background:#10b98122;color:#10b981;border:1px solid #10b98133}
+.adm-btn-red{background:#ef444422;color:#ef4444;border:1px solid #ef444433}
+.adm-btn-outline{background:transparent;color:var(--admin-muted);border:1px solid var(--admin-border)}
+.adm-input{background:#0b0e14;border:1px solid var(--admin-border);border-radius:8px;padding:.55rem .8rem;color:var(--admin-text);font-size:.85rem;font-family:inherit;width:100%}
+.adm-input:focus{border-color:var(--admin-accent);outline:none;box-shadow:0 0 0 2px #8b5cf622}
+.adm-select{background:#0b0e14;border:1px solid var(--admin-border);border-radius:8px;padding:.55rem .8rem;color:var(--admin-text);font-size:.85rem;font-family:inherit;width:100%}
+.adm-label{font-size:.72rem;font-weight:600;color:var(--admin-muted);text-transform:uppercase;letter-spacing:.3px;display:block;margin-bottom:.3rem}
+.adm-field{display:flex;flex-direction:column;gap:.3rem}
+.adm-pw-wrap{position:relative}.adm-pw-wrap input{padding-right:2.5rem}
+.adm-pw-toggle{position:absolute;right:.6rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--admin-muted);font-size:.85rem;padding:2px}
+.adm-toast{position:fixed;bottom:1.5rem;right:1.5rem;padding:.7rem 1.2rem;border-radius:10px;font-size:.82rem;font-weight:600;z-index:9999;transform:translateY(100px);opacity:0;transition:all .3s}
+.adm-toast.show{transform:translateY(0);opacity:1}
+.adm-toast.success{background:#10b981;color:#fff}.adm-toast.error{background:#ef4444;color:#fff}
+.adm-hint{font-size:.65rem;color:var(--admin-faint);margin-top:.15rem}
+@media(max-width:900px){.adm-sidebar{display:none}.adm-main{margin-left:0}.adm-grid-4{grid-template-columns:1fr 1fr}.adm-grid-3{grid-template-columns:1fr}.adm-grid-2{grid-template-columns:1fr}}
+@media(max-width:600px){.adm-grid-4{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<nav class="adm-sidebar">
+    <div class="adm-logo">
+        <div class="adm-logo-orb">T</div>
+        <div><div class="adm-logo-text">TREKBOT</div><div class="adm-logo-sub">ADMIN PORTAL</div></div>
+    </div>
+    <div class="adm-nav">
+        <div class="adm-nav-section">Overview</div>
+        <a href="/admin" class="{% if admin_page == 'dashboard' %}active{% endif %}"><span class="nav-icon">📊</span> Dashboard</a>
+        <a href="/admin/users" class="{% if admin_page == 'users' %}active{% endif %}"><span class="nav-icon">👥</span> Users</a>
+
+        <div class="adm-nav-section">Revenue</div>
+        <a href="/admin/subscriptions" class="{% if admin_page == 'subscriptions' %}active{% endif %}"><span class="nav-icon">💳</span> Subscriptions</a>
+
+        <div class="adm-nav-section">Configuration</div>
+        <a href="/admin/integrations" class="{% if admin_page == 'integrations' %}active{% endif %}"><span class="nav-icon">🔌</span> Integrations</a>
+    </div>
+    <div class="adm-nav-back">
+        <a href="/">← Back to App</a>
+    </div>
+</nav>
+
+<div class="adm-main">
+    <header class="adm-topbar">
+        <h1>{% block page_title %}Admin Dashboard{% endblock %}</h1>
+        <div class="adm-topbar-right">
+            <span class="adm-badge">ADMIN</span>
+            <span style="font-size:.8rem;color:var(--admin-muted)" id="admEmail">admin</span>
+        </div>
+    </header>
+    <div class="adm-content">
+        {% block content %}{% endblock %}
+    </div>
+</div>
+
+<div class="adm-toast" id="admToast"></div>
+
+<script src="{{ url_for('static', filename='firebase-config.js') }}"></script>
+<script>
+function admToast(msg,type){
+    const t=document.getElementById('admToast');t.textContent=msg;
+    t.className='adm-toast '+(type||'success')+' show';
+    setTimeout(()=>t.classList.remove('show'),3000);
+}
+function getFS(){if(typeof firebase!=='undefined'&&firebase.firestore)return firebase.firestore();return null}
+function getUID(){if(typeof firebase!=='undefined'&&firebase.auth&&firebase.auth().currentUser)return firebase.auth().currentUser.uid;return 'anon'}
+function togglePw(btn){const inp=btn.parentElement.querySelector('input');inp.type=inp.type==='password'?'text':'password'}
+
+// Admin auth check
+document.addEventListener('DOMContentLoaded',()=>{
+    if(typeof firebase!=='undefined'&&firebase.auth){
+        firebase.auth().onAuthStateChanged(user=>{
+            if(user){
+                document.getElementById('admEmail').textContent=user.email||'Admin';
+                // Check admin role in Firestore
+                const db=getFS();if(db){
+                    db.collection('admins').doc(user.uid).get().then(snap=>{
+                        if(!snap.exists){
+                            // First user = auto-admin (bootstrap)
+                            db.collection('admins').doc(user.uid).set({email:user.email,role:'super_admin',createdAt:new Date().toISOString()});
+                        }
+                    });
+                }
+            }
+        });
+    }
+});
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

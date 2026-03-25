@@ -1,0 +1,341 @@
+{% extends "admin/admin_base.html" %}
+{% block title %}TrekBot Admin — Integrations{% endblock %}
+{% block page_title %}🔌 Integrations (Global API Keys){% endblock %}
+{% block content %}
+<style>
+.int-grid{display:flex;flex-direction:column;gap:1rem}
+.int-card{background:var(--admin-card);border:1px solid var(--admin-border);border-radius:14px;overflow:hidden}
+.int-header{display:flex;align-items:center;justify-content:space-between;padding:.9rem 1.2rem;cursor:pointer;user-select:none}
+.int-header:hover{background:#8b5cf606}
+.int-header-left{display:flex;align-items:center;gap:.7rem}
+.int-icon{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.2rem}
+.int-title{font-weight:700;color:var(--admin-text);font-size:.9rem}
+.int-sub{font-size:.67rem;color:var(--admin-muted);margin-top:.1rem}
+.int-badge{font-size:.6rem;font-weight:700;padding:2px 7px;border-radius:5px}
+.int-ok{background:#10b98122;color:#10b981}.int-miss{background:#ef444422;color:#ef4444}.int-part{background:#f59e0b22;color:#f59e0b}
+.int-chev{color:var(--admin-muted);transition:transform .2s;font-size:1rem}
+.int-card.open .int-chev{transform:rotate(180deg)}
+.int-body{display:none;padding:0 1.2rem 1rem;border-top:1px solid var(--admin-border)}
+.int-card.open .int-body{display:block}
+.int-row{display:grid;grid-template-columns:1fr 1fr;gap:.7rem;margin-top:.7rem}
+.int-fld{display:flex;flex-direction:column;gap:.2rem}
+.int-fld label{font-size:.68rem;font-weight:600;color:var(--admin-muted);text-transform:uppercase;letter-spacing:.3px}
+.int-fld input,.int-fld select,.int-fld textarea{background:#0b0e14;border:1px solid var(--admin-border);border-radius:8px;padding:.5rem .7rem;color:var(--admin-text);font-size:.82rem;width:100%;font-family:inherit;box-sizing:border-box}
+.int-fld textarea{resize:vertical;min-height:55px;font-size:.72rem;font-family:'Consolas','Monaco',monospace}
+.int-fld input:focus,.int-fld select:focus,.int-fld textarea:focus{border-color:var(--admin-accent);outline:none;box-shadow:0 0 0 2px #8b5cf622}
+.int-fld .hint{font-size:.6rem;color:var(--admin-faint);margin-top:.1rem}
+.int-actions{display:flex;gap:.5rem;margin-top:.8rem;padding-top:.6rem;border-top:1px solid var(--admin-border)}
+.int-btn{padding:.4rem .9rem;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:.78rem;display:inline-flex;align-items:center;gap:.3rem}
+.int-save{background:linear-gradient(135deg,#8b5cf6,#a855f7);color:#fff}
+.int-test{background:#0b0e14;color:#3b82f6;border:1px solid #3b82f633}
+.int-clear{background:#0b0e14;color:#ef4444;border:1px solid #ef444433}
+.int-toggle{position:relative;width:34px;height:18px;background:var(--admin-card2);border-radius:9px;cursor:pointer;border:1px solid var(--admin-border)}
+.int-toggle.on{background:var(--admin-green)}
+.int-toggle::after{content:'';position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:#fff;transition:transform .2s}
+.int-toggle.on::after{transform:translateX(16px)}
+.int-pw{position:relative}.int-pw input{padding-right:2.2rem}
+.int-eye{position:absolute;right:.5rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--admin-muted);font-size:.8rem}
+.int-stats{display:flex;gap:.5rem;margin-bottom:1.2rem;flex-wrap:wrap}
+.int-stat{background:var(--admin-card);border:1px solid var(--admin-border);border-radius:12px;padding:.6rem 1rem;flex:1;min-width:120px;text-align:center}
+.int-stat .val{font-size:1.1rem;font-weight:700;color:var(--admin-text)}
+.int-stat .lbl{font-size:.6rem;color:var(--admin-muted);margin-top:.1rem}
+@media(max-width:600px){.int-row{grid-template-columns:1fr}}
+</style>
+
+<div style="background:#8b5cf622;border:1px solid #8b5cf633;border-radius:10px;padding:.7rem 1rem;margin-bottom:1.2rem;font-size:.8rem;color:#c4b5fd">
+    ⚠️ <strong>Admin-only:</strong> API keys saved here are used globally by all users. Individual users cannot override these keys.
+</div>
+
+<div class="int-stats">
+    <div class="int-stat"><div class="val" id="intTotal">0</div><div class="lbl">Total</div></div>
+    <div class="int-stat"><div class="val" id="intOk" style="color:#10b981">0</div><div class="lbl">Configured</div></div>
+    <div class="int-stat"><div class="val" id="intMiss" style="color:#ef4444">0</div><div class="lbl">Missing</div></div>
+    <div class="int-stat"><div class="val" id="intPart" style="color:#f59e0b">0</div><div class="lbl">Partial</div></div>
+</div>
+
+<div class="int-grid" id="intGrid">
+
+<!-- 1. Primary Exchange -->
+<div class="int-card" id="card_exchange">
+    <div class="int-header" onclick="toggleCard('exchange')">
+        <div class="int-header-left">
+            <div class="int-icon" style="background:#f59e0b22;color:#f59e0b">📈</div>
+            <div><div class="int-title">Exchange API (Primary)</div><div class="int-sub">Binance, Bybit, OKX — live & paper trading</div></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:.5rem"><span class="int-badge int-miss" id="badge_exchange">NOT SET</span><span class="int-chev">▼</span></div>
+    </div>
+    <div class="int-body">
+        <div class="int-row">
+            <div class="int-fld"><label>Exchange</label><select id="int_exchange_id"><option value="binance">Binance</option><option value="bybit">Bybit</option><option value="okx">OKX</option><option value="kraken">Kraken</option><option value="kucoin">KuCoin</option><option value="bitget">Bitget</option><option value="gateio">Gate.io</option><option value="coinbasepro">Coinbase Pro</option><option value="huobi">Huobi</option><option value="mexc">MEXC</option></select></div>
+            <div class="int-fld"><label>Sandbox</label><div style="display:flex;align-items:center;gap:.4rem;padding:.2rem 0"><div class="int-toggle" id="int_exchange_sandbox" onclick="this.classList.toggle('on')"></div><span style="font-size:.75rem;color:var(--admin-muted)">Testnet mode</span></div></div>
+        </div>
+        <div class="int-row">
+            <div class="int-fld"><label>API Key</label><div class="int-pw"><input type="password" id="int_exchange_key" placeholder="Exchange API key"><button class="int-eye" onclick="togglePw(this)">👁</button></div></div>
+            <div class="int-fld"><label>API Secret</label><div class="int-pw"><input type="password" id="int_exchange_secret" placeholder="Exchange API secret"><button class="int-eye" onclick="togglePw(this)">👁</button></div></div>
+        </div>
+        <div class="int-row"><div class="int-fld"><label>Passphrase (OKX/KuCoin)</label><div class="int-pw"><input type="password" id="int_exchange_password" placeholder="Optional"><button class="int-eye" onclick="togglePw(this)">👁</button></div></div></div>
+        <div class="int-actions"><button class="int-btn int-save" onclick="saveSection('exchange')">💾 Save</button><button class="int-btn int-test" onclick="testExchange()">⚡ Test</button><button class="int-btn int-clear" onclick="clearSection('exchange')">🗑 Clear</button></div>
+    </div>
+</div>
+
+<!-- 2. Exchange Account 2 -->
+<div class="int-card" id="card_exchange2">
+    <div class="int-header" onclick="toggleCard('exchange2')">
+        <div class="int-header-left"><div class="int-icon" style="background:#3b82f622;color:#3b82f6">📊</div><div><div class="int-title">Exchange API (Account 2)</div><div class="int-sub">Secondary exchange for multi-account trading</div></div></div>
+        <div style="display:flex;align-items:center;gap:.5rem"><span class="int-badge int-miss" id="badge_exchange2">NOT SET</span><span class="int-chev">▼</span></div>
+    </div>
+    <div class="int-body">
+        <div class="int-row"><div class="int-fld"><label>Exchange</label><select id="int_exchange2_id"><option value="">— Select —</option><option value="binance">Binance</option><option value="bybit">Bybit</option><option value="okx">OKX</option><option value="kraken">Kraken</option><option value="kucoin">KuCoin</option></select></div></div>
+        <div class="int-row"><div class="int-fld"><label>API Key</label><div class="int-pw"><input type="password" id="int_exchange2_key"><button class="int-eye" onclick="togglePw(this)">👁</button></div></div><div class="int-fld"><label>API Secret</label><div class="int-pw"><input type="password" id="int_exchange2_secret"><button class="int-eye" onclick="togglePw(this)">👁</button></div></div></div>
+        <div class="int-row"><div class="int-fld"><label>Passphrase</label><div class="int-pw"><input type="password" id="int_exchange2_password" placeholder="Optional"><button class="int-eye" onclick="togglePw(this)">👁</button></div></div></div>
+        <div class="int-actions"><button class="int-btn int-save" onclick="saveSection('exchange2')">💾 Save</button><button class="int-btn int-clear" onclick="clearSection('exchange2')">🗑 Clear</button></div>
+    </div>
+</div>
+
+<!-- 3. Firebase -->
+<div class="int-card" id="card_firebase">
+    <div class="int-header" onclick="toggleCard('firebase')">
+        <div class="int-header-left"><div class="int-icon" style="background:#f4720022;color:#f47200">🔥</div><div><div class="int-title">Firebase</div><div class="int-sub">Auth, Firestore, cloud functions</div></div></div>
+        <div style="display:flex;align-items:center;gap:.5rem"><span class="int-badge int-miss" id="badge_firebase">NOT SET</span><span class="int-chev">▼</span></div>
+    </div>
+    <div class="int-body">
+        <div class="int-row"><div class="int-fld"><label>Project ID</label><input type="text" id="int_firebase_project_id" placeholder="e.g. trading-bot-f3bd5"></div><div class="int-fld"><label>API Key (Web)</label><div class="int-pw"><input type="password" id="int_firebase_api_key" placeholder="AIza..."><button class="int-eye" onclick="togglePw(this)">👁</button></div></div></div>
+        <div class="int-row"><div class="int-fld"><label>Auth Domain</label><input type="text" id="int_firebase_auth_domain" placeholder="project-id.firebaseapp.com"></div><div class="int-fld"><label>Storage Bucket</label><input type="text" id="int_firebase_storage_bucket" placeholder="project-id.firebasestorage.app"></div></div>
+        <div class="int-row"><div class="int-fld"><label>Sender ID</label><input type="text" id="int_firebase_sender_id"></div><div class="int-fld"><label>App ID</label><input type="text" id="int_firebase_app_id"></div></div>
+        <div class="int-row"><div class="int-fld"><label>Measurement ID</label><input type="text" id="int_firebase_measurement_id" placeholder="G-XXXXXXXXXX"></div></div>
+        <div class="int-fld" style="margin-top:.6rem"><label>Service Account JSON</label><div class="int-pw"><textarea id="int_firebase_sa_json" rows="3" placeholder="Paste full service_account.json..."></textarea></div><div class="hint" style="font-size:.6rem;color:var(--admin-faint)">Server-side admin access — Firebase Console → Service Accounts</div></div>
+        <div class="int-actions"><button class="int-btn int-save" onclick="saveSection('firebase')">💾 Save</button><button class="int-btn int-clear" onclick="clearSection('firebase')">🗑 Clear</button></div>
+    </div>
+</div>
+
+<!-- 4. Telegram -->
+<div class="int-card" id="card_telegram">
+    <div class="int-header" onclick="toggleCard('telegram')">
+        <div class="int-header-left"><div class="int-icon" style="background:#0088cc22;color:#0088cc">✈️</div><div><div class="int-title">Telegram Alerts</div><div class="int-sub">Trade alerts, whale notifications, bot status</div></div></div>
+        <div style="display:flex;align-items:center;gap:.5rem"><span class="int-badge int-miss" id="badge_telegram">NOT SET</span><span class="int-chev">▼</span></div>
+    </div>
+    <div class="int-body">
+        <div class="int-row"><div class="int-fld"><label>Bot Token</label><div class="int-pw"><input type="password" id="int_telegram_bot_token" placeholder="123456789:ABCdef..."><button class="int-eye" onclick="togglePw(this)">👁</button></div><div class="hint" style="font-size:.6rem;color:var(--admin-faint)">Get from @BotFather</div></div><div class="int-fld"><label>Chat ID</label><input type="text" id="int_telegram_chat_id" placeholder="-1001234567890"></div></div>
+        <div class="int-actions"><button class="int-btn int-save" onclick="saveSection('telegram')">💾 Save</button><button class="int-btn int-test" onclick="testTelegram()">⚡ Test</button><button class="int-btn int-clear" onclick="clearSection('telegram')">🗑 Clear</button></div>
+    </div>
+</div>
+
+<!-- 5. SMTP -->
+<div class="int-card" id="card_smtp">
+    <div class="int-header" onclick="toggleCard('smtp')">
+        <div class="int-header-left"><div class="int-icon" style="background:#ea384c22;color:#ea384c">📧</div><div><div class="int-title">Email / SMTP</div><div class="int-sub">Email alerts & trade reports</div></div></div>
+        <div style="display:flex;align-items:center;gap:.5rem"><span class="int-badge int-miss" id="badge_smtp">NOT SET</span><span class="int-chev">▼</span></div>
+    </div>
+    <div class="int-body">
+        <div class="int-row"><div class="int-fld"><label>SMTP Host</label><input type="text" id="int_smtp_host" placeholder="smtp.gmail.com"></div><div class="int-fld"><label>SMTP Port</label><input type="number" id="int_smtp_port" value="587"></div></div>
+        <div class="int-row"><div class="int-fld"><label>Username</label><input type="text" id="int_smtp_user" placeholder="your@email.com"></div><div class="int-fld"><label>Password</label><div class="int-pw"><input type="password" id="int_smtp_pass" placeholder="App password"><button class="int-eye" onclick="togglePw(this)">👁</button></div></div></div>
+        <div class="int-row"><div class="int-fld"><label>Alert Recipient</label><input type="email" id="int_alert_email" placeholder="alerts@yourdomain.com"></div></div>
+        <div class="int-actions"><button class="int-btn int-save" onclick="saveSection('smtp')">💾 Save</button><button class="int-btn int-test" onclick="testSmtp()">⚡ Test</button><button class="int-btn int-clear" onclick="clearSection('smtp')">🗑 Clear</button></div>
+    </div>
+</div>
+
+<!-- 6. Polymarket -->
+<div class="int-card" id="card_polymarket">
+    <div class="int-header" onclick="toggleCard('polymarket')">
+        <div class="int-header-left"><div class="int-icon" style="background:#6366f122;color:#6366f1">🎲</div><div><div class="int-title">Polymarket</div><div class="int-sub">Prediction market trading</div></div></div>
+        <div style="display:flex;align-items:center;gap:.5rem"><span class="int-badge int-miss" id="badge_polymarket">NOT SET</span><span class="int-chev">▼</span></div>
+    </div>
+    <div class="int-body">
+        <div class="int-row"><div class="int-fld"><label>Eth Private Key</label><div class="int-pw"><input type="password" id="int_poly_private_key" placeholder="0x..."><button class="int-eye" onclick="togglePw(this)">👁</button></div></div><div class="int-fld"><label>Funder Address</label><input type="text" id="int_poly_funder" placeholder="0x..."></div></div>
+        <div class="int-row"><div class="int-fld"><label>Chain ID</label><input type="number" id="int_poly_chain_id" value="137"></div><div class="int-fld"><label>Host URL</label><input type="text" id="int_poly_host" placeholder="https://clob.polymarket.com"></div></div>
+        <div class="int-actions"><button class="int-btn int-save" onclick="saveSection('polymarket')">💾 Save</button><button class="int-btn int-clear" onclick="clearSection('polymarket')">🗑 Clear</button></div>
+    </div>
+</div>
+
+<!-- 7. Railway -->
+<div class="int-card" id="card_railway">
+    <div class="int-header" onclick="toggleCard('railway')">
+        <div class="int-header-left"><div class="int-icon" style="background:#a855f722;color:#a855f7">🚂</div><div><div class="int-title">Railway Deployment</div><div class="int-sub">Cloud deployment & service management</div></div></div>
+        <div style="display:flex;align-items:center;gap:.5rem"><span class="int-badge int-miss" id="badge_railway">NOT SET</span><span class="int-chev">▼</span></div>
+    </div>
+    <div class="int-body">
+        <div class="int-row"><div class="int-fld"><label>API Token</label><div class="int-pw"><input type="password" id="int_railway_token"><button class="int-eye" onclick="togglePw(this)">👁</button></div></div><div class="int-fld"><label>Service ID</label><input type="text" id="int_railway_service_id"></div></div>
+        <div class="int-row"><div class="int-fld"><label>Environment ID</label><input type="text" id="int_railway_env_id"></div><div class="int-fld"><label>Project ID</label><input type="text" id="int_railway_project_id"></div></div>
+        <div class="int-actions"><button class="int-btn int-save" onclick="saveSection('railway')">💾 Save</button><button class="int-btn int-clear" onclick="clearSection('railway')">🗑 Clear</button></div>
+    </div>
+</div>
+
+<!-- 8. CoinGecko -->
+<div class="int-card" id="card_coingecko">
+    <div class="int-header" onclick="toggleCard('coingecko')">
+        <div class="int-header-left"><div class="int-icon" style="background:#8cc63f22;color:#8cc63f">🦎</div><div><div class="int-title">CoinGecko</div><div class="int-sub">Crypto prices & market data</div></div></div>
+        <div style="display:flex;align-items:center;gap:.5rem"><span class="int-badge int-miss" id="badge_coingecko">NOT SET</span><span class="int-chev">▼</span></div>
+    </div>
+    <div class="int-body">
+        <div class="int-row"><div class="int-fld"><label>API Key</label><div class="int-pw"><input type="password" id="int_coingecko_key" placeholder="Optional for free tier"><button class="int-eye" onclick="togglePw(this)">👁</button></div></div></div>
+        <div class="int-actions"><button class="int-btn int-save" onclick="saveSection('coingecko')">💾 Save</button><button class="int-btn int-clear" onclick="clearSection('coingecko')">🗑 Clear</button></div>
+    </div>
+</div>
+
+<!-- 9. CoinMarketCap -->
+<div class="int-card" id="card_coinmarketcap">
+    <div class="int-header" onclick="toggleCard('coinmarketcap')">
+        <div class="int-header-left"><div class="int-icon" style="background:#17804e22;color:#17804e">💹</div><div><div class="int-title">CoinMarketCap</div><div class="int-sub">Market cap rankings & metadata</div></div></div>
+        <div style="display:flex;align-items:center;gap:.5rem"><span class="int-badge int-miss" id="badge_coinmarketcap">NOT SET</span><span class="int-chev">▼</span></div>
+    </div>
+    <div class="int-body">
+        <div class="int-row"><div class="int-fld"><label>API Key</label><div class="int-pw"><input type="password" id="int_cmc_key" placeholder="CMC Pro API key"><button class="int-eye" onclick="togglePw(this)">👁</button></div></div></div>
+        <div class="int-actions"><button class="int-btn int-save" onclick="saveSection('coinmarketcap')">💾 Save</button><button class="int-btn int-clear" onclick="clearSection('coinmarketcap')">🗑 Clear</button></div>
+    </div>
+</div>
+
+<!-- 10. Gemini AI -->
+<div class="int-card" id="card_gemini">
+    <div class="int-header" onclick="toggleCard('gemini')">
+        <div class="int-header-left"><div class="int-icon" style="background:#4285f422;color:#4285f4">🧠</div><div><div class="int-title">Gemini AI (Google)</div><div class="int-sub">AI copilot, trade analysis, sentiment</div></div></div>
+        <div style="display:flex;align-items:center;gap:.5rem"><span class="int-badge int-miss" id="badge_gemini">NOT SET</span><span class="int-chev">▼</span></div>
+    </div>
+    <div class="int-body">
+        <div class="int-row"><div class="int-fld"><label>API Key</label><div class="int-pw"><input type="password" id="int_gemini_key" placeholder="Gemini API key"><button class="int-eye" onclick="togglePw(this)">👁</button></div></div><div class="int-fld"><label>Model</label><select id="int_gemini_model"><option value="gemini-pro">Gemini Pro</option><option value="gemini-1.5-pro">Gemini 1.5 Pro</option><option value="gemini-1.5-flash">Gemini 1.5 Flash</option><option value="gemini-2.0-flash">Gemini 2.0 Flash</option></select></div></div>
+        <div class="int-actions"><button class="int-btn int-save" onclick="saveSection('gemini')">💾 Save</button><button class="int-btn int-clear" onclick="clearSection('gemini')">🗑 Clear</button></div>
+    </div>
+</div>
+
+<!-- 11. OpenAI -->
+<div class="int-card" id="card_openai">
+    <div class="int-header" onclick="toggleCard('openai')">
+        <div class="int-header-left"><div class="int-icon" style="background:#00a67e22;color:#00a67e">🤖</div><div><div class="int-title">OpenAI</div><div class="int-sub">GPT analysis & strategy generation</div></div></div>
+        <div style="display:flex;align-items:center;gap:.5rem"><span class="int-badge int-miss" id="badge_openai">NOT SET</span><span class="int-chev">▼</span></div>
+    </div>
+    <div class="int-body">
+        <div class="int-row"><div class="int-fld"><label>API Key</label><div class="int-pw"><input type="password" id="int_openai_key" placeholder="sk-..."><button class="int-eye" onclick="togglePw(this)">👁</button></div></div><div class="int-fld"><label>Model</label><select id="int_openai_model"><option value="gpt-4o">GPT-4o</option><option value="gpt-4o-mini">GPT-4o Mini</option><option value="gpt-4-turbo">GPT-4 Turbo</option><option value="gpt-3.5-turbo">GPT-3.5 Turbo</option></select></div></div>
+        <div class="int-actions"><button class="int-btn int-save" onclick="saveSection('openai')">💾 Save</button><button class="int-btn int-clear" onclick="clearSection('openai')">🗑 Clear</button></div>
+    </div>
+</div>
+
+<!-- 12. Tradier -->
+<div class="int-card" id="card_tradier">
+    <div class="int-header" onclick="toggleCard('tradier')">
+        <div class="int-header-left"><div class="int-icon" style="background:#1a8a4622;color:#1a8a46">📉</div><div><div class="int-title">Tradier</div><div class="int-sub">US stocks & options, real-time data</div></div></div>
+        <div style="display:flex;align-items:center;gap:.5rem"><span class="int-badge int-miss" id="badge_tradier">NOT SET</span><span class="int-chev">▼</span></div>
+    </div>
+    <div class="int-body">
+        <div class="int-row"><div class="int-fld"><label>Access Token</label><div class="int-pw"><input type="password" id="int_tradier_token"><button class="int-eye" onclick="togglePw(this)">👁</button></div></div><div class="int-fld"><label>Account ID</label><input type="text" id="int_tradier_account"></div></div>
+        <div class="int-row"><div class="int-fld"><label>Environment</label><select id="int_tradier_env"><option value="sandbox">Sandbox</option><option value="production">Production</option></select></div></div>
+        <div class="int-actions"><button class="int-btn int-save" onclick="saveSection('tradier')">💾 Save</button><button class="int-btn int-clear" onclick="clearSection('tradier')">🗑 Clear</button></div>
+    </div>
+</div>
+
+<!-- 13. Stripe -->
+<div class="int-card" id="card_stripe">
+    <div class="int-header" onclick="toggleCard('stripe')">
+        <div class="int-header-left"><div class="int-icon" style="background:#635bff22;color:#635bff">💳</div><div><div class="int-title">Stripe Payments</div><div class="int-sub">Subscriptions & premium features</div></div></div>
+        <div style="display:flex;align-items:center;gap:.5rem"><span class="int-badge int-miss" id="badge_stripe">NOT SET</span><span class="int-chev">▼</span></div>
+    </div>
+    <div class="int-body">
+        <div class="int-row"><div class="int-fld"><label>Publishable Key</label><div class="int-pw"><input type="password" id="int_stripe_pk" placeholder="pk_live_... or pk_test_..."><button class="int-eye" onclick="togglePw(this)">👁</button></div></div><div class="int-fld"><label>Secret Key</label><div class="int-pw"><input type="password" id="int_stripe_sk" placeholder="sk_live_... or sk_test_..."><button class="int-eye" onclick="togglePw(this)">👁</button></div></div></div>
+        <div class="int-row"><div class="int-fld"><label>Webhook Secret</label><div class="int-pw"><input type="password" id="int_stripe_webhook" placeholder="whsec_..."><button class="int-eye" onclick="togglePw(this)">👁</button></div></div></div>
+        <div class="int-actions"><button class="int-btn int-save" onclick="saveSection('stripe')">💾 Save</button><button class="int-btn int-clear" onclick="clearSection('stripe')">🗑 Clear</button></div>
+    </div>
+</div>
+
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script>
+function toggleCard(id){document.getElementById('card_'+id).classList.toggle('open')}
+
+/* ── Section definitions — ADMIN uses admin_config collection ── */
+const SECTIONS={
+    exchange:{fields:['exchange_id','exchange_key','exchange_secret','exchange_password'],toggles:['exchange_sandbox'],required:['exchange_key','exchange_secret']},
+    exchange2:{fields:['exchange2_id','exchange2_key','exchange2_secret','exchange2_password'],required:['exchange2_key','exchange2_secret']},
+    firebase:{fields:['firebase_project_id','firebase_api_key','firebase_auth_domain','firebase_storage_bucket','firebase_sender_id','firebase_app_id','firebase_measurement_id'],textareas:['firebase_sa_json'],required:['firebase_project_id','firebase_api_key']},
+    telegram:{fields:['telegram_bot_token','telegram_chat_id'],required:['telegram_bot_token','telegram_chat_id']},
+    smtp:{fields:['smtp_host','smtp_port','smtp_user','smtp_pass','alert_email'],required:['smtp_host','smtp_user','smtp_pass']},
+    polymarket:{fields:['poly_private_key','poly_funder','poly_chain_id','poly_host'],required:['poly_private_key']},
+    railway:{fields:['railway_token','railway_service_id','railway_env_id','railway_project_id'],required:['railway_token']},
+    coingecko:{fields:['coingecko_key'],required:[]},
+    coinmarketcap:{fields:['cmc_key'],required:['cmc_key']},
+    gemini:{fields:['gemini_key','gemini_model'],required:['gemini_key']},
+    openai:{fields:['openai_key','openai_model'],required:['openai_key']},
+    tradier:{fields:['tradier_token','tradier_account','tradier_env'],required:['tradier_token']},
+    stripe:{fields:['stripe_pk','stripe_sk','stripe_webhook'],required:['stripe_pk','stripe_sk']}
+};
+
+function getVal(id){const el=document.getElementById('int_'+id);if(!el)return '';return el.value||''}
+function setVal(id,val){const el=document.getElementById('int_'+id);if(el)el.value=val||''}
+
+function collectSection(name){
+    const sec=SECTIONS[name];const data={};
+    (sec.fields||[]).forEach(f=>data[f]=getVal(f));
+    (sec.textareas||[]).forEach(f=>data[f]=getVal(f));
+    if(sec.toggles){sec.toggles.forEach(t=>{data[t]=document.getElementById('int_'+t)?.classList.contains('on')||false})}
+    return data;
+}
+function populateSection(name,data){
+    if(!data)return;const sec=SECTIONS[name];
+    (sec.fields||[]).forEach(f=>setVal(f,data[f]));
+    (sec.textareas||[]).forEach(f=>setVal(f,data[f]));
+    if(sec.toggles){sec.toggles.forEach(t=>{const el=document.getElementById('int_'+t);if(el&&data[t])el.classList.add('on');else if(el)el.classList.remove('on')})}
+}
+
+/* ── ADMIN saves to admin_config/{section} (global, not per-user) ── */
+async function saveSection(name){
+    const db=getFS();if(!db){admToast('Firebase not ready','error');return}
+    const data=collectSection(name);
+    data.updatedAt=new Date().toISOString();
+    data.updatedBy=getUID();
+    await db.collection('admin_config').doc(name).set(data,{merge:true});
+    admToast(name+' saved!','success');
+    updateBadge(name);updateStats();
+    try{await fetch('/api/integrations/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({section:name,data:data,uid:getUID(),admin:true})})}catch(e){}
+}
+
+async function clearSection(name){
+    if(!confirm('Clear all '+name+' credentials?'))return;
+    const sec=SECTIONS[name];
+    (sec.fields||[]).forEach(f=>setVal(f,''));(sec.textareas||[]).forEach(f=>setVal(f,''));
+    if(sec.toggles)sec.toggles.forEach(t=>{const el=document.getElementById('int_'+t);if(el)el.classList.remove('on')});
+    const db=getFS();if(db)await db.collection('admin_config').doc(name).delete();
+    updateBadge(name);updateStats();admToast(name+' cleared','success');
+}
+
+async function loadAll(){
+    const db=getFS();if(!db)return;
+    const snap=await db.collection('admin_config').get();
+    snap.forEach(doc=>{const name=doc.id;if(SECTIONS[name])populateSection(name,doc.data())});
+    Object.keys(SECTIONS).forEach(s=>updateBadge(s));updateStats();
+}
+
+function updateBadge(name){
+    const sec=SECTIONS[name];const badge=document.getElementById('badge_'+name);if(!badge)return;
+    const req=sec.required||[];
+    if(!req.length){const any=(sec.fields||[]).some(f=>getVal(f));badge.textContent=any?'CONFIGURED':'OPTIONAL';badge.className='int-badge '+(any?'int-ok':'int-part');return}
+    const filled=req.filter(f=>getVal(f)).length;
+    if(filled===0){badge.textContent='NOT SET';badge.className='int-badge int-miss'}
+    else if(filled===req.length){badge.textContent='CONFIGURED';badge.className='int-badge int-ok'}
+    else{badge.textContent='PARTIAL';badge.className='int-badge int-part'}
+}
+function updateStats(){
+    let total=0,ok=0,miss=0,part=0;
+    Object.keys(SECTIONS).forEach(s=>{total++;const b=document.getElementById('badge_'+s);if(!b)return;const t=b.textContent;if(t==='CONFIGURED')ok++;else if(t==='NOT SET')miss++;else if(t==='PARTIAL')part++;else ok++});
+    document.getElementById('intTotal').textContent=total;document.getElementById('intOk').textContent=ok;
+    document.getElementById('intMiss').textContent=miss;document.getElementById('intPart').textContent=part;
+}
+
+/* ── Test buttons ── */
+async function testExchange(){
+    const key=getVal('exchange_key'),secret=getVal('exchange_secret');
+    if(!key||!secret){admToast('Enter API key & secret first','error');return}
+    try{const r=await fetch('/api/integrations/test_exchange',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({exchange:getVal('exchange_id'),key,secret,password:getVal('exchange_password'),sandbox:document.getElementById('int_exchange_sandbox')?.classList.contains('on')})});const j=await r.json();admToast(j.ok?'Connected! Balance: $'+(j.balance||0).toFixed(2):'Error: '+j.error,j.ok?'success':'error')}catch(e){admToast('Failed: '+e.message,'error')}
+}
+async function testTelegram(){
+    const token=getVal('telegram_bot_token'),chatId=getVal('telegram_chat_id');
+    if(!token||!chatId){admToast('Enter bot token & chat ID','error');return}
+    try{const r=await fetch('/api/integrations/test_telegram',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,chatId})});const j=await r.json();admToast(j.ok?'Test message sent!':'Error: '+j.error,j.ok?'success':'error')}catch(e){admToast('Failed: '+e.message,'error')}
+}
+async function testSmtp(){
+    const host=getVal('smtp_host'),user=getVal('smtp_user'),pass=getVal('smtp_pass');
+    if(!host||!user||!pass){admToast('Fill SMTP host, user & password','error');return}
+    try{const r=await fetch('/api/integrations/test_smtp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({host,port:getVal('smtp_port'),user,pass,email:getVal('alert_email')||user})});const j=await r.json();admToast(j.ok?'Test email sent!':'Error: '+j.error,j.ok?'success':'error')}catch(e){admToast('Failed: '+e.message,'error')}
+}
+
+document.addEventListener('DOMContentLoaded',()=>{Object.keys(SECTIONS).forEach(s=>updateBadge(s));updateStats();setTimeout(loadAll,1500)});
+</script>
+{% endblock %}
