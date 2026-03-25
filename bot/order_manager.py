@@ -41,16 +41,18 @@ class OrderManager:
         self.active_orders: dict[str, ManagedOrder] = {}
 
     def place_order(
-        self, symbol: str, side: str, price: float, amount: float
+        self, symbol: str, side: str, price: float, amount: float,
+        use_market: bool = False,
     ) -> ManagedOrder | None:
         """
-        Place a limit order after cancelling existing orders for this symbol.
-        
+        Place an order after cancelling existing orders for this symbol.
+
         Args:
             symbol: Trading pair (e.g. 'BTC/USDT')
             side: 'buy' or 'sell'
-            price: Limit price
+            price: Limit price (ignored when use_market=True)
             amount: Amount in base currency
+            use_market: If True, place a market order for instant fill
         Returns:
             ManagedOrder if successful, None if failed
         """
@@ -59,25 +61,37 @@ class OrderManager:
 
         try:
             # Round to exchange precision
-            price = self.client.price_to_precision(symbol, price)
             amount = self.client.amount_to_precision(symbol, amount)
 
-            response = self.client.place_limit_order(
-                symbol=symbol,
-                side=side,
-                price=price,
-                amount=amount,
-            )
+            if use_market:
+                response = self.client.place_market_order(
+                    symbol=symbol,
+                    side=side,
+                    amount=amount,
+                )
+                fill_price = float(response.get("average", response.get("price", price)) or price)
+            else:
+                price = self.client.price_to_precision(symbol, price)
+                response = self.client.place_limit_order(
+                    symbol=symbol,
+                    side=side,
+                    price=price,
+                    amount=amount,
+                )
+                fill_price = price
 
             order_id = response.get("id", "unknown")
+            status = response.get("status", "open")
             order = ManagedOrder(
                 order_id=order_id,
                 symbol=symbol,
                 side=side.upper(),
-                price=price,
+                price=fill_price,
                 amount=amount,
-                cost=price * amount,
+                cost=fill_price * amount,
+                status="filled" if status == "closed" else "open",
                 placed_at=datetime.utcnow().isoformat(),
+                filled_at=datetime.utcnow().isoformat() if status == "closed" else "",
             )
             self.active_orders[order_id] = order
             logger.info(

@@ -79,12 +79,15 @@ class Trader:
         # Bot holds and waits for BOTH RSI > 70 AND price >= avg_entry
         # before executing the sell. Never uses margin or leverage.
         self._waiting_for_profit: bool = False
+        # Use market orders on short timeframes to guarantee fills.
+        self._use_market = self.timeframe in ("1m", "5m", "15m")
 
         logger.info(
             "Trader initialized: strategy=%s, symbol=%s, size=$%.2f, "
-            "exchange=%s, account=%s",
+            "exchange=%s, account=%s, order_type=%s",
             strategy_name, self.symbol, self.position_size_usd,
             self.account.exchange_id, account_name,
+            "MARKET" if self._use_market else "LIMIT",
         )
 
     def run(self):
@@ -205,6 +208,7 @@ class Trader:
                     side="sell",
                     price=self.client.price_to_precision(self.symbol, exit_price),
                     amount=amount,
+                    use_market=self._use_market,
                 )
 
         # 4. Get strategy signal
@@ -246,6 +250,7 @@ class Trader:
                     side="sell",
                     price=self.client.price_to_precision(self.symbol, current_price),
                     amount=amount,
+                    use_market=self._use_market,
                 )
                 self._waiting_for_profit = False
             elif at_above_70 and pnl < 0:
@@ -291,6 +296,7 @@ class Trader:
                 side="buy",
                 price=order_price,
                 amount=amount,
+                use_market=self._use_market,
             )
             self.storage.record_trade(
                 strategy=self.strategy_name,
@@ -339,6 +345,7 @@ class Trader:
                 side="buy",
                 price=order_price,
                 amount=amount,
+                use_market=self._use_market,
             )
             self.storage.record_trade(
                 strategy=self.strategy_name,
@@ -370,6 +377,7 @@ class Trader:
                     side="sell",
                     price=order_price,
                     amount=amount,
+                    use_market=self._use_market,
                 )
             else:
                 # RSI > 70 but trade is in loss — engage profit-lock and wait

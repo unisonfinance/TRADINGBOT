@@ -163,9 +163,10 @@ class RSISwingStrategy(BaseStrategy):
         """
         df = self._add_rsi(df)
 
-        # Replay state to current candle exactly like generate_signals
+        # Replay state up to (but NOT including) the last candle so the
+        # final signal evaluation sees the correct pre-last-bar state.
         state = 0
-        for i in range(self.rsi_period, len(df)):
+        for i in range(self.rsi_period, len(df) - 1):
             rsi_val = df.iloc[i]["rsi"]
             if pd.isna(rsi_val):
                 continue
