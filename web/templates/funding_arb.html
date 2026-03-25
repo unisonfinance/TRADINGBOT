@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% block title %}TrekBot — Funding Rate Arbitrage{% endblock %}
+{% block page_title %}💸 Funding Rate Arbitrage{% endblock %}
+{% block content %}
+<style>
+.fr-stat-row{display:flex;gap:.8rem;flex-wrap:wrap;margin-bottom:1.2rem}
+.fr-stat{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:.8rem 1.2rem;flex:1;min-width:160px;text-align:center}
+.fr-stat .val{font-size:1.3rem;font-weight:700;color:var(--text-primary)}
+.fr-stat .lbl{font-size:.7rem;color:var(--text-muted);margin-top:.2rem}
+.fr-card{background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:1.4rem;margin-bottom:1.2rem}
+.fr-card h3{margin:0 0 .8rem;font-size:1rem;color:var(--text-primary);display:flex;align-items:center;gap:.5rem}
+.fr-table{width:100%;border-collapse:collapse}
+.fr-table th{font-size:.7rem;text-transform:uppercase;color:var(--text-muted);padding:.5rem .6rem;border-bottom:1px solid var(--border);text-align:center;position:sticky;top:0;background:var(--bg-card)}
+.fr-table td{padding:.6rem;text-align:center;font-size:.8rem;border-bottom:1px solid var(--border-light);color:var(--text-secondary)}
+.fr-pos{color:#10b981;font-weight:600}.fr-neg{color:#e63946;font-weight:600}
+.fr-arb-card{background:linear-gradient(135deg,var(--bg-card),var(--bg-secondary));border:2px solid #10b98133;border-radius:14px;padding:1.2rem;margin-bottom:.8rem;display:flex;align-items:center;gap:1rem}
+.fr-arb-card:hover{border-color:#10b98166}
+.fr-arb-yield{font-size:1.6rem;font-weight:800;color:#10b981;min-width:80px;text-align:center}
+.fr-arb-body{flex:1}
+.fr-arb-title{font-weight:700;color:var(--text-primary);font-size:.9rem}
+.fr-arb-sub{font-size:.75rem;color:var(--text-muted);margin-top:.2rem}
+.fr-arb-action{background:linear-gradient(135deg,#10b981,#059669);color:#fff;border:none;border-radius:8px;padding:.5rem 1rem;cursor:pointer;font-weight:600;font-size:.8rem}
+.fr-config{display:flex;gap:.8rem;align-items:center;flex-wrap:wrap;margin-bottom:1.2rem}
+.fr-config select{background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:.5rem .8rem;color:var(--text-primary);font-size:.85rem}
+.fr-config button{background:linear-gradient(135deg,#8b5cf6,#a855f7);color:#fff;border:none;border-radius:8px;padding:.5rem 1.2rem;cursor:pointer;font-weight:600;font-size:.85rem}
+.fr-exchange-badge{display:inline-block;padding:2px 8px;border-radius:6px;font-size:.65rem;font-weight:600;background:var(--bg-secondary);color:var(--text-muted);border:1px solid var(--border-light)}
+.fr-spread-bar{height:8px;border-radius:4px;background:var(--bg-secondary);overflow:hidden;margin-top:.3rem}
+.fr-spread-fill{height:100%;border-radius:4px}
+@media(max-width:768px){.fr-arb-card{flex-direction:column;text-align:center}}
+</style>
+
+<div class="fr-config">
+    <select id="frCoin"><option value="BTC">BTC</option><option value="ETH">ETH</option><option value="SOL">SOL</option><option value="XRP">XRP</option><option value="ALL" selected>ALL COINS</option></select>
+    <button onclick="loadFundingRates()">📊 Refresh Rates</button>
+    <button onclick="saveFrWatchlist()" style="background:linear-gradient(135deg,#10b981,#059669)">💾 Save Watchlist</button>
+</div>
+
+<div class="fr-stat-row">
+    <div class="fr-stat"><div class="val" id="frBestYield" style="color:#10b981">—</div><div class="lbl">Best Arb Yield (8h)</div></div>
+    <div class="fr-stat"><div class="val" id="frAvgRate">—</div><div class="lbl">Avg Funding Rate</div></div>
+    <div class="fr-stat"><div class="val" id="frOpps">0</div><div class="lbl">Live Opportunities</div></div>
+    <div class="fr-stat"><div class="val" id="frAnnual" style="color:#10b981">—</div><div class="lbl">Best Annual Yield</div></div>
+</div>
+
+<!-- Arbitrage Opportunities -->
+<div class="fr-card">
+    <h3>🎯 Top Arbitrage Opportunities <span style="font-size:.65rem;color:#10b981;margin-left:auto">Sorted by yield</span></h3>
+    <div id="frOpportunities">
+        <div style="text-align:center;padding:2rem;color:var(--text-muted)">Click "Refresh Rates" to find opportunities</div>
+    </div>
+</div>
+
+<!-- Rate Comparison Table -->
+<div class="fr-card">
+    <h3>📊 Funding Rates Across Exchanges</h3>
+    <div style="overflow-x:auto">
+        <table class="fr-table">
+            <thead><tr><th>Coin</th><th>Binance</th><th>Bybit</th><th>OKX</th><th>Bitget</th><th>KuCoin</th><th>Gate.io</th><th>Spread</th></tr></thead>
+            <tbody id="frRatesTable">
+                <tr><td colspan="8" style="color:var(--text-muted);padding:2rem">No data loaded</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Saved Watchlist (Firestore) -->
+<div class="fr-card">
+    <h3>⭐ My Funding Rate Watchlist <span style="font-size:.65rem;color:var(--text-muted);margin-left:auto">🔥 Firestore</span></h3>
+    <div id="frWatchlist" style="max-height:300px;overflow-y:auto">
+        <div style="text-align:center;padding:2rem;color:var(--text-muted)">No watchlist items</div>
+    </div>
+</div>
+
+<script>
+const EXCHANGES=['Binance','Bybit','OKX','Bitget','KuCoin','Gate.io'];
+function fmtRate(r){if(r===null||r===undefined)return '—';const v=(r*100).toFixed(4);return (r>=0?'+':'')+v+'%'}
+function rateClass(r){return r>0?'fr-pos':r<0?'fr-neg':''}
+
+async function loadFundingRates(){
+    const coin=document.getElementById('frCoin').value;
+    try{
+        const r=await fetch('/api/funding_rates',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({coin})});
+        const d=await r.json();
+        if(d.error){alert(d.error);return}
+        renderOpportunities(d.opportunities||[]);
+        renderRatesTable(d.rates||[]);
+        renderFrStats(d);
+    }catch(e){console.error(e)}
+}
+
+function renderOpportunities(opps){
+    const el=document.getElementById('frOpportunities');
+    if(!opps.length){el.innerHTML='<div style="text-align:center;padding:2rem;color:var(--text-muted)">No arbitrage opportunities found</div>';return}
+    document.getElementById('frOpps').textContent=opps.length;
+    el.innerHTML=opps.slice(0,10).map(o=>`<div class="fr-arb-card">
+        <div class="fr-arb-yield">${fmtRate(o.spread)}</div>
+        <div class="fr-arb-body">
+            <div class="fr-arb-title">${o.coin}/USDT — Short <span class="fr-exchange-badge">${o.short_exchange}</span> Long <span class="fr-exchange-badge">${o.long_exchange}</span></div>
+            <div class="fr-arb-sub">Short rate: ${fmtRate(o.short_rate)} · Long rate: ${fmtRate(o.long_rate)} · Est. annual: <strong style="color:#10b981">${((o.spread||0)*100*3*365).toFixed(1)}%</strong></div>
+            <div class="fr-spread-bar"><div class="fr-spread-fill" style="width:${Math.min(o.spread*1000*100,100)}%;background:linear-gradient(90deg,#10b981,#3b82f6)"></div></div>
+        </div>
+        <button class="fr-arb-action" onclick="saveFrOpp('${o.coin}','${o.short_exchange}','${o.long_exchange}',${o.spread})">⭐ Watch</button>
+    </div>`).join('');
+}
+
+function renderRatesTable(rates){
+    const tb=document.getElementById('frRatesTable');
+    if(!rates.length){tb.innerHTML='<tr><td colspan="8" style="color:var(--text-muted);padding:2rem">No data</td></tr>';return}
+    tb.innerHTML=rates.map(r=>{
+        const vals=EXCHANGES.map(ex=>r.rates[ex]!==undefined?r.rates[ex]:null);
+        const valid=vals.filter(v=>v!==null);
+        const spread=valid.length>=2?Math.max(...valid)-Math.min(...valid):0;
+        return `<tr>
+            <td style="font-weight:600">${r.coin}</td>
+            ${vals.map(v=>`<td class="${rateClass(v)}">${fmtRate(v)}</td>`).join('')}
+            <td style="font-weight:700;color:${spread>0.0005?'#10b981':'var(--text-muted)'}">${fmtRate(spread)}</td>
+        </tr>`}).join('');
+}
+
+function renderFrStats(d){
+    document.getElementById('frBestYield').textContent=fmtRate(d.best_spread||0);
+    document.getElementById('frAvgRate').textContent=fmtRate(d.avg_rate||0);
+    document.getElementById('frAnnual').textContent=((d.best_spread||0)*100*3*365).toFixed(1)+'%';
+}
+
+/* ── Firestore ── */
+function getFS(){if(typeof firebase!=='undefined'&&firebase.firestore)return firebase.firestore();return null}
+function getUID(){if(typeof firebase!=='undefined'&&firebase.auth&&firebase.auth().currentUser)return firebase.auth().currentUser.uid;return 'anon'}
+
+async function saveFrOpp(coin,shortEx,longEx,spread){
+    const db=getFS();if(!db)return;
+    const uid=getUID();
+    await db.collection('users').doc(uid).collection('fr_watchlist').add({coin,shortEx,longEx,spread,savedAt:new Date().toISOString()});
+    showToast&&showToast('Added to watchlist!','success');
+    loadFrWatchlist();
+}
+
+async function saveFrWatchlist(){
+    showToast&&showToast('Watchlist auto-saves when you click ⭐','info');
+}
+
+async function loadFrWatchlist(){
+    const db=getFS();if(!db)return;
+    const uid=getUID();
+    const snap=await db.collection('users').doc(uid).collection('fr_watchlist').orderBy('savedAt','desc').limit(20).get();
+    const el=document.getElementById('frWatchlist');
+    if(snap.empty){el.innerHTML='<div style="text-align:center;padding:1rem;color:var(--text-muted)">No watchlist items</div>';return}
+    el.innerHTML='';
+    snap.forEach(doc=>{
+        const w=doc.data();
+        el.innerHTML+=`<div style="display:flex;align-items:center;gap:.8rem;padding:.5rem 0;border-bottom:1px solid var(--border-light)">
+            <span>⭐</span>
+            <span style="font-weight:600;color:var(--text-primary);min-width:60px">${w.coin}</span>
+            <span style="font-size:.75rem;color:var(--text-muted)">Short ${w.shortEx} / Long ${w.longEx}</span>
+            <span style="font-weight:700;color:#10b981;margin-left:auto">${fmtRate(w.spread)}</span>
+            <button onclick="deleteFrWatch('${doc.id}');this.closest('div').remove()" style="background:none;border:none;cursor:pointer;color:var(--red)">🗑️</button>
+        </div>`;
+    });
+}
+
+async function deleteFrWatch(id){const db=getFS();if(!db)return;await db.collection('users').doc(getUID()).collection('fr_watchlist').doc(id).delete()}
+
+document.addEventListener('DOMContentLoaded',()=>{setTimeout(loadFrWatchlist,1500)});
+</script>
+{% endblock %}

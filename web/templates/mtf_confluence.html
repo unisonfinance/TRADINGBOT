@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+{% block title %}TrekBot — MTF Confluence Scorer{% endblock %}
+{% block page_title %}📡 Multi-Timeframe Confluence{% endblock %}
+{% block content %}
+<style>
+.mtf-stat-row{display:flex;gap:.8rem;flex-wrap:wrap;margin-bottom:1.2rem}
+.mtf-stat{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:.8rem 1.2rem;flex:1;min-width:150px;text-align:center}
+.mtf-stat .val{font-size:1.4rem;font-weight:700;color:var(--text-primary)}
+.mtf-stat .lbl{font-size:.7rem;color:var(--text-muted);margin-top:.2rem}
+.mtf-card{background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:1.4rem;margin-bottom:1.2rem}
+.mtf-card h3{margin:0 0 .8rem;font-size:1rem;color:var(--text-primary);display:flex;align-items:center;gap:.5rem}
+.mtf-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.2rem;margin-bottom:1.2rem}
+.mtf-config{display:flex;gap:.8rem;align-items:center;flex-wrap:wrap;margin-bottom:1.2rem}
+.mtf-config select,.mtf-config input{background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:.5rem .8rem;color:var(--text-primary);font-size:.85rem}
+.mtf-config button{background:linear-gradient(135deg,#8b5cf6,#a855f7);color:#fff;border:none;border-radius:8px;padding:.5rem 1.2rem;cursor:pointer;font-weight:600;font-size:.85rem}
+/* Score gauge */
+.mtf-gauge{width:180px;height:180px;margin:0 auto 1rem;position:relative}
+.mtf-gauge svg{transform:rotate(-90deg)}
+.mtf-gauge .track{fill:none;stroke:var(--border);stroke-width:12}
+.mtf-gauge .bar{fill:none;stroke-width:12;stroke-linecap:round;transition:stroke-dashoffset .8s,stroke .3s}
+.mtf-gauge-val{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center}
+.mtf-gauge-num{font-size:2.8rem;font-weight:800;color:var(--text-primary)}
+.mtf-gauge-lbl{font-size:.7rem;color:var(--text-muted)}
+/* Matrix */
+.mtf-matrix{width:100%;border-collapse:collapse}
+.mtf-matrix th{font-size:.65rem;text-transform:uppercase;color:var(--text-muted);padding:.4rem .5rem;border-bottom:1px solid var(--border);text-align:center}
+.mtf-matrix td{padding:.4rem .5rem;text-align:center;font-size:.75rem;border-bottom:1px solid var(--border-light)}
+.mtf-bull{background:#10b98122;color:#10b981;font-weight:600;border-radius:4px}.mtf-bear{background:#e6394622;color:#e63946;font-weight:600;border-radius:4px}
+.mtf-neutral{background:var(--bg-secondary);color:var(--text-muted);border-radius:4px}
+/* Signal cards */
+.mtf-signal-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:.8rem;margin-top:.8rem}
+.mtf-signal{background:var(--bg-secondary);border:1px solid var(--border-light);border-radius:10px;padding:.8rem;text-align:center;transition:transform .2s}
+.mtf-signal:hover{transform:translateY(-2px)}
+.mtf-signal-coin{font-weight:700;font-size:1rem;color:var(--text-primary)}
+.mtf-signal-score{font-size:1.8rem;font-weight:800;margin:.3rem 0}
+.mtf-signal-verdict{font-size:.7rem;font-weight:600;padding:2px 8px;border-radius:6px;display:inline-block}
+.mtf-buy-v{background:#10b98122;color:#10b981}.mtf-sell-v{background:#e6394622;color:#e63946}.mtf-hold-v{background:#f59e0b22;color:#f59e0b}
+@media(max-width:768px){.mtf-grid{grid-template-columns:1fr}}
+</style>
+
+<div class="mtf-config">
+    <select id="mtfCoin"><option value="BTC/USDT">BTC/USDT</option><option value="ETH/USDT">ETH/USDT</option><option value="SOL/USDT">SOL/USDT</option><option value="ALL">SCAN ALL</option></select>
+    <label style="font-size:.8rem;color:var(--text-muted)">Min Score</label>
+    <input type="number" id="mtfMinScore" value="70" min="0" max="100" style="width:60px">
+    <button onclick="runMtfScan()">📡 Scan Now</button>
+    <button onclick="saveMtfConfig()" style="background:linear-gradient(135deg,#10b981,#059669)">💾 Save Config</button>
+</div>
+
+<div class="mtf-stat-row">
+    <div class="mtf-stat"><div class="val" id="mtfTopScore" style="color:#10b981">—</div><div class="lbl">Highest Score</div></div>
+    <div class="mtf-stat"><div class="val" id="mtfBullish">0</div><div class="lbl">Bullish Signals</div></div>
+    <div class="mtf-stat"><div class="val" id="mtfBearish">0</div><div class="lbl">Bearish Signals</div></div>
+    <div class="mtf-stat"><div class="val" id="mtfConfluence">—</div><div class="lbl">Avg Confluence</div></div>
+</div>
+
+<div class="mtf-grid">
+    <!-- Score Gauge -->
+    <div class="mtf-card" style="text-align:center">
+        <h3 style="justify-content:center">🎯 Confluence Score</h3>
+        <div class="mtf-gauge">
+            <svg width="180" height="180" viewBox="0 0 180 180">
+                <circle class="track" cx="90" cy="90" r="76"/>
+                <circle class="bar" id="mtfGaugeBar" cx="90" cy="90" r="76" stroke-dasharray="478" stroke-dashoffset="478"/>
+            </svg>
+            <div class="mtf-gauge-val">
+                <div class="mtf-gauge-num" id="mtfGaugeNum">—</div>
+                <div class="mtf-gauge-lbl">/ 100</div>
+            </div>
+        </div>
+        <div id="mtfGaugeVerdict" style="font-weight:700;font-size:1.1rem;color:var(--text-muted)">Run scan to see score</div>
+    </div>
+
+    <!-- Timeframe × Indicator Matrix -->
+    <div class="mtf-card">
+        <h3>📊 Signal Matrix</h3>
+        <div style="overflow-x:auto">
+            <table class="mtf-matrix">
+                <thead><tr><th></th><th>5m</th><th>15m</th><th>1h</th><th>4h</th><th>1d</th></tr></thead>
+                <tbody id="mtfMatrix">
+                    <tr><td colspan="6" style="color:var(--text-muted);padding:2rem">No data</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Multi-Coin Signal Cards -->
+<div class="mtf-card">
+    <h3>🪙 All Coin Scores</h3>
+    <div class="mtf-signal-row" id="mtfSignalCards">
+        <div style="text-align:center;padding:2rem;color:var(--text-muted);grid-column:1/-1">Scan to see all coin scores</div>
+    </div>
+</div>
+
+<!-- Saved Scans (Firestore) -->
+<div class="mtf-card">
+    <h3>📜 Scan History <span style="font-size:.65rem;color:var(--text-muted);margin-left:auto">🔥 Firestore</span></h3>
+    <div id="mtfHistory" style="max-height:250px;overflow-y:auto">
+        <div style="text-align:center;padding:1rem;color:var(--text-muted)">No scan history</div>
+    </div>
+</div>
+
+<script>
+const INDICATORS=['RSI','MACD','EMA Cross','Stoch RSI','Supertrend'];
+const TIMEFRAMES=['5m','15m','1h','4h','1d'];
+
+function scoreColor(s){return s>=70?'#10b981':s>=40?'#f59e0b':'#e63946'}
+
+async function runMtfScan(){
+    const coin=document.getElementById('mtfCoin').value;
+    const minScore=parseInt(document.getElementById('mtfMinScore').value)||70;
+    document.getElementById('mtfGaugeNum').textContent='...';
+    try{
+        const r=await fetch('/api/mtf_confluence',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({symbol:coin,min_score:minScore})});
+        const d=await r.json();
+        if(d.error){alert(d.error);return}
+        renderMtfResults(d);
+        saveMtfScan(d);
+    }catch(e){console.error(e)}
+}
+
+function renderMtfResults(d){
+    // Gauge
+    const score=d.score||0;
+    const bar=document.getElementById('mtfGaugeBar');
+    bar.style.strokeDashoffset=478-(478*score/100);
+    bar.style.stroke=scoreColor(score);
+    document.getElementById('mtfGaugeNum').textContent=score;
+    const vEl=document.getElementById('mtfGaugeVerdict');
+    if(score>=80){vEl.textContent='🟢 STRONG BUY';vEl.style.color='#10b981'}
+    else if(score>=60){vEl.textContent='🟡 LEAN BULLISH';vEl.style.color='#f59e0b'}
+    else if(score>=40){vEl.textContent='⚪ NEUTRAL';vEl.style.color='var(--text-muted)'}
+    else{vEl.textContent='🔴 BEARISH';vEl.style.color='#e63946'}
+
+    // Stats
+    let bulls=0,bears=0;
+    document.getElementById('mtfTopScore').textContent=score;
+    document.getElementById('mtfConfluence').textContent=score+'/100';
+
+    // Matrix
+    const matrix=d.matrix||{};
+    const tb=document.getElementById('mtfMatrix');
+    tb.innerHTML=INDICATORS.map(ind=>{
+        let row=`<td style="font-weight:600;text-align:left;font-size:.75rem">${ind}</td>`;
+        TIMEFRAMES.forEach(tf=>{
+            const sig=(matrix[ind]&&matrix[ind][tf])||'—';
+            let cls='mtf-neutral';
+            if(sig==='BUY'||sig==='BULL'){cls='mtf-bull';bulls++}
+            else if(sig==='SELL'||sig==='BEAR'){cls='mtf-bear';bears++}
+            row+=`<td class="${cls}">${sig}</td>`;
+        });
+        return `<tr>${row}</tr>`;
+    }).join('');
+    document.getElementById('mtfBullish').textContent=bulls;
+    document.getElementById('mtfBearish').textContent=bears;
+
+    // Signal cards
+    const coins=d.all_scores||[];
+    const el=document.getElementById('mtfSignalCards');
+    if(!coins.length){
+        el.innerHTML=`<div class="mtf-signal"><div class="mtf-signal-coin">${d.symbol||'BTC/USDT'}</div>
+            <div class="mtf-signal-score" style="color:${scoreColor(score)}">${score}</div>
+            <span class="mtf-signal-verdict ${score>=60?'mtf-buy-v':score>=40?'mtf-hold-v':'mtf-sell-v'}">${score>=60?'BUY':score>=40?'HOLD':'SELL'}</span></div>`;
+        return;
+    }
+    el.innerHTML=coins.map(c=>`<div class="mtf-signal">
+        <div class="mtf-signal-coin">${c.symbol}</div>
+        <div class="mtf-signal-score" style="color:${scoreColor(c.score)}">${c.score}</div>
+        <span class="mtf-signal-verdict ${c.score>=60?'mtf-buy-v':c.score>=40?'mtf-hold-v':'mtf-sell-v'}">${c.score>=60?'BUY':c.score>=40?'HOLD':'SELL'}</span>
+    </div>`).join('');
+}
+
+/* ── Firestore ── */
+function getFS(){if(typeof firebase!=='undefined'&&firebase.firestore)return firebase.firestore();return null}
+function getUID(){if(typeof firebase!=='undefined'&&firebase.auth&&firebase.auth().currentUser)return firebase.auth().currentUser.uid;return 'anon'}
+
+async function saveMtfConfig(){
+    const db=getFS();if(!db)return;
+    const uid=getUID();
+    await db.collection('users').doc(uid).collection('mtf_config').doc('settings').set({
+        defaultCoin:document.getElementById('mtfCoin').value,
+        minScore:parseInt(document.getElementById('mtfMinScore').value)||70,
+        updatedAt:new Date().toISOString()
+    });
+    showToast&&showToast('MTF config saved!','success');
+}
+
+async function saveMtfScan(d){
+    const db=getFS();if(!db)return;
+    const uid=getUID();
+    await db.collection('users').doc(uid).collection('mtf_scans').add({
+        symbol:d.symbol||document.getElementById('mtfCoin').value,
+        score:d.score||0,signal:d.score>=60?'BUY':d.score>=40?'HOLD':'SELL',
+        timestamp:new Date().toISOString()
+    });
+    loadMtfHistory();
+}
+
+async function loadMtfHistory(){
+    const db=getFS();if(!db)return;
+    const uid=getUID();
+    const snap=await db.collection('users').doc(uid).collection('mtf_scans').orderBy('timestamp','desc').limit(20).get();
+    const el=document.getElementById('mtfHistory');
+    if(snap.empty){el.innerHTML='<div style="text-align:center;padding:1rem;color:var(--text-muted)">No history</div>';return}
+    el.innerHTML='';
+    snap.forEach(doc=>{
+        const s=doc.data();
+        el.innerHTML+=`<div style="display:flex;align-items:center;gap:.8rem;padding:.5rem 0;border-bottom:1px solid var(--border-light)">
+            <div style="width:36px;height:36px;border-radius:50%;background:${scoreColor(s.score)}22;color:${scoreColor(s.score)};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.8rem">${s.score}</div>
+            <div style="flex:1"><div style="font-weight:600;font-size:.85rem;color:var(--text-primary)">${s.symbol} — ${s.signal}</div>
+            <div style="font-size:.7rem;color:var(--text-muted)">${new Date(s.timestamp).toLocaleString()}</div></div>
+        </div>`;
+    });
+}
+
+async function loadMtfConfig(){
+    const db=getFS();if(!db)return;
+    const uid=getUID();
+    const snap=await db.collection('users').doc(uid).collection('mtf_config').doc('settings').get();
+    if(snap.exists){
+        const c=snap.data();
+        if(c.defaultCoin)document.getElementById('mtfCoin').value=c.defaultCoin;
+        if(c.minScore)document.getElementById('mtfMinScore').value=c.minScore;
+    }
+}
+
+document.addEventListener('DOMContentLoaded',()=>{setTimeout(()=>{loadMtfConfig();loadMtfHistory()},1500)});
+</script>
+{% endblock %}

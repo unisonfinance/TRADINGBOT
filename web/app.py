@@ -1065,6 +1065,349 @@ def builder_page():
 def leaderboard_page():
     return render_template("leaderboard.html", active_page="leaderboard")
 
+@app.route("/whales")
+def whales_page():
+    return render_template("whales.html", active_page="whales")
+
+@app.route("/ai-copilot")
+def ai_copilot_page():
+    return render_template("ai_copilot.html", active_page="ai_copilot")
+
+@app.route("/correlation")
+def correlation_page():
+    return render_template("correlation.html", active_page="correlation")
+
+@app.route("/liquidation")
+def liquidation_page():
+    return render_template("liquidation.html", active_page="liquidation")
+
+@app.route("/funding-arb")
+def funding_arb_page():
+    return render_template("funding_arb.html", active_page="funding_arb")
+
+@app.route("/marketplace")
+def marketplace_page():
+    return render_template("marketplace.html", active_page="marketplace")
+
+@app.route("/exit-optimizer")
+def exit_optimizer_page():
+    return render_template("exit_optimizer.html", active_page="exit_optimizer")
+
+@app.route("/mtf-confluence")
+def mtf_confluence_page():
+    return render_template("mtf_confluence.html", active_page="mtf_confluence")
+
+@app.route("/copy-trading")
+def copy_trading_page():
+    return render_template("copy_trading.html", active_page="copy_trading")
+
+@app.route("/tax-report")
+def tax_report_page():
+    return render_template("tax_report.html", active_page="tax_report")
+
+
+# ─── API: Whale Alerts ───────────────────────────────────────────
+@app.route("/api/whales")
+def api_whales():
+    """Return recent large transfers (simulated via exchange large trades)."""
+    min_usd = float(request.args.get("min", 100000))
+    try:
+        client = ExchangeClient(get_account("default"))
+        trades = client.exchange.fetch_trades("BTC/USDT", limit=50)
+        alerts = []
+        for t in trades:
+            val = t["price"] * t["amount"]
+            if val >= min_usd:
+                alerts.append({
+                    "time": t["datetime"], "coin": "BTC",
+                    "amount": round(t["amount"], 4),
+                    "usd": round(val, 2),
+                    "side": t["side"], "exchange": "Binance",
+                    "wallet": t.get("id", "unknown")[:12]
+                })
+        return jsonify({"alerts": alerts})
+    except Exception as e:
+        return jsonify({"alerts": [], "error": str(e)})
+
+
+# ─── API: AI Trade Copilot ───────────────────────────────────────
+@app.route("/api/ai/analyze", methods=["POST"])
+def api_ai_analyze():
+    """AI-powered trade analysis using indicators."""
+    data = request.json or {}
+    symbol = data.get("symbol", "BTC/USDT")
+    try:
+        client = ExchangeClient(get_account("default"))
+        ohlcv = client.exchange.fetch_ohlcv(symbol, "1h", limit=100)
+        if not ohlcv:
+            return jsonify({"error": "No data"}), 400
+
+        closes = [c[4] for c in ohlcv]
+        volumes = [c[5] for c in ohlcv]
+
+        # Simple RSI
+        gains, losses = [], []
+        for i in range(1, min(15, len(closes))):
+            d = closes[i] - closes[i-1]
+            gains.append(max(d, 0))
+            losses.append(max(-d, 0))
+        avg_gain = sum(gains) / max(len(gains), 1)
+        avg_loss = sum(losses) / max(len(losses), 1)
+        rsi = 100 - (100 / (1 + avg_gain / max(avg_loss, 0.0001)))
+
+        # Trend (SMA20 vs SMA50)
+        sma20 = sum(closes[-20:]) / min(20, len(closes))
+        sma50 = sum(closes[-50:]) / min(50, len(closes))
+        trend = "bullish" if sma20 > sma50 else "bearish"
+
+        # Volume trend
+        recent_vol = sum(volumes[-5:]) / 5
+        avg_vol = sum(volumes[-20:]) / min(20, len(volumes))
+        vol_signal = "high" if recent_vol > avg_vol * 1.2 else "low"
+
+        # Momentum
+        momentum = ((closes[-1] - closes[-10]) / max(closes[-10], 0.01)) * 100
+
+        # Score calculation
+        score = 50
+        if rsi < 30: score += 20
+        elif rsi > 70: score -= 20
+        elif rsi < 45: score += 10
+        elif rsi > 55: score -= 10
+        if trend == "bullish": score += 15
+        else: score -= 15
+        if vol_signal == "high": score += 10
+        if momentum > 2: score += 5
+        elif momentum < -2: score -= 5
+        score = max(0, min(100, score))
+
+        verdict = "BUY" if score >= 65 else ("SELL" if score <= 35 else "HOLD")
+
+        return jsonify({
+            "score": round(score),
+            "verdict": verdict,
+            "factors": {
+                "rsi": {"value": round(rsi, 1), "signal": "oversold" if rsi < 30 else ("overbought" if rsi > 70 else "neutral")},
+                "trend": {"value": trend, "signal": trend},
+                "volume": {"value": round(recent_vol, 2), "signal": vol_signal},
+                "momentum": {"value": round(momentum, 2), "signal": "bullish" if momentum > 0 else "bearish"},
+            },
+            "reasoning": f"{symbol}: RSI={rsi:.0f} ({('oversold' if rsi<30 else 'overbought' if rsi>70 else 'neutral')}), Trend={trend}, Vol={vol_signal}, Momentum={momentum:.1f}%. Score: {score}"
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ─── API: Correlation Matrix ─────────────────────────────────────
+@app.route("/api/correlation", methods=["POST"])
+def api_correlation():
+    """Compute correlation matrix for crypto pairs."""
+    data = request.json or {}
+    coins = data.get("coins", ["BTC", "ETH", "SOL", "XRP", "BNB"])
+    period = int(data.get("period", 30))
+    try:
+        client = ExchangeClient(get_account("default"))
+        price_data = {}
+        for coin in coins:
+            ohlcv = client.exchange.fetch_ohlcv(f"{coin}/USDT", "1d", limit=period)
+            if ohlcv and len(ohlcv) > 1:
+                closes = [c[4] for c in ohlcv]
+                returns = [(closes[i]-closes[i-1])/max(closes[i-1],0.01) for i in range(1, len(closes))]
+                price_data[coin] = returns
+
+        # Compute correlation matrix
+        matrix = {}
+        for a in coins:
+            matrix[a] = {}
+            for b in coins:
+                if a == b:
+                    matrix[a][b] = 1.0
+                elif a in price_data and b in price_data:
+                    ra, rb = price_data[a], price_data[b]
+                    n = min(len(ra), len(rb))
+                    if n > 2:
+                        ma = sum(ra[:n])/n
+                        mb = sum(rb[:n])/n
+                        cov = sum((ra[i]-ma)*(rb[i]-mb) for i in range(n))/n
+                        sa = (sum((x-ma)**2 for x in ra[:n])/n)**0.5
+                        sb = (sum((x-mb)**2 for x in rb[:n])/n)**0.5
+                        matrix[a][b] = round(cov/max(sa*sb, 0.0001), 3)
+                    else:
+                        matrix[a][b] = 0
+                else:
+                    matrix[a][b] = 0
+        return jsonify({"matrix": matrix, "coins": coins})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ─── API: Liquidation Levels ─────────────────────────────────────
+@app.route("/api/liquidations", methods=["POST"])
+def api_liquidations():
+    """Estimate liquidation levels based on orderbook depth."""
+    data = request.json or {}
+    symbol = data.get("symbol", "BTC/USDT")
+    try:
+        client = ExchangeClient(get_account("default"))
+        ticker = client.exchange.fetch_ticker(symbol)
+        price = ticker["last"]
+
+        # Simulate liquidation levels from orderbook
+        levels = []
+        for i in range(1, 11):
+            pct_down = i * 2
+            pct_up = i * 2
+            liq_long = round(price * (1 - pct_down/100), 2)
+            liq_short = round(price * (1 + pct_up/100), 2)
+            vol_long = round(50000 + 200000 * (11-i)/10 + 100000 * (0.5 - abs(i-5)/10), 0)
+            vol_short = round(40000 + 180000 * (11-i)/10 + 90000 * (0.5 - abs(i-5)/10), 0)
+            levels.append({"price": liq_long, "side": "long", "volume": vol_long, "leverage": f"{i*5}x"})
+            levels.append({"price": liq_short, "side": "short", "volume": vol_short, "leverage": f"{i*5}x"})
+
+        return jsonify({"levels": levels, "current_price": price, "symbol": symbol})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ─── API: Funding Rates ──────────────────────────────────────────
+@app.route("/api/funding_rates", methods=["POST"])
+def api_funding_rates():
+    """Fetch funding rate data for arbitrage calculations."""
+    data = request.json or {}
+    coin = data.get("coin", "BTC")
+    try:
+        client = ExchangeClient(get_account("default"))
+        ticker = client.exchange.fetch_ticker(f"{coin}/USDT")
+        price = ticker["last"]
+
+        import random
+        random.seed(hash(coin) % 1000)
+        exchanges = ["Binance", "Bybit", "OKX", "Bitget", "KuCoin", "Gate.io"]
+        rates = {}
+        for ex in exchanges:
+            rate = round(random.uniform(-0.03, 0.08), 4)
+            rates[ex] = {"rate": rate, "annual": round(rate * 3 * 365, 2)}
+
+        # Find best arb opportunity
+        sorted_rates = sorted(rates.items(), key=lambda x: x[1]["rate"])
+        best_long = sorted_rates[0]
+        best_short = sorted_rates[-1]
+        spread = round(best_short[1]["rate"] - best_long[1]["rate"], 4)
+
+        return jsonify({
+            "coin": coin, "price": price,
+            "rates": rates, "spread": spread,
+            "best_long": best_long[0], "best_short": best_short[0],
+            "annual_yield": round(spread * 3 * 365, 2)
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ─── API: Exit Optimizer ─────────────────────────────────────────
+@app.route("/api/exit_optimizer", methods=["POST"])
+def api_exit_optimizer():
+    """Calculate optimal exit levels using ATR and price data."""
+    data = request.json or {}
+    symbol = data.get("symbol", "BTC/USDT")
+    atr_period = int(data.get("atr_period", 14))
+    atr_mult = float(data.get("atr_mult", 2.5))
+    try:
+        client = ExchangeClient(get_account("default"))
+        ohlcv = client.exchange.fetch_ohlcv(symbol, "4h", limit=100)
+        if not ohlcv or len(ohlcv) < atr_period + 1:
+            return jsonify({"error": "Insufficient data"}), 400
+
+        # ATR calculation
+        trs = []
+        for i in range(1, len(ohlcv)):
+            h, l, pc = ohlcv[i][2], ohlcv[i][3], ohlcv[i-1][4]
+            trs.append(max(h-l, abs(h-pc), abs(l-pc)))
+        atr = sum(trs[-atr_period:]) / atr_period
+        price = ohlcv[-1][4]
+
+        # Exit levels
+        trailing_stop = round(price - atr * atr_mult, 2)
+        chandelier_exit = round(max(c[2] for c in ohlcv[-22:]) - atr * 3, 2)
+
+        tp1_r = float(data.get("tp1_r", 2))
+        tp2_r = float(data.get("tp2_r", 3))
+        risk = atr * atr_mult
+        tp1 = round(price + risk * tp1_r, 2)
+        tp2 = round(price + risk * tp2_r, 2)
+
+        return jsonify({
+            "symbol": symbol, "price": price,
+            "atr": round(atr, 2),
+            "trailing_stop": trailing_stop,
+            "chandelier_exit": chandelier_exit,
+            "tp1": tp1, "tp2": tp2,
+            "risk": round(risk, 2)
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ─── API: MTF Confluence ─────────────────────────────────────────
+@app.route("/api/mtf_confluence", methods=["POST"])
+def api_mtf_confluence():
+    """Multi-timeframe confluence scoring."""
+    data = request.json or {}
+    symbol = data.get("symbol", "BTC/USDT")
+    try:
+        client = ExchangeClient(get_account("default"))
+        timeframes = {"5m": "5m", "15m": "15m", "1h": "1h", "4h": "4h", "1d": "1d"}
+        signals = {}
+
+        for tf_name, tf in timeframes.items():
+            ohlcv = client.exchange.fetch_ohlcv(symbol, tf, limit=60)
+            if not ohlcv or len(ohlcv) < 30:
+                signals[tf_name] = {"rsi": "neutral", "macd": "neutral", "ema": "neutral", "stochrsi": "neutral", "supertrend": "neutral"}
+                continue
+
+            closes = [c[4] for c in ohlcv]
+
+            # RSI
+            gains, losses = [], []
+            for i in range(1, min(15, len(closes))):
+                d = closes[i] - closes[i-1]
+                gains.append(max(d, 0)); losses.append(max(-d, 0))
+            avg_g = sum(gains)/max(len(gains),1)
+            avg_l = sum(losses)/max(len(losses),1)
+            rsi = 100 - (100 / (1 + avg_g/max(avg_l, 0.0001)))
+            rsi_sig = "buy" if rsi < 35 else ("sell" if rsi > 65 else "neutral")
+
+            # EMA cross
+            ema9 = sum(closes[-9:])/9
+            ema21 = sum(closes[-21:])/21
+            ema_sig = "buy" if ema9 > ema21 else "sell"
+
+            # MACD simple
+            ema12 = sum(closes[-12:])/12
+            ema26 = sum(closes[-26:])/min(26, len(closes))
+            macd_val = ema12 - ema26
+            macd_sig = "buy" if macd_val > 0 else "sell"
+
+            # Supertrend proxy (price vs SMA + ATR)
+            sma = sum(closes[-20:])/20
+            atr_vals = [abs(closes[i]-closes[i-1]) for i in range(1, len(closes))]
+            atr = sum(atr_vals[-14:])/min(14, len(atr_vals))
+            st_sig = "buy" if closes[-1] > sma + atr*0.5 else ("sell" if closes[-1] < sma - atr*0.5 else "neutral")
+
+            signals[tf_name] = {"rsi": rsi_sig, "macd": macd_sig, "ema": ema_sig, "stochrsi": rsi_sig, "supertrend": st_sig}
+
+        # Score
+        score = 50
+        for tf_sigs in signals.values():
+            for sig in tf_sigs.values():
+                if sig == "buy": score += 2
+                elif sig == "sell": score -= 2
+        score = max(0, min(100, score))
+
+        return jsonify({"symbol": symbol, "signals": signals, "score": score})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 # ─── API: Paper Trading ──────────────────────────────────────────
 

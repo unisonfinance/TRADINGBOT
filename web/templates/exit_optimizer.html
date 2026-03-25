@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+{% block title %}TrekBot — Smart Exit Optimizer{% endblock %}
+{% block page_title %}🎯 Smart Exit Optimizer{% endblock %}
+{% block content %}
+<style>
+.se-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.2rem;margin-bottom:1.5rem}
+.se-card{background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:1.4rem}
+.se-card h3{margin:0 0 .8rem;font-size:1rem;color:var(--text-primary);display:flex;align-items:center;gap:.5rem}
+.se-stat-row{display:flex;gap:.8rem;flex-wrap:wrap;margin-bottom:1.2rem}
+.se-stat{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:.8rem 1.2rem;flex:1;min-width:150px;text-align:center}
+.se-stat .val{font-size:1.3rem;font-weight:700;color:var(--text-primary)}
+.se-stat .lbl{font-size:.7rem;color:var(--text-muted);margin-top:.2rem}
+.se-mode{display:flex;gap:.6rem;margin-bottom:1rem;flex-wrap:wrap}
+.se-mode-btn{padding:.5rem 1rem;border:2px solid var(--border);border-radius:10px;background:var(--bg-secondary);color:var(--text-secondary);cursor:pointer;font-weight:600;font-size:.8rem;transition:all .2s}
+.se-mode-btn.active{border-color:#8b5cf6;background:#8b5cf622;color:#8b5cf6}
+.se-form{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.8rem}
+.se-form label{font-size:.75rem;color:var(--text-muted);display:block;margin-bottom:.3rem}
+.se-form input,.se-form select{width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:.5rem;color:var(--text-primary);font-size:.85rem;box-sizing:border-box}
+.se-btn{background:linear-gradient(135deg,#8b5cf6,#a855f7);color:#fff;border:none;border-radius:8px;padding:.6rem 1.4rem;cursor:pointer;font-weight:600;font-size:.85rem;margin-top:.8rem}
+.se-result-bar{display:flex;align-items:center;gap:.5rem;padding:.5rem 0;border-bottom:1px solid var(--border-light)}
+.se-bar-label{min-width:100px;font-size:.8rem;color:var(--text-muted)}
+.se-bar-wrap{flex:1;height:20px;background:var(--bg-secondary);border-radius:10px;overflow:hidden}
+.se-bar-fill{height:100%;border-radius:10px;transition:width .6s}
+.se-bar-val{min-width:70px;text-align:right;font-weight:700;font-size:.85rem}
+.se-compare-table{width:100%;border-collapse:collapse;margin-top:.5rem}
+.se-compare-table th{font-size:.7rem;text-transform:uppercase;color:var(--text-muted);padding:.5rem;border-bottom:1px solid var(--border);text-align:center}
+.se-compare-table td{padding:.5rem;text-align:center;font-size:.82rem;border-bottom:1px solid var(--border-light);color:var(--text-secondary)}
+.se-winner{background:#10b98111;font-weight:700;color:#10b981}
+.se-preset{display:inline-flex;align-items:center;gap:.3rem;padding:4px 10px;border-radius:8px;background:var(--bg-secondary);border:1px solid var(--border);font-size:.75rem;color:var(--text-secondary);cursor:pointer;margin:.2rem}
+.se-preset:hover{border-color:#8b5cf6;color:#8b5cf6}
+@media(max-width:768px){.se-grid{grid-template-columns:1fr}.se-form{grid-template-columns:1fr 1fr}}
+</style>
+
+<div class="se-stat-row">
+    <div class="se-stat"><div class="val" id="seImprovement" style="color:#10b981">—</div><div class="lbl">Return Improvement</div></div>
+    <div class="se-stat"><div class="val" id="seOptimalR">—</div><div class="lbl">Optimal R-Multiple</div></div>
+    <div class="se-stat"><div class="val" id="seBestExit">—</div><div class="lbl">Best Exit Strategy</div></div>
+    <div class="se-stat"><div class="val" id="seDrawdown">—</div><div class="lbl">Max Drawdown Saved</div></div>
+</div>
+
+<!-- Exit Mode Selection -->
+<div class="se-card" style="margin-bottom:1.2rem">
+    <h3>⚙️ Exit Strategy Configuration</h3>
+    <div class="se-mode">
+        <button class="se-mode-btn active" onclick="setExitMode('trailing_atr',this)">📐 Trailing ATR</button>
+        <button class="se-mode-btn" onclick="setExitMode('r_multiple',this)">📊 R-Multiple Exits</button>
+        <button class="se-mode-btn" onclick="setExitMode('chandelier',this)">🕯️ Chandelier Exit</button>
+        <button class="se-mode-btn" onclick="setExitMode('time_based',this)">⏰ Time-Based</button>
+        <button class="se-mode-btn" onclick="setExitMode('hybrid',this)">🔀 Hybrid (Best)</button>
+    </div>
+    <div class="se-form" id="seForm">
+        <div><label>Symbol</label><select id="seSymbol"><option>BTC/USDT</option><option>ETH/USDT</option><option>SOL/USDT</option></select></div>
+        <div><label>ATR Period</label><input type="number" id="seAtrPeriod" value="14" min="5" max="50"></div>
+        <div><label>ATR Multiplier</label><input type="number" id="seAtrMult" value="2.5" min="0.5" max="10" step="0.1"></div>
+        <div><label>Take Profit 1 (R)</label><input type="number" id="seTp1" value="2" min="0.5" max="10" step="0.5"></div>
+        <div><label>TP1 Close %</label><input type="number" id="seTp1Pct" value="50" min="10" max="90"></div>
+        <div><label>Take Profit 2 (R)</label><input type="number" id="seTp2" value="3" min="1" max="20" step="0.5"></div>
+        <div><label>TP2 Close %</label><input type="number" id="seTp2Pct" value="25" min="10" max="90"></div>
+        <div><label>Max Hold (candles)</label><input type="number" id="seMaxHold" value="100" min="10" max="1000"></div>
+        <div><label>Strategy</label><select id="seStrategy"><option>rsi_swing</option><option>macd</option><option>tema</option><option>stochrsi</option><option>ichimoku</option><option>supertrend</option></select></div>
+    </div>
+    <div style="margin-top:.5rem">
+        <span style="font-size:.75rem;color:var(--text-muted)">Presets:</span>
+        <span class="se-preset" onclick="applyPreset('conservative')">🛡️ Conservative</span>
+        <span class="se-preset" onclick="applyPreset('aggressive')">🔥 Aggressive</span>
+        <span class="se-preset" onclick="applyPreset('scalper')">⚡ Scalper</span>
+    </div>
+    <button class="se-btn" onclick="runExitOptimizer()">🚀 Optimize & Backtest</button>
+    <button class="se-btn" onclick="saveExitConfig()" style="background:linear-gradient(135deg,#10b981,#059669);margin-left:.5rem">💾 Save Config</button>
+</div>
+
+<div class="se-grid">
+    <!-- Comparison Results -->
+    <div class="se-card">
+        <h3>📊 Exit Strategy Comparison</h3>
+        <table class="se-compare-table">
+            <thead><tr><th>Exit Type</th><th>Return</th><th>Win Rate</th><th>Avg R</th><th>Max DD</th><th>Sharpe</th></tr></thead>
+            <tbody id="seCompareTable">
+                <tr><td colspan="6" style="color:var(--text-muted);padding:2rem">Run optimizer to see comparison</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Performance Bars -->
+    <div class="se-card">
+        <h3>📈 Return by Exit Type</h3>
+        <div id="sePerformanceBars">
+            <div style="text-align:center;padding:2rem;color:var(--text-muted)">No data yet</div>
+        </div>
+    </div>
+</div>
+
+<!-- Saved Configs (Firestore) -->
+<div class="se-card">
+    <h3>💾 Saved Exit Configurations <span style="font-size:.65rem;color:var(--text-muted);margin-left:auto">🔥 Firestore</span></h3>
+    <div id="seSavedConfigs" style="max-height:250px;overflow-y:auto">
+        <div style="text-align:center;padding:1rem;color:var(--text-muted)">No saved configurations</div>
+    </div>
+</div>
+
+<script>
+let currentExitMode='trailing_atr';
+function setExitMode(mode,btn){
+    currentExitMode=mode;
+    document.querySelectorAll('.se-mode-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+}
+
+function applyPreset(p){
+    if(p==='conservative'){document.getElementById('seAtrMult').value=3;document.getElementById('seTp1').value=1.5;document.getElementById('seTp1Pct').value=60;document.getElementById('seTp2').value=2.5}
+    if(p==='aggressive'){document.getElementById('seAtrMult').value=1.5;document.getElementById('seTp1').value=3;document.getElementById('seTp1Pct').value=40;document.getElementById('seTp2').value=5}
+    if(p==='scalper'){document.getElementById('seAtrMult').value=1;document.getElementById('seTp1').value=1;document.getElementById('seTp1Pct').value=70;document.getElementById('seTp2').value=1.5;document.getElementById('seMaxHold').value=20}
+}
+
+async function runExitOptimizer(){
+    const cfg={mode:currentExitMode,symbol:document.getElementById('seSymbol').value,
+        atr_period:parseInt(document.getElementById('seAtrPeriod').value),
+        atr_mult:parseFloat(document.getElementById('seAtrMult').value),
+        tp1_r:parseFloat(document.getElementById('seTp1').value),tp1_pct:parseInt(document.getElementById('seTp1Pct').value),
+        tp2_r:parseFloat(document.getElementById('seTp2').value),tp2_pct:parseInt(document.getElementById('seTp2Pct').value),
+        max_hold:parseInt(document.getElementById('seMaxHold').value),
+        strategy:document.getElementById('seStrategy').value};
+    try{
+        const r=await fetch('/api/exit_optimizer',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(cfg)});
+        const d=await r.json();
+        if(d.error){alert(d.error);return}
+        renderExitResults(d);
+    }catch(e){console.error(e)}
+}
+
+function renderExitResults(d){
+    const results=d.results||[];
+    document.getElementById('seImprovement').textContent=(d.improvement||0).toFixed(1)+'%';
+    document.getElementById('seOptimalR').textContent=(d.optimal_r||0).toFixed(1)+'R';
+    document.getElementById('seBestExit').textContent=d.best_exit||'—';
+    document.getElementById('seDrawdown').textContent=(d.drawdown_saved||0).toFixed(1)+'%';
+    // Comparison table
+    const tb=document.getElementById('seCompareTable');
+    if(!results.length){tb.innerHTML='<tr><td colspan="6" style="color:var(--text-muted)">No results</td></tr>';return}
+    const bestReturn=Math.max(...results.map(r=>r.total_return||0));
+    tb.innerHTML=results.map(r=>{
+        const isBest=(r.total_return||0)===bestReturn;
+        return `<tr class="${isBest?'se-winner':''}">
+            <td style="font-weight:600">${r.exit_type}</td>
+            <td style="color:${(r.total_return||0)>0?'#10b981':'#e63946'}">${(r.total_return||0).toFixed(1)}%</td>
+            <td>${(r.win_rate||0).toFixed(0)}%</td>
+            <td>${(r.avg_r||0).toFixed(2)}R</td>
+            <td style="color:#e63946">${(r.max_dd||0).toFixed(1)}%</td>
+            <td>${(r.sharpe||0).toFixed(2)}</td></tr>`}).join('');
+    // Performance bars
+    const el=document.getElementById('sePerformanceBars');
+    const maxR=Math.max(...results.map(r=>Math.abs(r.total_return||0)),1);
+    el.innerHTML=results.map(r=>{
+        const pct=Math.abs(r.total_return||0)/maxR*100;
+        const color=(r.total_return||0)>0?'#10b981':'#e63946';
+        return `<div class="se-result-bar">
+            <span class="se-bar-label">${r.exit_type}</span>
+            <div class="se-bar-wrap"><div class="se-bar-fill" style="width:${pct}%;background:${color}"></div></div>
+            <span class="se-bar-val" style="color:${color}">${(r.total_return||0).toFixed(1)}%</span>
+        </div>`}).join('');
+}
+
+/* ── Firestore ── */
+function getFS(){if(typeof firebase!=='undefined'&&firebase.firestore)return firebase.firestore();return null}
+function getUID(){if(typeof firebase!=='undefined'&&firebase.auth&&firebase.auth().currentUser)return firebase.auth().currentUser.uid;return 'anon'}
+
+async function saveExitConfig(){
+    const db=getFS();if(!db)return alert('Firestore not available');
+    const uid=getUID();
+    await db.collection('users').doc(uid).collection('exit_configs').add({
+        mode:currentExitMode,symbol:document.getElementById('seSymbol').value,
+        atr_period:parseInt(document.getElementById('seAtrPeriod').value),
+        atr_mult:parseFloat(document.getElementById('seAtrMult').value),
+        tp1_r:parseFloat(document.getElementById('seTp1').value),tp1_pct:parseInt(document.getElementById('seTp1Pct').value),
+        tp2_r:parseFloat(document.getElementById('seTp2').value),tp2_pct:parseInt(document.getElementById('seTp2Pct').value),
+        strategy:document.getElementById('seStrategy').value,
+        savedAt:new Date().toISOString()
+    });
+    showToast&&showToast('Exit config saved!','success');
+    loadSavedExitConfigs();
+}
+
+async function loadSavedExitConfigs(){
+    const db=getFS();if(!db)return;
+    const uid=getUID();
+    const snap=await db.collection('users').doc(uid).collection('exit_configs').orderBy('savedAt','desc').limit(10).get();
+    const el=document.getElementById('seSavedConfigs');
+    if(snap.empty){el.innerHTML='<div style="text-align:center;padding:1rem;color:var(--text-muted)">No saved configs</div>';return}
+    el.innerHTML='';
+    snap.forEach(doc=>{
+        const c=doc.data();
+        el.innerHTML+=`<div style="display:flex;align-items:center;gap:.8rem;padding:.5rem 0;border-bottom:1px solid var(--border-light)">
+            <span>⚙️</span><span style="font-weight:600;color:var(--text-primary)">${c.mode}</span>
+            <span style="font-size:.75rem;color:var(--text-muted)">${c.symbol} · ATR×${c.atr_mult} · TP1 ${c.tp1_r}R@${c.tp1_pct}%</span>
+            <span style="font-size:.7rem;color:var(--text-muted);margin-left:auto">${new Date(c.savedAt).toLocaleDateString()}</span>
+            <button onclick="deleteExitConfig('${doc.id}');this.closest('div').remove()" style="background:none;border:none;cursor:pointer;color:var(--red)">🗑️</button>
+        </div>`;
+    });
+}
+
+async function deleteExitConfig(id){const db=getFS();if(!db)return;await db.collection('users').doc(getUID()).collection('exit_configs').doc(id).delete()}
+
+document.addEventListener('DOMContentLoaded',()=>{setTimeout(loadSavedExitConfigs,1500)});
+</script>
+{% endblock %}

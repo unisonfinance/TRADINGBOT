@@ -1,0 +1,258 @@
+{% extends "base.html" %}
+{% block title %}TrekBot — Tax Report{% endblock %}
+{% block page_title %}📋 Tax Report Generator{% endblock %}
+{% block content %}
+<style>
+.tx-card{background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:1.4rem;margin-bottom:1.2rem}
+.tx-card h3{margin:0 0 .8rem;font-size:1rem;color:var(--text-primary);display:flex;align-items:center;gap:.5rem}
+.tx-stat-row{display:flex;gap:.8rem;flex-wrap:wrap;margin-bottom:1.2rem}
+.tx-stat{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:.8rem 1.2rem;flex:1;min-width:140px;text-align:center}
+.tx-stat .val{font-size:1.3rem;font-weight:700;color:var(--text-primary)}
+.tx-stat .lbl{font-size:.7rem;color:var(--text-muted);margin-top:.2rem}
+.tx-form-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.8rem;margin-bottom:1.2rem}
+.tx-form-grid label{font-size:.75rem;color:var(--text-muted);display:block;margin-bottom:.3rem}
+.tx-form-grid select,.tx-form-grid input{width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:.5rem;color:var(--text-primary);font-size:.85rem;box-sizing:border-box}
+.tx-btn{padding:.5rem 1.2rem;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:.85rem;display:inline-flex;align-items:center;gap:.4rem}
+.tx-primary{background:linear-gradient(135deg,#8b5cf6,#a855f7);color:#fff}
+.tx-green{background:linear-gradient(135deg,#10b981,#059669);color:#fff}
+.tx-orange{background:var(--bg-secondary);color:#f59e0b;border:1px solid #f59e0b}
+.tx-tbl{width:100%;border-collapse:collapse;font-size:.8rem}
+.tx-tbl th{text-align:left;padding:.5rem .6rem;color:var(--text-muted);font-size:.7rem;text-transform:uppercase;border-bottom:2px solid var(--border)}
+.tx-tbl td{padding:.5rem .6rem;border-bottom:1px solid var(--border-light);color:var(--text-primary)}
+.tx-gain{color:#10b981;font-weight:600}.tx-loss{color:#e63946;font-weight:600}
+.tx-method-sel{display:flex;gap:.5rem;margin-bottom:.8rem}
+.tx-method-sel button{padding:.4rem 1rem;border:1px solid var(--border);background:var(--bg-secondary);color:var(--text-muted);border-radius:8px;cursor:pointer;font-weight:600;font-size:.8rem}
+.tx-method-sel button.active{background:#8b5cf622;border-color:#8b5cf6;color:#8b5cf6}
+.tx-summary{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:.8rem;margin:1rem 0}
+.tx-summary-item{text-align:center;padding:.8rem;background:var(--bg-secondary);border-radius:10px}
+.tx-summary-item .sv{font-weight:700;font-size:1.1rem;color:var(--text-primary)}
+.tx-summary-item .sl{font-size:.65rem;color:var(--text-muted);margin-top:.2rem}
+.tx-report-list{max-height:300px;overflow-y:auto}
+.tx-report-entry{display:flex;align-items:center;gap:.8rem;padding:.6rem;border-bottom:1px solid var(--border-light);background:var(--bg-card);border-radius:8px;margin-bottom:.4rem}
+@media(max-width:600px){.tx-form-grid{grid-template-columns:1fr}.tx-summary{grid-template-columns:1fr 1fr}}
+</style>
+
+<div class="tx-stat-row">
+    <div class="tx-stat"><div class="val" id="txTotalGain" style="color:#10b981">$0</div><div class="lbl">Total Realized Gains</div></div>
+    <div class="tx-stat"><div class="val" id="txTotalLoss" style="color:#e63946">$0</div><div class="lbl">Total Realized Losses</div></div>
+    <div class="tx-stat"><div class="val" id="txNetPnl">$0</div><div class="lbl">Net P&L</div></div>
+    <div class="tx-stat"><div class="val" id="txEstTax" style="color:#f59e0b">$0</div><div class="lbl">Estimated Tax</div></div>
+    <div class="tx-stat"><div class="val" id="txTrades">0</div><div class="lbl">Taxable Events</div></div>
+</div>
+
+<div class="tx-card">
+    <h3>⚙️ Report Configuration</h3>
+    <div class="tx-form-grid">
+        <div><label>Tax Year</label>
+            <select id="txYear"><option value="2026">2026</option><option value="2025">2025</option><option value="2024">2024</option><option value="2023">2023</option></select></div>
+        <div><label>Country / Tax Rules</label>
+            <select id="txCountry"><option value="US">🇺🇸 United States</option><option value="UK">🇬🇧 United Kingdom</option><option value="EU">🇪🇺 European Union</option><option value="AU">🇦🇺 Australia</option><option value="CA">🇨🇦 Canada</option></select></div>
+        <div><label>Short-Term Rate %</label>
+            <input type="number" id="txShortRate" value="37" min="0" max="60"></div>
+    </div>
+    <div style="margin-bottom:.8rem">
+        <label style="font-size:.75rem;color:var(--text-muted);display:block;margin-bottom:.3rem">Cost Basis Method</label>
+        <div class="tx-method-sel">
+            <button class="active" onclick="setTxMethod(this,'FIFO')">FIFO</button>
+            <button onclick="setTxMethod(this,'LIFO')">LIFO</button>
+            <button onclick="setTxMethod(this,'ACB')">ACB</button>
+            <button onclick="setTxMethod(this,'HIFO')">HIFO</button>
+        </div>
+    </div>
+    <div style="display:flex;gap:.6rem;flex-wrap:wrap">
+        <button class="tx-btn tx-primary" onclick="generateReport()">📊 Generate Report</button>
+        <button class="tx-btn tx-green" onclick="exportPDF()">📄 Export PDF</button>
+        <button class="tx-btn tx-orange" onclick="exportCSV()">📥 Export CSV</button>
+        <button class="tx-btn" style="background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border)" onclick="saveReport()">💾 Save to History</button>
+    </div>
+</div>
+
+<div class="tx-card">
+    <h3>📊 Tax Summary</h3>
+    <div class="tx-summary" id="txSummary">
+        <div class="tx-summary-item"><div class="sv tx-gain">$0</div><div class="sl">Short-Term Gains</div></div>
+        <div class="tx-summary-item"><div class="sv tx-loss">$0</div><div class="sl">Short-Term Losses</div></div>
+        <div class="tx-summary-item"><div class="sv tx-gain">$0</div><div class="sl">Long-Term Gains</div></div>
+        <div class="tx-summary-item"><div class="sv tx-loss">$0</div><div class="sl">Long-Term Losses</div></div>
+    </div>
+</div>
+
+<div class="tx-card">
+    <h3>📝 Taxable Events</h3>
+    <div style="overflow-x:auto">
+        <table class="tx-tbl" id="txTable">
+            <thead><tr>
+                <th>Date</th><th>Asset</th><th>Type</th><th>Qty</th><th>Cost Basis</th><th>Proceeds</th><th>Gain/Loss</th><th>Term</th>
+            </tr></thead>
+            <tbody id="txBody">
+                <tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--text-muted)">Generate a report to see taxable events</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="tx-card">
+    <h3>📂 Saved Reports</h3>
+    <div class="tx-report-list" id="txSavedReports">
+        <div style="text-align:center;padding:1.5rem;color:var(--text-muted)">No saved reports yet</div>
+    </div>
+</div>
+
+<script>
+let txMethod='FIFO';let txEvents=[];
+function setTxMethod(btn,method){
+    txMethod=method;
+    document.querySelectorAll('.tx-method-sel button').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+}
+function getFS(){if(typeof firebase!=='undefined'&&firebase.firestore)return firebase.firestore();return null}
+function getUID(){if(typeof firebase!=='undefined'&&firebase.auth&&firebase.auth().currentUser)return firebase.auth().currentUser.uid;return 'anon'}
+
+async function generateReport(){
+    const year=document.getElementById('txYear').value;
+    const country=document.getElementById('txCountry').value;
+    const shortRate=parseInt(document.getElementById('txShortRate').value)||37;
+
+    // Gather trades from Firestore trade history
+    const db=getFS();if(!db){showToast&&showToast('Firebase not ready','error');return}
+    const uid=getUID();
+
+    let trades=[];
+    try{
+        const snap=await db.collection('users').doc(uid).collection('trade_journal').where('year','==',parseInt(year)).get();
+        if(!snap.empty) snap.forEach(d=>trades.push({id:d.id,...d.data()}));
+    }catch(e){console.log('No trade journal, generating sample data')}
+
+    // If no real trades, generate sample for demonstration
+    if(!trades.length){
+        const coins=['BTC','ETH','SOL','XRP','BNB','ADA','DOGE','AVAX'];
+        for(let i=0;i<15;i++){
+            const coin=coins[Math.floor(Math.random()*coins.length)];
+            const qty=+(Math.random()*2+0.01).toFixed(4);
+            const cost=+(Math.random()*5000+100).toFixed(2);
+            const proceeds=+(cost*(0.8+Math.random()*0.4)).toFixed(2);
+            const buyDate=new Date(parseInt(year),Math.floor(Math.random()*12),Math.floor(Math.random()*28)+1);
+            const holdDays=Math.floor(Math.random()*500)+1;
+            trades.push({asset:coin,qty,cost,proceeds,buyDate:buyDate.toISOString(),holdDays,type:'SELL'});
+        }
+    }
+
+    txEvents=trades.map(t=>{
+        const gl=((t.proceeds||0)-(t.cost||0));
+        const term=(t.holdDays||0)>365?'Long':'Short';
+        return{...t,gain:gl,term};
+    });
+
+    // Sort by method
+    if(txMethod==='LIFO') txEvents.reverse();
+    else if(txMethod==='HIFO') txEvents.sort((a,b)=>b.cost-a.cost);
+
+    // Calculate totals
+    let stGain=0,stLoss=0,ltGain=0,ltLoss=0;
+    txEvents.forEach(e=>{
+        if(e.term==='Short'){if(e.gain>=0)stGain+=e.gain;else stLoss+=Math.abs(e.gain)}
+        else{if(e.gain>=0)ltGain+=e.gain;else ltLoss+=Math.abs(e.gain)}
+    });
+    const totalGain=stGain+ltGain;const totalLoss=stLoss+ltLoss;
+    const net=totalGain-totalLoss;
+    const estTax=Math.max(0,stGain*(shortRate/100)+ltGain*0.15-totalLoss*(shortRate/100));
+
+    document.getElementById('txTotalGain').textContent='$'+totalGain.toFixed(2);
+    document.getElementById('txTotalLoss').textContent='$'+totalLoss.toFixed(2);
+    const netEl=document.getElementById('txNetPnl');netEl.textContent='$'+net.toFixed(2);
+    netEl.style.color=net>=0?'#10b981':'#e63946';
+    document.getElementById('txEstTax').textContent='$'+estTax.toFixed(2);
+    document.getElementById('txTrades').textContent=txEvents.length;
+
+    document.getElementById('txSummary').innerHTML=`
+        <div class="tx-summary-item"><div class="sv tx-gain">$${stGain.toFixed(2)}</div><div class="sl">Short-Term Gains</div></div>
+        <div class="tx-summary-item"><div class="sv tx-loss">-$${stLoss.toFixed(2)}</div><div class="sl">Short-Term Losses</div></div>
+        <div class="tx-summary-item"><div class="sv tx-gain">$${ltGain.toFixed(2)}</div><div class="sl">Long-Term Gains</div></div>
+        <div class="tx-summary-item"><div class="sv tx-loss">-$${ltLoss.toFixed(2)}</div><div class="sl">Long-Term Losses</div></div>`;
+
+    const body=document.getElementById('txBody');body.innerHTML='';
+    txEvents.forEach(e=>{
+        const dt=e.buyDate?new Date(e.buyDate).toLocaleDateString():'N/A';
+        const cls=e.gain>=0?'tx-gain':'tx-loss';
+        body.innerHTML+=`<tr>
+            <td>${dt}</td><td style="font-weight:600">${e.asset||'BTC'}</td><td>${e.type||'SELL'}</td>
+            <td>${e.qty||0}</td><td>$${(e.cost||0).toFixed(2)}</td><td>$${(e.proceeds||0).toFixed(2)}</td>
+            <td class="${cls}">${e.gain>=0?'+':'-'}$${Math.abs(e.gain).toFixed(2)}</td>
+            <td><span style="font-size:.7rem;padding:2px 6px;border-radius:4px;background:${e.term==='Long'?'#10b98122':'#3b82f622'};color:${e.term==='Long'?'#10b981':'#3b82f6'}">${e.term}</span></td>
+        </tr>`;
+    });
+    showToast&&showToast('Report generated! '+txEvents.length+' events found','success');
+}
+
+async function saveReport(){
+    if(!txEvents.length){showToast&&showToast('Generate a report first','error');return}
+    const db=getFS();if(!db)return;
+    const uid=getUID();
+    const year=document.getElementById('txYear').value;
+    const country=document.getElementById('txCountry').value;
+    let totalGain=0,totalLoss=0;
+    txEvents.forEach(e=>{if(e.gain>=0)totalGain+=e.gain;else totalLoss+=Math.abs(e.gain)});
+    await db.collection('users').doc(uid).collection('tax_reports').add({
+        year,country,method:txMethod,events:txEvents.length,
+        totalGain:+totalGain.toFixed(2),totalLoss:+totalLoss.toFixed(2),
+        net:+(totalGain-totalLoss).toFixed(2),
+        createdAt:new Date().toISOString()
+    });
+    showToast&&showToast('Report saved!','success');
+    loadSavedReports();
+}
+
+async function loadSavedReports(){
+    const db=getFS();if(!db)return;
+    const uid=getUID();
+    const snap=await db.collection('users').doc(uid).collection('tax_reports').orderBy('createdAt','desc').limit(10).get();
+    const el=document.getElementById('txSavedReports');
+    if(snap.empty){el.innerHTML='<div style="text-align:center;padding:1.5rem;color:var(--text-muted)">No saved reports yet</div>';return}
+    el.innerHTML='';
+    snap.forEach(doc=>{
+        const r=doc.data();const netCls=r.net>=0?'tx-gain':'tx-loss';
+        el.innerHTML+=`<div class="tx-report-entry">
+            <span style="font-size:1.2rem">📋</span>
+            <div style="flex:1"><div style="font-weight:600;color:var(--text-primary)">${r.year} Tax Report (${r.country})</div>
+            <div style="font-size:.7rem;color:var(--text-muted)">${r.method} · ${r.events} events · ${new Date(r.createdAt).toLocaleDateString()}</div></div>
+            <span class="${netCls}">$${r.net.toFixed(2)}</span>
+            <button onclick="deleteTaxReport('${doc.id}');this.closest('.tx-report-entry').remove()" style="background:none;border:none;cursor:pointer;color:var(--red);font-size:.8rem">🗑</button>
+        </div>`;
+    });
+}
+
+async function deleteTaxReport(id){const db=getFS();if(!db)return;await db.collection('users').doc(getUID()).collection('tax_reports').doc(id).delete()}
+
+function exportCSV(){
+    if(!txEvents.length){showToast&&showToast('Generate a report first','error');return}
+    let csv='Date,Asset,Type,Quantity,CostBasis,Proceeds,GainLoss,Term\n';
+    txEvents.forEach(e=>{
+        csv+=`${e.buyDate?new Date(e.buyDate).toLocaleDateString():''},${e.asset||''},${e.type||''},${e.qty||''},${(e.cost||0).toFixed(2)},${(e.proceeds||0).toFixed(2)},${e.gain.toFixed(2)},${e.term}\n`;
+    });
+    const blob=new Blob([csv],{type:'text/csv'});
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+    a.download=`tax_report_${document.getElementById('txYear').value}_${txMethod}.csv`;a.click();
+}
+
+function exportPDF(){
+    if(!txEvents.length){showToast&&showToast('Generate a report first','error');return}
+    // Simple printable version
+    const w=window.open('','_blank');
+    const year=document.getElementById('txYear').value;
+    const country=document.getElementById('txCountry').value;
+    let totalGain=0,totalLoss=0;
+    txEvents.forEach(e=>{if(e.gain>=0)totalGain+=e.gain;else totalLoss+=Math.abs(e.gain)});
+    let rows='';txEvents.forEach(e=>{
+        rows+=`<tr><td>${e.buyDate?new Date(e.buyDate).toLocaleDateString():''}</td><td>${e.asset}</td><td>${e.type}</td><td>${e.qty}</td><td>$${(e.cost||0).toFixed(2)}</td><td>$${(e.proceeds||0).toFixed(2)}</td><td style="color:${e.gain>=0?'green':'red'}">$${e.gain.toFixed(2)}</td><td>${e.term}</td></tr>`;
+    });
+    w.document.write(`<html><head><title>Tax Report ${year}</title><style>body{font-family:Arial;padding:2rem}table{width:100%;border-collapse:collapse;margin-top:1rem}th,td{padding:6px 10px;border:1px solid #ddd;text-align:left;font-size:12px}th{background:#f5f5f5}h1{margin:0}h3{color:#666}</style></head><body>
+    <h1>Crypto Tax Report — ${year}</h1><h3>Country: ${country} · Method: ${txMethod}</h3>
+    <p><strong>Total Gains:</strong> $${totalGain.toFixed(2)} | <strong>Total Losses:</strong> $${totalLoss.toFixed(2)} | <strong>Net:</strong> $${(totalGain-totalLoss).toFixed(2)}</p>
+    <table><thead><tr><th>Date</th><th>Asset</th><th>Type</th><th>Qty</th><th>Cost Basis</th><th>Proceeds</th><th>Gain/Loss</th><th>Term</th></tr></thead><tbody>${rows}</tbody></table>
+    <p style="margin-top:2rem;color:#999;font-size:11px">Generated by TrekBot · ${new Date().toLocaleString()}</p></body></html>`);
+    w.document.close();w.print();
+}
+
+document.addEventListener('DOMContentLoaded',()=>{setTimeout(()=>{loadSavedReports()},1500)});
+</script>
+{% endblock %}

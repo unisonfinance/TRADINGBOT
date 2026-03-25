@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+{% block title %}TrekBot — Strategy Marketplace{% endblock %}
+{% block page_title %}🛒 Strategy Marketplace{% endblock %}
+{% block content %}
+<style>
+.mp-tabs{display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:1.5rem}
+.mp-tab{padding:.7rem 1.4rem;border:none;background:none;color:var(--text-muted);font-weight:600;cursor:pointer;font-size:.85rem;border-bottom:2px solid transparent;margin-bottom:-2px;display:flex;align-items:center;gap:.4rem}
+.mp-tab.active{color:var(--text-primary);border-bottom-color:#8b5cf6}
+.mp-stat-row{display:flex;gap:.8rem;flex-wrap:wrap;margin-bottom:1.2rem}
+.mp-stat{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:.8rem 1.2rem;flex:1;min-width:150px;text-align:center}
+.mp-stat .val{font-size:1.3rem;font-weight:700;color:var(--text-primary)}
+.mp-stat .lbl{font-size:.7rem;color:var(--text-muted);margin-top:.2rem}
+.mp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:1.2rem}
+.mp-strat-card{background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:1.4rem;transition:transform .2s,box-shadow .2s;position:relative}
+.mp-strat-card:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.1)}
+.mp-strat-top{display:flex;align-items:center;gap:.8rem;margin-bottom:.8rem}
+.mp-strat-icon{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.4rem}
+.mp-strat-name{font-weight:700;color:var(--text-primary);font-size:.95rem}
+.mp-strat-author{font-size:.7rem;color:var(--text-muted)}
+.mp-strat-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.5rem;margin:.8rem 0}
+.mp-ss{text-align:center;padding:.4rem;background:var(--bg-secondary);border-radius:8px}
+.mp-ss .sv{font-weight:700;font-size:.85rem;color:var(--text-primary)}
+.mp-ss .sl{font-size:.6rem;color:var(--text-muted)}
+.mp-strat-price{display:flex;align-items:center;justify-content:space-between;margin-top:.8rem;padding-top:.8rem;border-top:1px solid var(--border-light)}
+.mp-price-val{font-size:1.1rem;font-weight:800;color:#8b5cf6}
+.mp-sub-btn{background:linear-gradient(135deg,#8b5cf6,#a855f7);color:#fff;border:none;border-radius:8px;padding:.5rem 1rem;cursor:pointer;font-weight:600;font-size:.8rem}
+.mp-sub-btn:hover{opacity:.9}
+.mp-free-badge{background:#10b98122;color:#10b981;font-size:.7rem;font-weight:600;padding:2px 8px;border-radius:6px}
+.mp-badge{position:absolute;top:12px;right:12px;font-size:.6rem;font-weight:700;padding:2px 8px;border-radius:6px}
+.mp-verified{background:#10b98122;color:#10b981}.mp-hot{background:#e6394622;color:#e63946}.mp-new{background:#3b82f622;color:#3b82f6}
+.mp-publish-form{background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:1.5rem;margin-top:1rem}
+.mp-publish-form h3{margin:0 0 1rem;color:var(--text-primary)}
+.mp-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:.8rem}
+.mp-form-grid label{font-size:.8rem;color:var(--text-muted);display:block;margin-bottom:.3rem}
+.mp-form-grid input,.mp-form-grid select,.mp-form-grid textarea{width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:.5rem .8rem;color:var(--text-primary);font-size:.85rem;box-sizing:border-box}
+.mp-form-grid textarea{grid-column:1/-1;min-height:80px;resize:vertical}
+.mp-pub-btn{background:linear-gradient(135deg,#10b981,#059669);color:#fff;border:none;border-radius:8px;padding:.6rem 1.4rem;cursor:pointer;font-weight:600;font-size:.85rem;margin-top:.8rem}
+.mp-section{display:none}.mp-section.active{display:block}
+.mp-followers{font-size:.7rem;color:var(--text-muted);display:flex;align-items:center;gap:.3rem}
+@media(max-width:600px){.mp-form-grid{grid-template-columns:1fr}.mp-grid{grid-template-columns:1fr}}
+</style>
+
+<!-- Tabs -->
+<div class="mp-tabs">
+    <button class="mp-tab active" onclick="switchMpTab('browse')">🛒 Browse</button>
+    <button class="mp-tab" onclick="switchMpTab('publish')">📤 Publish</button>
+    <button class="mp-tab" onclick="switchMpTab('my')">📦 My Subscriptions</button>
+</div>
+
+<!-- Stats -->
+<div class="mp-stat-row">
+    <div class="mp-stat"><div class="val" id="mpTotal">0</div><div class="lbl">Strategies Listed</div></div>
+    <div class="mp-stat"><div class="val" id="mpSubscribers">0</div><div class="lbl">Total Subscribers</div></div>
+    <div class="mp-stat"><div class="val" id="mpBestReturn" style="color:#10b981">—</div><div class="lbl">Best Monthly Return</div></div>
+    <div class="mp-stat"><div class="val" id="mpAvgWin">—</div><div class="lbl">Avg Win Rate</div></div>
+</div>
+
+<!-- Browse Tab -->
+<div class="mp-section active" id="mpBrowse">
+    <div class="mp-grid" id="mpStrategyGrid">
+        <div style="text-align:center;padding:2rem;color:var(--text-muted);grid-column:1/-1">Loading marketplace...</div>
+    </div>
+</div>
+
+<!-- Publish Tab -->
+<div class="mp-section" id="mpPublish">
+    <div class="mp-publish-form">
+        <h3>📤 Publish Your Strategy</h3>
+        <p style="color:var(--text-muted);font-size:.8rem;margin:0 0 1rem">Share your profitable strategy. You get 70% of subscription revenue.</p>
+        <div class="mp-form-grid">
+            <div><label>Strategy Name</label><input type="text" id="mpPubName" placeholder="e.g. Alpha RSI Scalper"></div>
+            <div><label>Category</label><select id="mpPubCategory"><option>Scalping</option><option>Swing</option><option>DCA</option><option>Arbitrage</option><option>Grid</option><option>Mean Reversion</option></select></div>
+            <div><label>Monthly Price (USD)</label><input type="number" id="mpPubPrice" value="0" min="0" step="5"></div>
+            <div><label>Base Strategy</label><select id="mpPubBase"><option>rsi_swing</option><option>macd</option><option>tema</option><option>stochrsi</option><option>ichimoku</option><option>supertrend</option><option>bb_squeeze</option><option>custom</option></select></div>
+            <textarea id="mpPubDesc" placeholder="Describe your strategy, what makes it profitable, ideal market conditions..."></textarea>
+        </div>
+        <button class="mp-pub-btn" onclick="publishStrategy()">🚀 Publish Strategy</button>
+    </div>
+</div>
+
+<!-- My Subscriptions -->
+<div class="mp-section" id="mpMy">
+    <div id="mpMySubs">
+        <div style="text-align:center;padding:2rem;color:var(--text-muted)">Loading your subscriptions...</div>
+    </div>
+</div>
+
+<script>
+function switchMpTab(tab){
+    document.querySelectorAll('.mp-tab').forEach((t,i)=>t.classList.toggle('active',['browse','publish','my'][i]===tab));
+    document.querySelectorAll('.mp-section').forEach(s=>s.classList.remove('active'));
+    document.getElementById({browse:'mpBrowse',publish:'mpPublish',my:'mpMy'}[tab]).classList.add('active');
+}
+
+function getFS(){if(typeof firebase!=='undefined'&&firebase.firestore)return firebase.firestore();return null}
+function getUID(){if(typeof firebase!=='undefined'&&firebase.auth&&firebase.auth().currentUser)return firebase.auth().currentUser.uid;return 'anon'}
+
+async function loadMarketplace(){
+    const db=getFS();if(!db)return;
+    const snap=await db.collection('marketplace_strategies').orderBy('subscribers','desc').limit(30).get();
+    const el=document.getElementById('mpStrategyGrid');
+    if(snap.empty){el.innerHTML='<div style="text-align:center;padding:2rem;color:var(--text-muted);grid-column:1/-1">No strategies published yet. Be the first!</div>';return}
+    let total=0,subs=0,bestRet=0,winRates=[];
+    el.innerHTML='';
+    snap.forEach(doc=>{
+        const s=doc.data();total++;subs+=s.subscribers||0;
+        if((s.monthly_return||0)>bestRet)bestRet=s.monthly_return||0;
+        if(s.win_rate)winRates.push(s.win_rate);
+        const badge=s.verified?'mp-verified':s.subscribers>50?'mp-hot':'mp-new';
+        const badgeText=s.verified?'✓ VERIFIED':s.subscribers>50?'🔥 HOT':'🆕 NEW';
+        el.innerHTML+=`<div class="mp-strat-card">
+            <span class="mp-badge ${badge}">${badgeText}</span>
+            <div class="mp-strat-top">
+                <div class="mp-strat-icon" style="background:${s.color||'#8b5cf622'};color:${s.accent||'#8b5cf6'}">${s.icon||'🤖'}</div>
+                <div><div class="mp-strat-name">${s.name||'Unnamed'}</div><div class="mp-strat-author">by ${s.author||'Anonymous'} <span class="mp-followers">· 👥 ${s.subscribers||0} subs</span></div></div>
+            </div>
+            <p style="font-size:.8rem;color:var(--text-secondary);margin:0 0 .5rem;line-height:1.4">${(s.description||'').slice(0,120)}${(s.description||'').length>120?'...':''}</p>
+            <div class="mp-strat-stats">
+                <div class="mp-ss"><div class="sv" style="color:#10b981">${(s.monthly_return||0).toFixed(1)}%</div><div class="sl">Monthly</div></div>
+                <div class="mp-ss"><div class="sv">${(s.win_rate||0).toFixed(0)}%</div><div class="sl">Win Rate</div></div>
+                <div class="mp-ss"><div class="sv">${s.total_trades||0}</div><div class="sl">Trades</div></div>
+            </div>
+            <div class="mp-strat-price">
+                ${s.price>0?`<span class="mp-price-val">$${s.price}/mo</span>`:`<span class="mp-free-badge">FREE</span>`}
+                <button class="mp-sub-btn" onclick="subscribeStrategy('${doc.id}','${s.name}')">Subscribe</button>
+            </div>
+        </div>`;
+    });
+    document.getElementById('mpTotal').textContent=total;
+    document.getElementById('mpSubscribers').textContent=subs;
+    document.getElementById('mpBestReturn').textContent=bestRet.toFixed(1)+'%';
+    document.getElementById('mpAvgWin').textContent=winRates.length?(winRates.reduce((a,b)=>a+b,0)/winRates.length).toFixed(0)+'%':'—';
+}
+
+async function publishStrategy(){
+    const db=getFS();if(!db)return alert('Firestore not available');
+    const uid=getUID();
+    const name=document.getElementById('mpPubName').value.trim();
+    if(!name)return alert('Strategy name required');
+    await db.collection('marketplace_strategies').add({
+        name,category:document.getElementById('mpPubCategory').value,
+        price:parseFloat(document.getElementById('mpPubPrice').value)||0,
+        base_strategy:document.getElementById('mpPubBase').value,
+        description:document.getElementById('mpPubDesc').value,
+        author_uid:uid,author:'Trader',subscribers:0,verified:false,
+        monthly_return:0,win_rate:0,total_trades:0,
+        icon:'🤖',color:'#8b5cf622',accent:'#8b5cf6',
+        createdAt:new Date().toISOString()
+    });
+    showToast&&showToast('Strategy published!','success');
+    switchMpTab('browse');loadMarketplace();
+}
+
+async function subscribeStrategy(stratId,stratName){
+    const db=getFS();if(!db)return;
+    const uid=getUID();
+    await db.collection('users').doc(uid).collection('mp_subscriptions').doc(stratId).set({
+        strategyId:stratId,strategyName:stratName,subscribedAt:new Date().toISOString(),active:true
+    });
+    // Increment subscriber count
+    await db.collection('marketplace_strategies').doc(stratId).update({
+        subscribers:firebase.firestore.FieldValue.increment(1)
+    });
+    showToast&&showToast('Subscribed to '+stratName+'!','success');
+    loadMySubs();
+}
+
+async function loadMySubs(){
+    const db=getFS();if(!db)return;
+    const uid=getUID();
+    const snap=await db.collection('users').doc(uid).collection('mp_subscriptions').orderBy('subscribedAt','desc').get();
+    const el=document.getElementById('mpMySubs');
+    if(snap.empty){el.innerHTML='<div style="text-align:center;padding:2rem;color:var(--text-muted)">No subscriptions yet. Browse the marketplace!</div>';return}
+    el.innerHTML='';
+    snap.forEach(doc=>{
+        const s=doc.data();
+        el.innerHTML+=`<div style="display:flex;align-items:center;gap:.8rem;padding:.8rem;border-bottom:1px solid var(--border-light);background:var(--bg-card);border-radius:10px;margin-bottom:.5rem">
+            <span style="font-size:1.3rem">📦</span>
+            <div style="flex:1"><div style="font-weight:600;color:var(--text-primary)">${s.strategyName}</div>
+            <div style="font-size:.7rem;color:var(--text-muted)">Since ${new Date(s.subscribedAt).toLocaleDateString()}</div></div>
+            <span style="font-size:.7rem;padding:2px 8px;border-radius:6px;background:${s.active?'#10b98122':'#e6394622'};color:${s.active?'#10b981':'#e63946'};font-weight:600">${s.active?'ACTIVE':'EXPIRED'}</span>
+            <button onclick="unsubscribe('${doc.id}');this.closest('div').remove()" style="background:none;border:none;cursor:pointer;color:var(--red);font-size:.8rem">Unsub</button>
+        </div>`;
+    });
+}
+
+async function unsubscribe(id){const db=getFS();if(!db)return;await db.collection('users').doc(getUID()).collection('mp_subscriptions').doc(id).delete()}
+
+document.addEventListener('DOMContentLoaded',()=>{setTimeout(()=>{loadMarketplace();loadMySubs()},1500)});
+</script>
+{% endblock %}

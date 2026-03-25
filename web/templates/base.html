@@ -115,6 +115,34 @@
                         {% if active_page == 'scanner' %}<span class="nav-active-dot"></span>{% endif %}
                     </a>
                 </li>
+                <li>
+                    <a href="/whales" class="{% if active_page == 'whales' %}active{% endif %}" onclick="closeSidebar()">
+                        <span class="nav-icon-wrap" style="background:#06b6d422;color:#06b6d4;">🐋</span>
+                        <span class="nav-label">Whale Tracker</span>
+                        {% if active_page == 'whales' %}<span class="nav-active-dot"></span>{% endif %}
+                    </a>
+                </li>
+                <li>
+                    <a href="/ai-copilot" class="{% if active_page == 'ai_copilot' %}active{% endif %}" onclick="closeSidebar()">
+                        <span class="nav-icon-wrap" style="background:#a855f722;color:#a855f7;">🤖</span>
+                        <span class="nav-label">AI Copilot</span>
+                        {% if active_page == 'ai_copilot' %}<span class="nav-active-dot"></span>{% endif %}
+                    </a>
+                </li>
+                <li>
+                    <a href="/marketplace" class="{% if active_page == 'marketplace' %}active{% endif %}" onclick="closeSidebar()">
+                        <span class="nav-icon-wrap" style="background:#f43f5e22;color:#f43f5e;">🏪</span>
+                        <span class="nav-label">Marketplace</span>
+                        {% if active_page == 'marketplace' %}<span class="nav-active-dot"></span>{% endif %}
+                    </a>
+                </li>
+                <li>
+                    <a href="/copy-trading" class="{% if active_page == 'copy_trading' %}active{% endif %}" onclick="closeSidebar()">
+                        <span class="nav-icon-wrap" style="background:#10b98122;color:#10b981;">👥</span>
+                        <span class="nav-label">Copy Trading</span>
+                        {% if active_page == 'copy_trading' %}<span class="nav-active-dot"></span>{% endif %}
+                    </a>
+                </li>
             </ul>
         </div>
 
@@ -148,6 +176,48 @@
                         <span class="nav-icon-wrap" style="background:#f59e0b22;color:#f59e0b;">🏆</span>
                         <span class="nav-label">Leaderboard</span>
                         {% if active_page == 'leaderboard' %}<span class="nav-active-dot"></span>{% endif %}
+                    </a>
+                </li>
+                <li>
+                    <a href="/correlation" class="{% if active_page == 'correlation' %}active{% endif %}" onclick="closeSidebar()">
+                        <span class="nav-icon-wrap" style="background:#8b5cf622;color:#8b5cf6;">🔗</span>
+                        <span class="nav-label">Correlation</span>
+                        {% if active_page == 'correlation' %}<span class="nav-active-dot"></span>{% endif %}
+                    </a>
+                </li>
+                <li>
+                    <a href="/liquidation" class="{% if active_page == 'liquidation' %}active{% endif %}" onclick="closeSidebar()">
+                        <span class="nav-icon-wrap" style="background:#e6394622;color:#e63946;">💥</span>
+                        <span class="nav-label">Liquidation Map</span>
+                        {% if active_page == 'liquidation' %}<span class="nav-active-dot"></span>{% endif %}
+                    </a>
+                </li>
+                <li>
+                    <a href="/funding-arb" class="{% if active_page == 'funding_arb' %}active{% endif %}" onclick="closeSidebar()">
+                        <span class="nav-icon-wrap" style="background:#14b8a622;color:#14b8a6;">💰</span>
+                        <span class="nav-label">Funding Arb</span>
+                        {% if active_page == 'funding_arb' %}<span class="nav-active-dot"></span>{% endif %}
+                    </a>
+                </li>
+                <li>
+                    <a href="/mtf-confluence" class="{% if active_page == 'mtf_confluence' %}active{% endif %}" onclick="closeSidebar()">
+                        <span class="nav-icon-wrap" style="background:#3b82f622;color:#3b82f6;">📡</span>
+                        <span class="nav-label">MTF Confluence</span>
+                        {% if active_page == 'mtf_confluence' %}<span class="nav-active-dot"></span>{% endif %}
+                    </a>
+                </li>
+                <li>
+                    <a href="/exit-optimizer" class="{% if active_page == 'exit_optimizer' %}active{% endif %}" onclick="closeSidebar()">
+                        <span class="nav-icon-wrap" style="background:#22c55e22;color:#22c55e;">🎯</span>
+                        <span class="nav-label">Smart Exit</span>
+                        {% if active_page == 'exit_optimizer' %}<span class="nav-active-dot"></span>{% endif %}
+                    </a>
+                </li>
+                <li>
+                    <a href="/tax-report" class="{% if active_page == 'tax_report' %}active{% endif %}" onclick="closeSidebar()">
+                        <span class="nav-icon-wrap" style="background:#f59e0b22;color:#f59e0b;">📋</span>
+                        <span class="nav-label">Tax Report</span>
+                        {% if active_page == 'tax_report' %}<span class="nav-active-dot"></span>{% endif %}
                     </a>
                 </li>
             </ul>

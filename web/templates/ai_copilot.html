@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+{% block title %}TrekBot — AI Trade Copilot{% endblock %}
+{% block page_title %}🧠 AI Trade Copilot{% endblock %}
+{% block content %}
+<style>
+.ai-hero{background:linear-gradient(135deg,var(--bg-card),var(--bg-secondary));border:1px solid var(--border);border-radius:16px;padding:2rem;margin-bottom:1.5rem;position:relative;overflow:hidden}
+.ai-hero::before{content:'';position:absolute;top:-50%;left:-50%;width:200%;height:200%;background:conic-gradient(from 0deg,transparent,#8b5cf611,transparent,#3b82f611,transparent);animation:ai-rotate 8s linear infinite}
+@keyframes ai-rotate{to{transform:rotate(360deg)}}
+.ai-hero-inner{position:relative;z-index:1}
+.ai-score-ring{width:140px;height:140px;margin:0 auto 1rem;position:relative}
+.ai-score-ring svg{transform:rotate(-90deg)}
+.ai-score-ring .track{fill:none;stroke:var(--border);stroke-width:8}
+.ai-score-ring .bar{fill:none;stroke-width:8;stroke-linecap:round;transition:stroke-dashoffset .8s ease,stroke 0.3s}
+.ai-score-val{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:2.2rem;font-weight:800;color:var(--text-primary)}
+.ai-score-lbl{text-align:center;font-size:.8rem;color:var(--text-muted);margin-bottom:1rem}
+.ai-verdict{text-align:center;font-size:1.1rem;font-weight:700;padding:.6rem 1.2rem;border-radius:10px;display:inline-block}
+.ai-buy{background:#10b98122;color:#10b981}.ai-sell{background:#e6394622;color:#e63946}.ai-hold{background:#f59e0b22;color:#f59e0b}
+.ai-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.2rem;margin-bottom:1.5rem}
+.ai-card{background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:1.4rem}
+.ai-card h3{margin:0 0 .8rem;font-size:1rem;color:var(--text-primary);display:flex;align-items:center;gap:.5rem}
+.ai-reason{background:var(--bg-secondary);border:1px solid var(--border);border-radius:10px;padding:1rem;margin:.4rem 0;font-size:.85rem;color:var(--text-secondary);line-height:1.6}
+.ai-factors{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.8rem;margin-top:.8rem}
+.ai-factor{background:var(--bg-secondary);border:1px solid var(--border-light);border-radius:10px;padding:.8rem;text-align:center}
+.ai-factor .fval{font-size:1.2rem;font-weight:700;color:var(--text-primary)}
+.ai-factor .flbl{font-size:.7rem;color:var(--text-muted);margin-top:.2rem}
+.ai-config{display:flex;gap:.8rem;align-items:center;flex-wrap:wrap;margin-bottom:1.2rem}
+.ai-config label{font-size:.8rem;color:var(--text-muted)}
+.ai-config input,.ai-config select{background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:.5rem .8rem;color:var(--text-primary);font-size:.85rem}
+.ai-config button{background:linear-gradient(135deg,#8b5cf6,#a855f7);color:#fff;border:none;border-radius:8px;padding:.6rem 1.4rem;cursor:pointer;font-weight:600;font-size:.85rem}
+.ai-history-item{display:flex;align-items:center;gap:.8rem;padding:.7rem .8rem;border-bottom:1px solid var(--border-light)}
+.ai-history-item:hover{background:var(--bg-hover)}
+.ai-h-score{width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.85rem;color:#fff}
+.ai-threshold-bar{height:6px;background:var(--border);border-radius:3px;margin-top:.5rem;position:relative}
+.ai-threshold-fill{height:100%;border-radius:3px;transition:width .5s}
+.ai-threshold-marker{position:absolute;top:-4px;width:2px;height:14px;background:var(--text-primary);border-radius:1px}
+@media(max-width:768px){.ai-grid{grid-template-columns:1fr}.ai-factors{grid-template-columns:1fr 1fr}}
+</style>
+
+<!-- Config -->
+<div class="ai-config">
+    <label>Symbol</label>
+    <select id="aiSymbol"><option>BTC/USDT</option><option>ETH/USDT</option><option>SOL/USDT</option><option>XRP/USDT</option></select>
+    <label>Min Confidence</label>
+    <input type="number" id="aiThreshold" value="70" min="0" max="100" style="width:70px">
+    <label>Auto-block below threshold</label>
+    <input type="checkbox" id="aiAutoBlock" checked>
+    <button onclick="runAiAnalysis()">🧠 Analyze Now</button>
+    <button onclick="saveAiConfig()" style="background:linear-gradient(135deg,#10b981,#059669)">💾 Save Config</button>
+</div>
+
+<!-- Score Hero -->
+<div class="ai-hero">
+    <div class="ai-hero-inner" style="text-align:center">
+        <div class="ai-score-ring">
+            <svg width="140" height="140" viewBox="0 0 140 140">
+                <circle class="track" cx="70" cy="70" r="60"/>
+                <circle class="bar" id="aiScoreBar" cx="70" cy="70" r="60" stroke-dasharray="377" stroke-dashoffset="377"/>
+            </svg>
+            <div class="ai-score-val" id="aiScoreVal">—</div>
+        </div>
+        <div class="ai-score-lbl">AI CONFIDENCE SCORE</div>
+        <div id="aiVerdict" class="ai-verdict ai-hold">Waiting for analysis...</div>
+        <div class="ai-threshold-bar" style="max-width:300px;margin:.8rem auto 0">
+            <div class="ai-threshold-fill" id="aiThresholdFill" style="width:0%;background:#f59e0b"></div>
+            <div class="ai-threshold-marker" id="aiThresholdMarker" style="left:70%"></div>
+        </div>
+    </div>
+</div>
+
+<div class="ai-grid">
+    <!-- AI Reasoning -->
+    <div class="ai-card">
+        <h3>💬 AI Reasoning</h3>
+        <div class="ai-reason" id="aiReasoning">Run an analysis to see AI reasoning with market context, technical indicators, and sentiment.</div>
+        <div class="ai-factors" id="aiFactors">
+            <div class="ai-factor"><div class="fval" id="afRsi">—</div><div class="flbl">RSI (14)</div></div>
+            <div class="ai-factor"><div class="fval" id="afTrend">—</div><div class="flbl">Trend</div></div>
+            <div class="ai-factor"><div class="fval" id="afVol">—</div><div class="flbl">Volume</div></div>
+            <div class="ai-factor"><div class="fval" id="afFunding">—</div><div class="flbl">Funding</div></div>
+            <div class="ai-factor"><div class="fval" id="afSentiment">—</div><div class="flbl">Sentiment</div></div>
+            <div class="ai-factor"><div class="fval" id="afMomentum">—</div><div class="flbl">Momentum</div></div>
+        </div>
+    </div>
+
+    <!-- Analysis History (Firestore) -->
+    <div class="ai-card">
+        <h3>📜 Analysis History <span style="font-size:.65rem;color:var(--text-muted);margin-left:auto">🔥 Firestore</span></h3>
+        <div id="aiHistory" style="max-height:380px;overflow-y:auto">
+            <div style="text-align:center;padding:2rem;color:var(--text-muted)">No analyses yet</div>
+        </div>
+    </div>
+</div>
+
+<script>
+const AI_API='/api/ai/analyze';
+
+function scoreColor(s){return s>=70?'#10b981':s>=50?'#f59e0b':'#e63946'}
+
+async function runAiAnalysis(){
+    const sym=document.getElementById('aiSymbol').value;
+    const thresh=parseInt(document.getElementById('aiThreshold').value)||70;
+    document.getElementById('aiScoreVal').textContent='...';
+    document.getElementById('aiVerdict').textContent='Analyzing...';
+    document.getElementById('aiVerdict').className='ai-verdict ai-hold';
+    document.getElementById('aiReasoning').textContent='🧠 AI is thinking...';
+    try{
+        const r=await fetch(AI_API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({symbol:sym,threshold:thresh})});
+        const d=await r.json();
+        if(d.error){document.getElementById('aiReasoning').textContent='Error: '+d.error;return}
+        renderAiResult(d,thresh);
+        saveAiAnalysis(d);
+    }catch(e){document.getElementById('aiReasoning').textContent='Error: '+e.message}
+}
+
+function renderAiResult(d,thresh){
+    const score=d.confidence||50;
+    const bar=document.getElementById('aiScoreBar');
+    const offset=377-(377*score/100);
+    bar.style.strokeDashoffset=offset;
+    bar.style.stroke=scoreColor(score);
+    document.getElementById('aiScoreVal').textContent=score;
+    const v=document.getElementById('aiVerdict');
+    if(d.signal==='BUY'){v.textContent='🟢 STRONG BUY';v.className='ai-verdict ai-buy'}
+    else if(d.signal==='SELL'){v.textContent='🔴 SELL';v.className='ai-verdict ai-sell'}
+    else{v.textContent='🟡 HOLD';v.className='ai-verdict ai-hold'}
+    document.getElementById('aiReasoning').textContent=d.reasoning||'No reasoning provided';
+    document.getElementById('aiThresholdFill').style.width=score+'%';
+    document.getElementById('aiThresholdFill').style.background=scoreColor(score);
+    document.getElementById('aiThresholdMarker').style.left=thresh+'%';
+    if(d.factors){
+        document.getElementById('afRsi').textContent=d.factors.rsi||'—';
+        document.getElementById('afTrend').textContent=d.factors.trend||'—';
+        document.getElementById('afVol').textContent=d.factors.volume||'—';
+        document.getElementById('afFunding').textContent=d.factors.funding||'—';
+        document.getElementById('afSentiment').textContent=d.factors.sentiment||'—';
+        document.getElementById('afMomentum').textContent=d.factors.momentum||'—';
+    }
+}
+
+/* ── Firestore Integration ── */
+function getFS(){if(typeof firebase!=='undefined'&&firebase.firestore)return firebase.firestore();return null}
+function getUID(){if(typeof firebase!=='undefined'&&firebase.auth&&firebase.auth().currentUser)return firebase.auth().currentUser.uid;return 'anon'}
+
+async function saveAiConfig(){
+    const db=getFS();if(!db)return;
+    const uid=getUID();
+    await db.collection('users').doc(uid).collection('ai_copilot').doc('config').set({
+        threshold:parseInt(document.getElementById('aiThreshold').value)||70,
+        autoBlock:document.getElementById('aiAutoBlock').checked,
+        defaultSymbol:document.getElementById('aiSymbol').value,
+        updatedAt:new Date().toISOString()
+    });
+    showToast&&showToast('AI config saved!','success');
+}
+
+async function loadAiConfig(){
+    const db=getFS();if(!db)return;
+    const uid=getUID();
+    const snap=await db.collection('users').doc(uid).collection('ai_copilot').doc('config').get();
+    if(snap.exists){
+        const c=snap.data();
+        if(c.threshold)document.getElementById('aiThreshold').value=c.threshold;
+        if(c.autoBlock!==undefined)document.getElementById('aiAutoBlock').checked=c.autoBlock;
+        if(c.defaultSymbol){document.getElementById('aiSymbol').value=c.defaultSymbol}
+    }
+}
+
+async function saveAiAnalysis(d){
+    const db=getFS();if(!db)return;
+    const uid=getUID();
+    await db.collection('users').doc(uid).collection('ai_copilot').doc('history').collection('analyses').add({
+        symbol:d.symbol||document.getElementById('aiSymbol').value,
+        confidence:d.confidence||0,signal:d.signal||'HOLD',
+        reasoning:d.reasoning||'',factors:d.factors||{},
+        timestamp:new Date().toISOString()
+    });
+    loadAiHistory();
+}
+
+async function loadAiHistory(){
+    const db=getFS();if(!db)return;
+    const uid=getUID();
+    const snap=await db.collection('users').doc(uid).collection('ai_copilot').doc('history').collection('analyses').orderBy('timestamp','desc').limit(20).get();
+    const el=document.getElementById('aiHistory');
+    if(snap.empty){el.innerHTML='<div style="text-align:center;padding:2rem;color:var(--text-muted)">No analyses yet</div>';return}
+    el.innerHTML='';
+    snap.forEach(doc=>{
+        const a=doc.data();
+        const sc=a.confidence||0;
+        const bg=scoreColor(sc);
+        el.innerHTML+=`<div class="ai-history-item">
+            <div class="ai-h-score" style="background:${bg}">${sc}</div>
+            <div style="flex:1">
+                <div style="font-weight:600;color:var(--text-primary);font-size:.85rem">${a.symbol} — ${a.signal}</div>
+                <div style="font-size:.7rem;color:var(--text-muted)">${a.timestamp?new Date(a.timestamp).toLocaleString():''}</div>
+            </div>
+        </div>`;
+    });
+}
+
+document.addEventListener('DOMContentLoaded',()=>{setTimeout(()=>{loadAiConfig();loadAiHistory()},1500)});
+</script>
+{% endblock %}

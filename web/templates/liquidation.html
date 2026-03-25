@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+{% block title %}TrekBot — Liquidation Map{% endblock %}
+{% block page_title %}💥 Liquidation Level Map{% endblock %}
+{% block content %}
+<style>
+.liq-stat-row{display:flex;gap:.8rem;flex-wrap:wrap;margin-bottom:1.2rem}
+.liq-stat{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:.8rem 1.2rem;flex:1;min-width:160px;text-align:center}
+.liq-stat .val{font-size:1.4rem;font-weight:700;color:var(--text-primary)}
+.liq-stat .lbl{font-size:.7rem;color:var(--text-muted);margin-top:.2rem}
+.liq-grid{display:grid;grid-template-columns:1.5fr 1fr;gap:1.2rem;margin-bottom:1.5rem}
+.liq-card{background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:1.4rem}
+.liq-card h3{margin:0 0 .8rem;font-size:1rem;color:var(--text-primary);display:flex;align-items:center;gap:.5rem}
+.liq-map{position:relative;height:400px;background:var(--bg-secondary);border-radius:10px;border:1px solid var(--border);overflow:hidden}
+.liq-price-line{position:absolute;left:0;right:0;height:2px;background:#f59e0b;z-index:10}
+.liq-price-label{position:absolute;right:8px;transform:translateY(-50%);background:#f59e0b;color:#000;font-size:.65rem;font-weight:700;padding:2px 6px;border-radius:4px;z-index:11}
+.liq-bar{position:absolute;left:60px;border-radius:0 4px 4px 0;height:6px;opacity:.8;transition:width .5s}
+.liq-bar.long{background:linear-gradient(90deg,#10b98166,#10b981)}
+.liq-bar.short{background:linear-gradient(90deg,#e6394666,#e63946)}
+.liq-level{position:absolute;left:0;width:55px;font-size:.6rem;text-align:right;padding-right:4px;transform:translateY(-50%);color:var(--text-muted);font-family:'JetBrains Mono'}
+.liq-alert-item{display:flex;align-items:center;gap:.6rem;padding:.6rem;border-bottom:1px solid var(--border-light);font-size:.82rem}
+.liq-alert-item:hover{background:var(--bg-hover)}
+.liq-danger{color:#e63946;font-weight:600}.liq-safe{color:#10b981;font-weight:600}
+.liq-config{display:flex;gap:.8rem;align-items:center;flex-wrap:wrap;margin-bottom:1.2rem}
+.liq-config select,.liq-config input{background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:.5rem .8rem;color:var(--text-primary);font-size:.85rem}
+.liq-config button{background:linear-gradient(135deg,#e63946,#dc2626);color:#fff;border:none;border-radius:8px;padding:.5rem 1.2rem;cursor:pointer;font-weight:600;font-size:.85rem}
+.liq-cluster{display:flex;align-items:center;gap:.5rem;padding:.5rem 0;border-bottom:1px solid var(--border-light)}
+.liq-cluster-bar{flex:1;height:16px;border-radius:8px;position:relative;overflow:hidden;background:var(--bg-secondary)}
+.liq-cluster-fill{height:100%;border-radius:8px;transition:width .5s}
+@media(max-width:768px){.liq-grid{grid-template-columns:1fr}}
+</style>
+
+<div class="liq-config">
+    <select id="liqSymbol"><option>BTC/USDT</option><option>ETH/USDT</option><option>SOL/USDT</option></select>
+    <select id="liqRange"><option value="2">±2%</option><option value="5" selected>±5%</option><option value="10">±10%</option></select>
+    <button onclick="loadLiquidations()">💥 Load Map</button>
+    <button onclick="saveLiqAlert()" style="background:linear-gradient(135deg,#8b5cf6,#a855f7)">🔔 Set Alert</button>
+    <button onclick="saveLiqSnapshot()" style="background:linear-gradient(135deg,#10b981,#059669)">💾 Save</button>
+</div>
+
+<div class="liq-stat-row">
+    <div class="liq-stat"><div class="val" id="lsPrice" style="color:#f59e0b">$—</div><div class="lbl">Current Price</div></div>
+    <div class="liq-stat"><div class="val" id="lsLongs" style="color:#10b981">$0</div><div class="lbl">Long Liquidations Above</div></div>
+    <div class="liq-stat"><div class="val" id="lsShorts" style="color:#e63946">$0</div><div class="lbl">Short Liquidations Below</div></div>
+    <div class="liq-stat"><div class="val" id="lsRatio">—</div><div class="lbl">Long/Short Ratio</div></div>
+    <div class="liq-stat"><div class="val" id="lsDanger">—</div><div class="lbl">Nearest Cluster</div></div>
+</div>
+
+<div class="liq-grid">
+    <!-- Visual Map -->
+    <div class="liq-card">
+        <h3>📊 Liquidation Heatmap</h3>
+        <div class="liq-map" id="liqMap">
+            <div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:.85rem">Click "Load Map" to visualize liquidation levels</div>
+        </div>
+    </div>
+
+    <!-- Clusters -->
+    <div class="liq-card">
+        <h3>🎯 Major Clusters</h3>
+        <div id="liqClusters" style="max-height:360px;overflow-y:auto">
+            <div style="text-align:center;padding:2rem;color:var(--text-muted)">No data</div>
+        </div>
+    </div>
+</div>
+
+<!-- Saved Alerts (Firestore) -->
+<div class="liq-card" style="margin-bottom:1.5rem">
+    <h3>🔔 My Liquidation Alerts <span style="font-size:.65rem;color:var(--text-muted);margin-left:auto">🔥 Firestore</span></h3>
+    <div id="liqAlerts" style="max-height:240px;overflow-y:auto">
+        <div style="text-align:center;padding:2rem;color:var(--text-muted)">No alerts configured</div>
+    </div>
+</div>
+
+<script>
+function fmtM(n){if(n>=1e9)return '$'+(n/1e9).toFixed(1)+'B';if(n>=1e6)return '$'+(n/1e6).toFixed(1)+'M';return '$'+(n/1e3).toFixed(0)+'K'}
+
+async function loadLiquidations(){
+    const sym=document.getElementById('liqSymbol').value;
+    const range=document.getElementById('liqRange').value;
+    try{
+        const r=await fetch('/api/liquidations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({symbol:sym,range:parseFloat(range)})});
+        const d=await r.json();
+        if(d.error){alert(d.error);return}
+        renderLiqMap(d);
+        renderClusters(d.clusters||[]);
+        renderLiqStats(d);
+    }catch(e){console.error(e)}
+}
+
+function renderLiqMap(d){
+    const map=document.getElementById('liqMap');
+    const price=d.current_price||0;
+    const levels=d.levels||[];
+    if(!levels.length){map.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted)">No liquidation data</div>';return}
+    const minP=Math.min(...levels.map(l=>l.price));
+    const maxP=Math.max(...levels.map(l=>l.price));
+    const maxVol=Math.max(...levels.map(l=>l.volume));
+    const mapH=400;
+    let html='';
+    // Price line
+    const priceY=mapH-((price-minP)/(maxP-minP))*mapH;
+    html+=`<div class="liq-price-line" style="top:${priceY}px"></div>`;
+    html+=`<div class="liq-price-label" style="top:${priceY}px">$${price.toLocaleString()}</div>`;
+    // Bars
+    levels.forEach(l=>{
+        const y=mapH-((l.price-minP)/(maxP-minP))*mapH;
+        const w=(l.volume/maxVol)*70;
+        const cls=l.side==='long'?'long':'short';
+        html+=`<div class="liq-level" style="top:${y}px">$${(l.price/1000).toFixed(1)}K</div>`;
+        html+=`<div class="liq-bar ${cls}" style="top:${y-3}px;width:${w}%" title="${l.side} $${(l.volume/1e6).toFixed(1)}M at $${l.price.toLocaleString()}"></div>`;
+    });
+    map.innerHTML=html;
+}
+
+function renderClusters(clusters){
+    const el=document.getElementById('liqClusters');
+    if(!clusters.length){el.innerHTML='<div style="text-align:center;padding:1rem;color:var(--text-muted)">No major clusters</div>';return}
+    const maxV=Math.max(...clusters.map(c=>c.volume));
+    el.innerHTML=clusters.map(c=>{
+        const pct=(c.volume/maxV*100).toFixed(0);
+        const isLong=c.side==='long';
+        return `<div class="liq-cluster">
+            <span style="font-size:.75rem;min-width:55px;color:var(--text-muted);font-family:'JetBrains Mono'">$${(c.price/1000).toFixed(1)}K</span>
+            <div class="liq-cluster-bar"><div class="liq-cluster-fill" style="width:${pct}%;background:${isLong?'#10b981':'#e63946'}"></div></div>
+            <span style="font-size:.75rem;font-weight:600;min-width:60px;text-align:right;color:${isLong?'#10b981':'#e63946'}">${fmtM(c.volume)}</span>
+            <span style="font-size:.6rem;color:var(--text-muted)">${c.side.toUpperCase()}</span>
+        </div>`}).join('');
+}
+
+function renderLiqStats(d){
+    document.getElementById('lsPrice').textContent='$'+(d.current_price||0).toLocaleString();
+    document.getElementById('lsLongs').textContent=fmtM(d.total_long_liq||0);
+    document.getElementById('lsShorts').textContent=fmtM(d.total_short_liq||0);
+    const ratio=d.total_short_liq?(d.total_long_liq/d.total_short_liq).toFixed(2):'—';
+    document.getElementById('lsRatio').textContent=ratio;
+    document.getElementById('lsDanger').textContent=d.nearest_cluster?('$'+(d.nearest_cluster/1000).toFixed(1)+'K'):'—';
+}
+
+/* ── Firestore ── */
+function getFS(){if(typeof firebase!=='undefined'&&firebase.firestore)return firebase.firestore();return null}
+function getUID(){if(typeof firebase!=='undefined'&&firebase.auth&&firebase.auth().currentUser)return firebase.auth().currentUser.uid;return 'anon'}
+
+async function saveLiqAlert(){
+    const db=getFS();if(!db)return alert('Firestore not available');
+    const uid=getUID();
+    const sym=document.getElementById('liqSymbol').value;
+    await db.collection('users').doc(uid).collection('liq_alerts').add({
+        symbol:sym,range:document.getElementById('liqRange').value,
+        createdAt:new Date().toISOString(),active:true
+    });
+    showToast&&showToast('Liquidation alert saved!','success');
+    loadLiqAlerts();
+}
+
+async function saveLiqSnapshot(){
+    const db=getFS();if(!db)return;
+    const uid=getUID();
+    await db.collection('users').doc(uid).collection('liq_snapshots').add({
+        symbol:document.getElementById('liqSymbol').value,
+        timestamp:new Date().toISOString()
+    });
+    showToast&&showToast('Snapshot saved!','success');
+}
+
+async function loadLiqAlerts(){
+    const db=getFS();if(!db)return;
+    const uid=getUID();
+    const snap=await db.collection('users').doc(uid).collection('liq_alerts').orderBy('createdAt','desc').limit(20).get();
+    const el=document.getElementById('liqAlerts');
+    if(snap.empty){el.innerHTML='<div style="text-align:center;padding:1rem;color:var(--text-muted)">No alerts</div>';return}
+    el.innerHTML='';
+    snap.forEach(doc=>{
+        const a=doc.data();
+        el.innerHTML+=`<div class="liq-alert-item">
+            <span>🔔</span><span style="font-weight:600;color:var(--text-primary)">${a.symbol}</span>
+            <span style="color:var(--text-muted)">±${a.range}%</span>
+            <span style="color:${a.active?'#10b981':'var(--text-muted)'};font-size:.7rem">${a.active?'ACTIVE':'OFF'}</span>
+            <span style="font-size:.7rem;color:var(--text-muted);margin-left:auto">${new Date(a.createdAt).toLocaleDateString()}</span>
+            <button onclick="deleteLiqAlert('${doc.id}');this.closest('.liq-alert-item').remove()" style="background:none;border:none;cursor:pointer;color:var(--red)">🗑️</button>
+        </div>`;
+    });
+}
+
+async function deleteLiqAlert(id){const db=getFS();if(!db)return;await db.collection('users').doc(getUID()).collection('liq_alerts').doc(id).delete()}
+
+document.addEventListener('DOMContentLoaded',()=>{setTimeout(loadLiqAlerts,1500)});
+</script>
+{% endblock %}

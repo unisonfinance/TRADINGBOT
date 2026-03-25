@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+{% block title %}TrekBot — Correlation Heatmap{% endblock %}
+{% block page_title %}🔗 Portfolio Correlation & Risk Parity{% endblock %}
+{% block content %}
+<style>
+.cor-grid{display:grid;grid-template-columns:1.5fr 1fr;gap:1.2rem;margin-bottom:1.5rem}
+.cor-card{background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:1.4rem}
+.cor-card h3{margin:0 0 .8rem;font-size:1rem;color:var(--text-primary);display:flex;align-items:center;gap:.5rem}
+.heatmap-wrap{overflow-x:auto}
+.heatmap{border-collapse:collapse;width:100%}
+.heatmap th{font-size:.7rem;text-transform:uppercase;color:var(--text-muted);padding:.5rem;text-align:center;position:sticky;top:0;background:var(--bg-card)}
+.heatmap td{padding:0;text-align:center;font-size:.75rem;font-weight:600;width:54px;height:54px;border:2px solid var(--bg-card);border-radius:8px;cursor:default;transition:transform .2s}
+.heatmap td:hover{transform:scale(1.1);z-index:1}
+.cor-legend{display:flex;align-items:center;gap:.3rem;margin-top:.8rem;justify-content:center}
+.cor-legend-bar{height:12px;width:200px;border-radius:6px;background:linear-gradient(90deg,#e63946,#f59e0b,#fafafa,#3b82f6,#10b981)}
+.cor-legend span{font-size:.65rem;color:var(--text-muted)}
+.rp-row{display:flex;align-items:center;gap:.8rem;padding:.6rem 0;border-bottom:1px solid var(--border-light)}
+.rp-coin{font-weight:600;color:var(--text-primary);min-width:60px;font-size:.85rem}
+.rp-bar-wrap{flex:1;height:20px;background:var(--bg-secondary);border-radius:10px;overflow:hidden}
+.rp-bar{height:100%;border-radius:10px;transition:width .6s ease}
+.rp-pct{font-weight:700;font-size:.85rem;color:var(--text-primary);min-width:50px;text-align:right}
+.rp-suggest{background:var(--bg-secondary);border:1px solid var(--border);border-radius:10px;padding:.8rem;margin-top:.8rem;font-size:.8rem;color:var(--text-secondary)}
+.cor-config{display:flex;gap:.8rem;align-items:center;flex-wrap:wrap;margin-bottom:1.2rem}
+.cor-config select,.cor-config input{background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:.5rem .8rem;color:var(--text-primary);font-size:.85rem}
+.cor-config button{background:linear-gradient(135deg,#8b5cf6,#a855f7);color:#fff;border:none;border-radius:8px;padding:.5rem 1.2rem;cursor:pointer;font-weight:600;font-size:.85rem}
+.cor-stat-row{display:flex;gap:.8rem;margin-bottom:1.2rem}
+.cor-stat{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:.8rem 1.2rem;flex:1;text-align:center}
+.cor-stat .val{font-size:1.3rem;font-weight:700;color:var(--text-primary)}
+.cor-stat .lbl{font-size:.7rem;color:var(--text-muted);margin-top:.2rem}
+@media(max-width:768px){.cor-grid{grid-template-columns:1fr}}
+</style>
+
+<div class="cor-config">
+    <select id="corPeriod"><option value="30">30 Days</option><option value="90" selected>90 Days</option><option value="180">180 Days</option><option value="365">1 Year</option></select>
+    <button onclick="calculateCorrelation()">📊 Calculate</button>
+    <button onclick="saveCorrelation()" style="background:linear-gradient(135deg,#10b981,#059669)">💾 Save Snapshot</button>
+</div>
+
+<div class="cor-stat-row">
+    <div class="cor-stat"><div class="val" id="csAvgCor">—</div><div class="lbl">Avg Correlation</div></div>
+    <div class="cor-stat"><div class="val" id="csDiversification">—</div><div class="lbl">Diversification Score</div></div>
+    <div class="cor-stat"><div class="val" id="csRiskLevel">—</div><div class="lbl">Portfolio Risk</div></div>
+    <div class="cor-stat"><div class="val" id="csAssets">—</div><div class="lbl">Assets Tracked</div></div>
+</div>
+
+<div class="cor-grid">
+    <!-- Heatmap -->
+    <div class="cor-card">
+        <h3>🟩 Correlation Heatmap</h3>
+        <div class="heatmap-wrap" id="heatmapWrap">
+            <div style="text-align:center;padding:2rem;color:var(--text-muted)">Click "Calculate" to generate heatmap</div>
+        </div>
+        <div class="cor-legend">
+            <span>-1.0</span><div class="cor-legend-bar"></div><span>+1.0</span>
+        </div>
+    </div>
+
+    <!-- Risk Parity -->
+    <div class="cor-card">
+        <h3>⚖️ Risk Parity Allocation</h3>
+        <div id="riskParity">
+            <div style="text-align:center;padding:2rem;color:var(--text-muted)">Run correlation analysis first</div>
+        </div>
+        <div class="rp-suggest" id="rpSuggest" style="display:none">
+            <strong>💡 AI Suggestion:</strong> <span id="rpSuggestText"></span>
+        </div>
+    </div>
+</div>
+
+<!-- Saved Snapshots (Firestore) -->
+<div class="cor-card" style="margin-bottom:1.5rem">
+    <h3>📜 Saved Correlation Snapshots <span style="font-size:.65rem;color:var(--text-muted);margin-left:auto">🔥 Firestore</span></h3>
+    <div id="corSnapshots" style="max-height:300px;overflow-y:auto">
+        <div style="text-align:center;padding:2rem;color:var(--text-muted)">No snapshots saved yet</div>
+    </div>
+</div>
+
+<script>
+const COINS=['BTC','ETH','SOL','XRP','BNB','ADA','DOGE','AVAX'];
+const COIN_COLORS={'BTC':'#f7931a','ETH':'#627eea','SOL':'#9945ff','XRP':'#23292f','BNB':'#f3ba2f','ADA':'#0033ad','DOGE':'#c2a633','AVAX':'#e84142'};
+
+function corColor(v){
+    if(v>=0.7)return '#10b981';if(v>=0.3)return '#3b82f6';if(v>=-0.3)return '#94a3b8';
+    if(v>=-0.7)return '#f59e0b';return '#e63946';
+}
+function corBg(v){return corColor(v)+'22'}
+
+async function calculateCorrelation(){
+    const period=document.getElementById('corPeriod').value;
+    try{
+        const r=await fetch('/api/correlation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({period:parseInt(period),coins:COINS})});
+        const d=await r.json();
+        if(d.error){alert(d.error);return}
+        renderHeatmap(d.matrix,d.coins||COINS);
+        renderRiskParity(d.risk_parity||[]);
+        renderStats(d);
+        if(d.suggestion){document.getElementById('rpSuggest').style.display='block';document.getElementById('rpSuggestText').textContent=d.suggestion}
+    }catch(e){console.error(e)}
+}
+
+function renderHeatmap(matrix,coins){
+    if(!matrix||!matrix.length){return}
+    let html='<table class="heatmap"><thead><tr><th></th>';
+    coins.forEach(c=>{html+=`<th>${c}</th>`});
+    html+='</tr></thead><tbody>';
+    matrix.forEach((row,i)=>{
+        html+=`<tr><th style="text-align:right;padding-right:.5rem;font-size:.75rem;color:var(--text-primary)">${coins[i]}</th>`;
+        row.forEach((v,j)=>{
+            const val=typeof v==='number'?v.toFixed(2):'—';
+            html+=`<td style="background:${corBg(v)};color:${corColor(v)}" title="${coins[i]} vs ${coins[j]}: ${val}">${val}</td>`;
+        });
+        html+='</tr>';
+    });
+    html+='</tbody></table>';
+    document.getElementById('heatmapWrap').innerHTML=html;
+}
+
+function renderRiskParity(rp){
+    const el=document.getElementById('riskParity');
+    if(!rp.length){el.innerHTML='<div style="text-align:center;padding:1rem;color:var(--text-muted)">No data</div>';return}
+    el.innerHTML=rp.map(r=>`<div class="rp-row">
+        <span class="rp-coin">${r.coin}</span>
+        <div class="rp-bar-wrap"><div class="rp-bar" style="width:${r.weight}%;background:${COIN_COLORS[r.coin]||'#8b5cf6'}"></div></div>
+        <span class="rp-pct">${r.weight.toFixed(1)}%</span>
+    </div>`).join('');
+}
+
+function renderStats(d){
+    document.getElementById('csAvgCor').textContent=(d.avg_correlation||0).toFixed(2);
+    document.getElementById('csDiversification').textContent=(d.diversification_score||0)+'/100';
+    const risk=d.avg_correlation>0.7?'HIGH':d.avg_correlation>0.4?'MEDIUM':'LOW';
+    document.getElementById('csRiskLevel').textContent=risk;
+    document.getElementById('csRiskLevel').style.color=risk==='HIGH'?'#e63946':risk==='MEDIUM'?'#f59e0b':'#10b981';
+    document.getElementById('csAssets').textContent=(d.coins||COINS).length;
+}
+
+/* ── Firestore ── */
+function getFS(){if(typeof firebase!=='undefined'&&firebase.firestore)return firebase.firestore();return null}
+function getUID(){if(typeof firebase!=='undefined'&&firebase.auth&&firebase.auth().currentUser)return firebase.auth().currentUser.uid;return 'anon'}
+
+async function saveCorrelation(){
+    const db=getFS();if(!db)return alert('Firestore not available');
+    const uid=getUID();
+    await db.collection('users').doc(uid).collection('correlation_snapshots').add({
+        period:document.getElementById('corPeriod').value,
+        timestamp:new Date().toISOString(),
+        coins:COINS
+    });
+    showToast&&showToast('Correlation snapshot saved!','success');
+    loadSnapshots();
+}
+
+async function loadSnapshots(){
+    const db=getFS();if(!db)return;
+    const uid=getUID();
+    const snap=await db.collection('users').doc(uid).collection('correlation_snapshots').orderBy('timestamp','desc').limit(10).get();
+    const el=document.getElementById('corSnapshots');
+    if(snap.empty){el.innerHTML='<div style="text-align:center;padding:1rem;color:var(--text-muted)">No snapshots</div>';return}
+    el.innerHTML='';
+    snap.forEach(doc=>{
+        const s=doc.data();
+        el.innerHTML+=`<div style="display:flex;align-items:center;gap:.8rem;padding:.5rem 0;border-bottom:1px solid var(--border-light)">
+            <span style="font-size:1.2rem">📸</span>
+            <div style="flex:1"><div style="font-weight:600;font-size:.85rem;color:var(--text-primary)">${s.period} Day Correlation</div>
+            <div style="font-size:.7rem;color:var(--text-muted)">${new Date(s.timestamp).toLocaleString()}</div></div>
+            <button onclick="this.closest('div').remove();deleteSnapshot('${doc.id}')" style="background:none;border:none;cursor:pointer;color:var(--red);font-size:.8rem">🗑️</button>
+        </div>`;
+    });
+}
+
+async function deleteSnapshot(id){
+    const db=getFS();if(!db)return;
+    const uid=getUID();
+    await db.collection('users').doc(uid).collection('correlation_snapshots').doc(id).delete();
+}
+
+document.addEventListener('DOMContentLoaded',()=>{setTimeout(loadSnapshots,1500)});
+</script>
+{% endblock %}

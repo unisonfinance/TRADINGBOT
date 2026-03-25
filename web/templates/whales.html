@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+{% block title %}TrekBot — Whale Alert Tracker{% endblock %}
+{% block page_title %}🐋 Whale Alert Tracker{% endblock %}
+{% block content %}
+<style>
+.wh-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.2rem;margin-bottom:1.5rem}
+.wh-card{background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:1.4rem;position:relative;overflow:hidden}
+.wh-card h3{margin:0 0 .8rem;font-size:1rem;color:var(--text-primary);display:flex;align-items:center;gap:.5rem}
+.wh-stat-row{display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:1.5rem}
+.wh-stat{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;flex:1;min-width:180px;text-align:center}
+.wh-stat .val{font-size:1.6rem;font-weight:700;color:var(--text-primary)}
+.wh-stat .lbl{font-size:.75rem;color:var(--text-muted);margin-top:.2rem}
+.wh-table{width:100%;border-collapse:collapse}
+.wh-table th{text-align:left;font-size:.7rem;text-transform:uppercase;color:var(--text-muted);padding:.5rem .8rem;border-bottom:1px solid var(--border)}
+.wh-table td{padding:.7rem .8rem;border-bottom:1px solid var(--border-light);font-size:.85rem;color:var(--text-secondary)}
+.wh-badge{display:inline-block;padding:2px 8px;border-radius:6px;font-size:.7rem;font-weight:600}
+.wh-buy{background:#10b98122;color:#10b981}.wh-sell{background:#e6394622;color:#e63946}
+.wh-mega{background:#f59e0b22;color:#f59e0b}
+.wh-alert-list{max-height:420px;overflow-y:auto}
+.wh-alert-item{display:flex;align-items:center;gap:.8rem;padding:.8rem;border-bottom:1px solid var(--border-light);animation:fadeInUp .3s both}
+.wh-alert-item:hover{background:var(--bg-hover)}
+.wh-emoji{font-size:1.5rem}
+.wh-alert-body{flex:1}
+.wh-alert-title{font-weight:600;color:var(--text-primary);font-size:.85rem}
+.wh-alert-sub{font-size:.75rem;color:var(--text-muted)}
+.wh-alert-amt{font-weight:700;font-size:.9rem}
+.wh-pulse{width:10px;height:10px;border-radius:50%;background:#10b981;animation:pulse-ring 2s infinite}
+.wh-config{display:flex;gap:.8rem;align-items:center;flex-wrap:wrap;margin-bottom:1.2rem}
+.wh-config label{font-size:.8rem;color:var(--text-muted)}
+.wh-config input,.wh-config select{background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:.5rem .8rem;color:var(--text-primary);font-size:.85rem}
+.wh-config button{background:linear-gradient(135deg,#8b5cf6,#a855f7);color:#fff;border:none;border-radius:8px;padding:.5rem 1.2rem;cursor:pointer;font-weight:600;font-size:.85rem}
+.wh-config button:hover{opacity:.9}
+.wh-live-dot{display:inline-flex;align-items:center;gap:.3rem;font-size:.7rem;color:#10b981;font-weight:600}
+@keyframes fadeInUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+@keyframes pulse-ring{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(1.5)}}
+@media(max-width:768px){.wh-grid{grid-template-columns:1fr}.wh-stat-row{flex-direction:column}}
+</style>
+
+<!-- Stats -->
+<div class="wh-stat-row" id="whaleStats">
+    <div class="wh-stat"><div class="val" id="wsTotal">0</div><div class="lbl">Whale Txns (24h)</div></div>
+    <div class="wh-stat"><div class="val" id="wsBuys" style="color:#10b981">0</div><div class="lbl">Accumulating</div></div>
+    <div class="wh-stat"><div class="val" id="wsSells" style="color:#e63946">0</div><div class="lbl">Dumping</div></div>
+    <div class="wh-stat"><div class="val" id="wsVol">$0</div><div class="lbl">Total Volume Moved</div></div>
+</div>
+
+<!-- Config -->
+<div class="wh-config">
+    <label>Min Amount ($)</label>
+    <input type="number" id="whaleMin" value="100000" min="10000" step="10000">
+    <label>Coins</label>
+    <select id="whaleCoin" multiple style="min-width:120px">
+        <option value="BTC" selected>BTC</option>
+        <option value="ETH" selected>ETH</option>
+        <option value="SOL">SOL</option>
+        <option value="XRP">XRP</option>
+        <option value="DOGE">DOGE</option>
+    </select>
+    <button onclick="saveWhaleConfig()">💾 Save Config</button>
+    <button onclick="refreshWhales()" style="background:linear-gradient(135deg,#10b981,#059669)">🔄 Refresh</button>
+    <span class="wh-live-dot"><span class="wh-pulse"></span> LIVE</span>
+</div>
+
+<div class="wh-grid">
+    <!-- Live Whale Feed -->
+    <div class="wh-card">
+        <h3>🐋 Live Whale Feed <span class="wh-live-dot" style="margin-left:auto"><span class="wh-pulse"></span> Streaming</span></h3>
+        <div class="wh-alert-list" id="whaleFeed">
+            <div style="text-align:center;padding:2rem;color:var(--text-muted)">Loading whale data...</div>
+        </div>
+    </div>
+
+    <!-- Whale Leaderboard -->
+    <div class="wh-card">
+        <h3>🏆 Top Whale Wallets (24h)</h3>
+        <table class="wh-table">
+            <thead><tr><th>#</th><th>Wallet</th><th>Coin</th><th>Volume</th><th>Type</th></tr></thead>
+            <tbody id="whaleLeaderboard">
+                <tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:2rem">Loading...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Whale Alerts History (Firestore-backed) -->
+<div class="wh-card" style="margin-bottom:1.5rem">
+    <h3>📜 Saved Whale Alerts <span style="font-size:.7rem;color:var(--text-muted);margin-left:auto">🔥 Firestore synced</span></h3>
+    <div class="wh-alert-list" id="savedWhaleAlerts">
+        <div style="text-align:center;padding:2rem;color:var(--text-muted)">Loading saved alerts...</div>
+    </div>
+</div>
+
+<script>
+const WHALE_API = '/api/whales';
+let whaleInterval;
+
+function fmtUSD(n){return '$'+Number(n).toLocaleString(undefined,{maximumFractionDigits:0})}
+function shortAddr(a){return a?(a.slice(0,6)+'...'+a.slice(-4)):'Unknown'}
+function timeAgo(ts){const d=Date.now()-new Date(ts).getTime(),m=Math.floor(d/60000);if(m<1)return 'just now';if(m<60)return m+'m ago';const h=Math.floor(m/60);if(h<24)return h+'h ago';return Math.floor(h/24)+'d ago'}
+
+async function refreshWhales(){
+    try{
+        const r=await fetch(WHALE_API+'?min='+document.getElementById('whaleMin').value);
+        const d=await r.json();
+        if(d.error){console.error(d.error);return}
+        renderWhaleStats(d);
+        renderWhaleFeed(d.transactions||[]);
+        renderWhaleLeaderboard(d.top_wallets||[]);
+    }catch(e){console.error('Whale fetch error:',e)}
+}
+
+function renderWhaleStats(d){
+    document.getElementById('wsTotal').textContent=d.total_transactions||0;
+    document.getElementById('wsBuys').textContent=d.accumulating||0;
+    document.getElementById('wsSells').textContent=d.dumping||0;
+    document.getElementById('wsVol').textContent=fmtUSD(d.total_volume||0);
+}
+
+function renderWhaleFeed(txns){
+    const el=document.getElementById('whaleFeed');
+    if(!txns.length){el.innerHTML='<div style="text-align:center;padding:2rem;color:var(--text-muted)">No whale transactions detected</div>';return}
+    el.innerHTML=txns.slice(0,50).map((t,i)=>{
+        const isBuy=t.type==='accumulate';
+        const emoji=t.amount_usd>1000000?'🐋':t.amount_usd>500000?'🦈':'🐬';
+        return `<div class="wh-alert-item" style="animation-delay:${i*0.05}s">
+            <span class="wh-emoji">${emoji}</span>
+            <div class="wh-alert-body">
+                <div class="wh-alert-title">${shortAddr(t.from)} → ${shortAddr(t.to)}</div>
+                <div class="wh-alert-sub">${t.coin||'BTC'} · ${timeAgo(t.timestamp)} · ${t.exchange||'Unknown Exchange'}</div>
+            </div>
+            <div class="wh-alert-amt ${isBuy?'':'wh-sell'}" style="color:${isBuy?'#10b981':'#e63946'}">${fmtUSD(t.amount_usd)}</div>
+            <span class="wh-badge ${isBuy?'wh-buy':'wh-sell'}">${isBuy?'BUY':'SELL'}</span>
+        </div>`
+    }).join('');
+}
+
+function renderWhaleLeaderboard(wallets){
+    const tb=document.getElementById('whaleLeaderboard');
+    if(!wallets.length){tb.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:2rem">No data</td></tr>';return}
+    tb.innerHTML=wallets.slice(0,15).map((w,i)=>`<tr>
+        <td>${i+1}</td><td style="font-family:JetBrains Mono;font-size:.75rem">${shortAddr(w.address)}</td>
+        <td>${w.coin||'BTC'}</td><td style="font-weight:600">${fmtUSD(w.volume)}</td>
+        <td><span class="wh-badge ${w.net_flow>0?'wh-buy':'wh-sell'}">${w.net_flow>0?'ACCUMULATE':'DUMP'}</span></td>
+    </tr>`).join('');
+}
+
+/* ── Firestore save/load whale config & alerts ── */
+function getFS(){
+    if(typeof firebase!=='undefined'&&firebase.firestore)return firebase.firestore();
+    return null;
+}
+function getUID(){
+    if(typeof firebase!=='undefined'&&firebase.auth&&firebase.auth().currentUser)return firebase.auth().currentUser.uid;
+    return 'anon';
+}
+
+async function saveWhaleConfig(){
+    const db=getFS();if(!db)return alert('Firestore not available');
+    const uid=getUID();
+    const cfg={minAmount:parseInt(document.getElementById('whaleMin').value)||100000,
+        coins:Array.from(document.getElementById('whaleCoin').selectedOptions).map(o=>o.value),
+        updatedAt:new Date().toISOString()};
+    await db.collection('users').doc(uid).collection('whale_config').doc('settings').set(cfg);
+    showToast&&showToast('Whale config saved!','success');
+}
+
+async function loadWhaleConfig(){
+    const db=getFS();if(!db)return;
+    const uid=getUID();
+    const snap=await db.collection('users').doc(uid).collection('whale_config').doc('settings').get();
+    if(snap.exists){
+        const c=snap.data();
+        document.getElementById('whaleMin').value=c.minAmount||100000;
+        if(c.coins){
+            const sel=document.getElementById('whaleCoin');
+            Array.from(sel.options).forEach(o=>{o.selected=c.coins.includes(o.value)});
+        }
+    }
+}
+
+async function loadSavedAlerts(){
+    const db=getFS();if(!db)return;
+    const uid=getUID();
+    const snap=await db.collection('users').doc(uid).collection('whale_alerts').orderBy('timestamp','desc').limit(50).get();
+    const el=document.getElementById('savedWhaleAlerts');
+    if(snap.empty){el.innerHTML='<div style="text-align:center;padding:2rem;color:var(--text-muted)">No saved alerts yet. Alerts auto-save when whale threshold is hit.</div>';return}
+    el.innerHTML='';
+    snap.forEach(doc=>{
+        const t=doc.data();
+        const isBuy=t.type==='accumulate';
+        el.innerHTML+=`<div class="wh-alert-item">
+            <span class="wh-emoji">${t.amount_usd>1000000?'🐋':'🐬'}</span>
+            <div class="wh-alert-body">
+                <div class="wh-alert-title">${t.coin} — ${fmtUSD(t.amount_usd)}</div>
+                <div class="wh-alert-sub">${t.exchange||'Unknown'} · ${t.timestamp||''}</div>
+            </div>
+            <span class="wh-badge ${isBuy?'wh-buy':'wh-sell'}">${isBuy?'BUY':'SELL'}</span>
+        </div>`;
+    });
+}
+
+async function autoSaveAlerts(txns){
+    const db=getFS();if(!db)return;
+    const uid=getUID();
+    const min=parseInt(document.getElementById('whaleMin').value)||100000;
+    const big=txns.filter(t=>t.amount_usd>=min*5);
+    for(const t of big.slice(0,5)){
+        const id=t.hash||Date.now().toString();
+        await db.collection('users').doc(uid).collection('whale_alerts').doc(id).set({...t,savedAt:new Date().toISOString()},{merge:true});
+    }
+}
+
+// Init
+document.addEventListener('DOMContentLoaded',()=>{
+    setTimeout(()=>{loadWhaleConfig();loadSavedAlerts()},1500);
+    refreshWhales();
+    whaleInterval=setInterval(refreshWhales,30000);
+});
+</script>
+{% endblock %}

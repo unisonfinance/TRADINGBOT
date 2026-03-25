@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+{% block title %}TrekBot — Copy Trading{% endblock %}
+{% block page_title %}👥 Copy Trading{% endblock %}
+{% block content %}
+<style>
+.ct-tabs{display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:1.5rem}
+.ct-tab{padding:.7rem 1.4rem;border:none;background:none;color:var(--text-muted);font-weight:600;cursor:pointer;font-size:.85rem;border-bottom:2px solid transparent;margin-bottom:-2px;display:flex;align-items:center;gap:.4rem}
+.ct-tab.active{color:var(--text-primary);border-bottom-color:#8b5cf6}
+.ct-stat-row{display:flex;gap:.8rem;flex-wrap:wrap;margin-bottom:1.2rem}
+.ct-stat{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:.8rem 1.2rem;flex:1;min-width:150px;text-align:center}
+.ct-stat .val{font-size:1.3rem;font-weight:700;color:var(--text-primary)}
+.ct-stat .lbl{font-size:.7rem;color:var(--text-muted);margin-top:.2rem}
+.ct-card{background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:1.4rem;margin-bottom:1.2rem}
+.ct-card h3{margin:0 0 .8rem;font-size:1rem;color:var(--text-primary);display:flex;align-items:center;gap:.5rem}
+.ct-trader-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1.2rem}
+.ct-trader{background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:1.2rem;transition:transform .2s,box-shadow .2s}
+.ct-trader:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.1)}
+.ct-trader-top{display:flex;align-items:center;gap:.8rem;margin-bottom:.8rem}
+.ct-avatar{width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.2rem;font-weight:700;color:#fff}
+.ct-trader-name{font-weight:700;color:var(--text-primary);font-size:.95rem}
+.ct-trader-sub{font-size:.7rem;color:var(--text-muted)}
+.ct-trader-stats{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:.4rem;margin:.6rem 0}
+.ct-ts{text-align:center;padding:.3rem;background:var(--bg-secondary);border-radius:6px}
+.ct-ts .tv{font-weight:700;font-size:.8rem;color:var(--text-primary)}
+.ct-ts .tl{font-size:.55rem;color:var(--text-muted)}
+.ct-equity{height:40px;background:var(--bg-secondary);border-radius:6px;overflow:hidden;margin:.5rem 0}
+.ct-equity-line{stroke:#10b981;stroke-width:2;fill:none}
+.ct-equity-area{fill:#10b98122}
+.ct-follow-btn{width:100%;padding:.5rem;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:.8rem;margin-top:.5rem}
+.ct-follow{background:linear-gradient(135deg,#8b5cf6,#a855f7);color:#fff}
+.ct-following{background:var(--bg-secondary);color:#10b981;border:2px solid #10b981}
+.ct-config-row{display:flex;gap:.8rem;align-items:center;flex-wrap:wrap;padding:.8rem;background:var(--bg-secondary);border-radius:10px;margin-top:.5rem}
+.ct-config-row label{font-size:.75rem;color:var(--text-muted)}
+.ct-config-row input,.ct-config-row select{background:var(--bg-input);border:1px solid var(--border);border-radius:6px;padding:.3rem .6rem;color:var(--text-primary);font-size:.8rem;width:80px}
+.ct-section{display:none}.ct-section.active{display:block}
+.ct-my-follow{display:flex;align-items:center;gap:.8rem;padding:.8rem;border-bottom:1px solid var(--border-light);border-radius:10px;margin-bottom:.5rem;background:var(--bg-card)}
+.ct-pnl-pos{color:#10b981;font-weight:700}.ct-pnl-neg{color:#e63946;font-weight:700}
+.ct-badge{font-size:.6rem;font-weight:700;padding:2px 6px;border-radius:4px}
+.ct-gold{background:#f59e0b22;color:#f59e0b}.ct-silver{background:#94a3b822;color:#64748b}.ct-bronze{background:#c2710522;color:#c27105}
+@media(max-width:600px){.ct-trader-grid{grid-template-columns:1fr}.ct-trader-stats{grid-template-columns:1fr 1fr}}
+</style>
+
+<div class="ct-tabs">
+    <button class="ct-tab active" onclick="switchCtTab('discover')">🔍 Discover Traders</button>
+    <button class="ct-tab" onclick="switchCtTab('following')">👥 Following</button>
+    <button class="ct-tab" onclick="switchCtTab('myleader')">📊 My Leader Profile</button>
+</div>
+
+<div class="ct-stat-row">
+    <div class="ct-stat"><div class="val" id="ctTraders">0</div><div class="lbl">Top Traders</div></div>
+    <div class="ct-stat"><div class="val" id="ctFollowing">0</div><div class="lbl">You Follow</div></div>
+    <div class="ct-stat"><div class="val" id="ctCopiedPnl" style="color:#10b981">$0</div><div class="lbl">Your Copy P&L</div></div>
+    <div class="ct-stat"><div class="val" id="ctFollowers">0</div><div class="lbl">Your Followers</div></div>
+</div>
+
+<!-- Discover Tab -->
+<div class="ct-section active" id="ctDiscover">
+    <div class="ct-trader-grid" id="ctTraderGrid">
+        <div style="text-align:center;padding:2rem;color:var(--text-muted);grid-column:1/-1">Loading traders...</div>
+    </div>
+</div>
+
+<!-- Following Tab -->
+<div class="ct-section" id="ctFollowing">
+    <div class="ct-card">
+        <h3>👥 Traders You Follow</h3>
+        <div id="ctMyFollows">
+            <div style="text-align:center;padding:2rem;color:var(--text-muted)">Not following anyone yet</div>
+        </div>
+    </div>
+</div>
+
+<!-- My Leader Profile -->
+<div class="ct-section" id="ctMyLeader">
+    <div class="ct-card">
+        <h3>📊 Your Leader Profile</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.8rem;margin-bottom:1rem" id="ctLeaderForm">
+            <div><label style="font-size:.75rem;color:var(--text-muted);display:block;margin-bottom:.3rem">Display Name</label>
+                <input type="text" id="ctLeaderName" placeholder="Your trader name" style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:.5rem;color:var(--text-primary);font-size:.85rem;box-sizing:border-box"></div>
+            <div><label style="font-size:.75rem;color:var(--text-muted);display:block;margin-bottom:.3rem">Profit Share %</label>
+                <input type="number" id="ctProfitShare" value="10" min="0" max="50" style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:.5rem;color:var(--text-primary);font-size:.85rem;box-sizing:border-box"></div>
+        </div>
+        <button onclick="saveLeaderProfile()" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;border:none;border-radius:8px;padding:.5rem 1.2rem;cursor:pointer;font-weight:600;font-size:.85rem">💾 Save Profile</button>
+    </div>
+</div>
+
+<script>
+function switchCtTab(tab){
+    document.querySelectorAll('.ct-tab').forEach((t,i)=>t.classList.toggle('active',['discover','following','myleader'][i]===tab));
+    document.querySelectorAll('.ct-section').forEach(s=>s.classList.remove('active'));
+    document.getElementById({discover:'ctDiscover',following:'ctFollowing',myleader:'ctMyLeader'}[tab]).classList.add('active');
+}
+
+const RANK_COLORS=['#f59e0b','#94a3b8','#c27105','#8b5cf6','#3b82f6'];
+function miniEquitySvg(){
+    const pts=Array.from({length:20},(_,i)=>({x:i*15,y:40-Math.random()*30-i*0.5}));
+    const line=pts.map((p,i)=>(i===0?'M':'L')+p.x+','+p.y).join(' ');
+    const area=line+` L${pts[pts.length-1].x},40 L0,40 Z`;
+    return `<svg width="100%" height="40" viewBox="0 0 300 40" preserveAspectRatio="none"><path class="ct-equity-area" d="${area}"/><path class="ct-equity-line" d="${line}"/></svg>`;
+}
+
+/* ── Firestore ── */
+function getFS(){if(typeof firebase!=='undefined'&&firebase.firestore)return firebase.firestore();return null}
+function getUID(){if(typeof firebase!=='undefined'&&firebase.auth&&firebase.auth().currentUser)return firebase.auth().currentUser.uid;return 'anon'}
+
+async function loadTraders(){
+    const db=getFS();if(!db)return;
+    const snap=await db.collection('copy_traders').orderBy('total_pnl','desc').limit(20).get();
+    const el=document.getElementById('ctTraderGrid');
+    if(snap.empty){el.innerHTML='<div style="text-align:center;padding:2rem;color:var(--text-muted);grid-column:1/-1">No traders available yet. Be the first leader!</div>';
+        document.getElementById('ctTraders').textContent='0';return}
+    let count=0;el.innerHTML='';
+    snap.forEach((doc,i)=>{
+        const t=doc.data();count++;
+        const rank=i<3?['🥇','🥈','🥉'][i]:'';
+        const pnlClass=(t.total_pnl||0)>=0?'ct-pnl-pos':'ct-pnl-neg';
+        el.innerHTML+=`<div class="ct-trader">
+            <div class="ct-trader-top">
+                <div class="ct-avatar" style="background:${RANK_COLORS[i%5]}">${t.name?t.name[0].toUpperCase():'T'}</div>
+                <div><div class="ct-trader-name">${rank} ${t.name||'Trader'}</div>
+                <div class="ct-trader-sub">👥 ${t.followers||0} followers · Since ${t.since||'2026'}</div></div>
+            </div>
+            <div class="ct-equity">${miniEquitySvg()}</div>
+            <div class="ct-trader-stats">
+                <div class="ct-ts"><div class="tv ${pnlClass}">$${(t.total_pnl||0).toFixed(0)}</div><div class="tl">Total P&L</div></div>
+                <div class="ct-ts"><div class="tv">${(t.win_rate||0).toFixed(0)}%</div><div class="tl">Win Rate</div></div>
+                <div class="ct-ts"><div class="tv">${t.total_trades||0}</div><div class="tl">Trades</div></div>
+                <div class="ct-ts"><div class="tv">${(t.max_dd||0).toFixed(1)}%</div><div class="tl">Max DD</div></div>
+            </div>
+            <div class="ct-config-row">
+                <label>Copy Size ($)</label><input type="number" id="copySize_${doc.id}" value="100" min="10">
+                <label>Max Trades/Day</label><input type="number" id="copyMax_${doc.id}" value="10" min="1" max="50">
+            </div>
+            <button class="ct-follow-btn ct-follow" onclick="followTrader('${doc.id}','${(t.name||'Trader').replace("'","\\'")}',this)">⚡ Copy This Trader</button>
+        </div>`;
+    });
+    document.getElementById('ctTraders').textContent=count;
+}
+
+async function followTrader(traderId,traderName,btn){
+    const db=getFS();if(!db)return;
+    const uid=getUID();
+    const copySize=parseFloat(document.getElementById('copySize_'+traderId)?.value||100);
+    const maxTrades=parseInt(document.getElementById('copyMax_'+traderId)?.value||10);
+    await db.collection('users').doc(uid).collection('copy_following').doc(traderId).set({
+        traderId,traderName,copySize,maxTrades,active:true,followedAt:new Date().toISOString(),totalPnl:0
+    });
+    // Increment trader follower count
+    await db.collection('copy_traders').doc(traderId).update({
+        followers:firebase.firestore.FieldValue.increment(1)
+    });
+    btn.textContent='✓ Following';btn.className='ct-follow-btn ct-following';
+    showToast&&showToast('Now copying '+traderName+'!','success');
+    loadMyFollows();
+}
+
+async function loadMyFollows(){
+    const db=getFS();if(!db)return;
+    const uid=getUID();
+    const snap=await db.collection('users').doc(uid).collection('copy_following').orderBy('followedAt','desc').get();
+    const el=document.getElementById('ctMyFollows');
+    if(snap.empty){el.innerHTML='<div style="text-align:center;padding:2rem;color:var(--text-muted)">Not following anyone yet</div>';
+        document.getElementById('ctFollowing').textContent='0';return}
+    let count=0,totalPnl=0;el.innerHTML='';
+    snap.forEach(doc=>{
+        const f=doc.data();count++;totalPnl+=(f.totalPnl||0);
+        el.innerHTML+=`<div class="ct-my-follow">
+            <span style="font-size:1.3rem">👤</span>
+            <div style="flex:1"><div style="font-weight:600;color:var(--text-primary)">${f.traderName}</div>
+            <div style="font-size:.7rem;color:var(--text-muted)">Copy: $${f.copySize} · Max ${f.maxTrades}/day · Since ${new Date(f.followedAt).toLocaleDateString()}</div></div>
+            <span class="${(f.totalPnl||0)>=0?'ct-pnl-pos':'ct-pnl-neg'}">$${(f.totalPnl||0).toFixed(2)}</span>
+            <span style="font-size:.7rem;padding:2px 6px;border-radius:4px;background:${f.active?'#10b98122':'#e6394622'};color:${f.active?'#10b981':'#e63946'}">${f.active?'ACTIVE':'PAUSED'}</span>
+            <button onclick="unfollowTrader('${doc.id}');this.closest('.ct-my-follow').remove()" style="background:none;border:none;cursor:pointer;color:var(--red);font-size:.8rem">Unfollow</button>
+        </div>`;
+    });
+    document.getElementById('ctFollowing').textContent=count;
+    document.getElementById('ctCopiedPnl').textContent='$'+totalPnl.toFixed(2);
+}
+
+async function unfollowTrader(id){const db=getFS();if(!db)return;await db.collection('users').doc(getUID()).collection('copy_following').doc(id).delete()}
+
+async function saveLeaderProfile(){
+    const db=getFS();if(!db)return;
+    const uid=getUID();
+    const name=document.getElementById('ctLeaderName').value.trim()||'Trader';
+    const profitShare=parseInt(document.getElementById('ctProfitShare').value)||10;
+    await db.collection('copy_traders').doc(uid).set({
+        name,profitShare,uid,followers:0,total_pnl:0,win_rate:0,total_trades:0,max_dd:0,
+        since:new Date().getFullYear().toString(),updatedAt:new Date().toISOString()
+    },{merge:true});
+    showToast&&showToast('Leader profile saved!','success');
+}
+
+async function loadLeaderProfile(){
+    const db=getFS();if(!db)return;
+    const uid=getUID();
+    const snap=await db.collection('copy_traders').doc(uid).get();
+    if(snap.exists){
+        const p=snap.data();
+        document.getElementById('ctLeaderName').value=p.name||'';
+        document.getElementById('ctProfitShare').value=p.profitShare||10;
+        document.getElementById('ctFollowers').textContent=p.followers||0;
+    }
+}
+
+document.addEventListener('DOMContentLoaded',()=>{setTimeout(()=>{loadTraders();loadMyFollows();loadLeaderProfile()},1500)});
+</script>
+{% endblock %}
