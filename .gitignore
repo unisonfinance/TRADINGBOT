@@ -26,9 +26,7 @@ data/*.parquet
 data/*.pkl
 scripts/*.csv
 
-# Firebase frontend config (contains project keys — use env vars in prod)
-web/static/firebase-config.js
-
-# Firestore client-side JS (auto-generated)
-web/static/firestore.js
+# Firebase frontend config & Firestore JS — MUST be tracked for deployment
+# web/static/firebase-config.js
+# web/static/firestore.js
 .vercel
