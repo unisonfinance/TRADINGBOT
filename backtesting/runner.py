@@ -56,10 +56,21 @@ STRATEGY_MAP = {
 
 def get_strategy(name: str, **kwargs) -> BaseStrategy:
     """Get a strategy instance by name."""
+    import inspect
     name = name.lower()
     if name not in STRATEGY_MAP:
         raise ValueError(f"Unknown strategy '{name}'. Available: {list(STRATEGY_MAP.keys())}")
-    return STRATEGY_MAP[name](**kwargs)
+    cls = STRATEGY_MAP[name]
+    # Only pass kwargs that the strategy constructor actually accepts
+    # so that extra keys like 'timeframe' don't break other strategies
+    sig = inspect.signature(cls.__init__)
+    if any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()):
+        # Strategy accepts **kwargs — pass everything
+        filtered = kwargs
+    else:
+        accepted = set(sig.parameters.keys()) - {"self"}
+        filtered = {k: v for k, v in kwargs.items() if k in accepted}
+    return cls(**filtered)
 
 
 def run_single_backtest(

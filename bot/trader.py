@@ -59,7 +59,10 @@ class Trader:
         )
 
         # Strategy — pass any custom params (e.g. oversold=40 from a cloned preset)
-        self.strategy = get_strategy(strategy_name, **(strategy_kwargs or {}))
+        # Also inject timeframe so timeframe-aware strategies can auto-tune thresholds
+        _kwargs = dict(strategy_kwargs or {})
+        _kwargs.setdefault("timeframe", timeframe or settings.DEFAULT_TIMEFRAME)
+        self.strategy = get_strategy(strategy_name, **_kwargs)
         self.strategy_name = strategy_name
 
         # Market
@@ -69,8 +72,14 @@ class Trader:
         # Position size in USD — we convert to base currency amount per trade
         self.position_size_usd = position_size or settings.DEFAULT_POSITION_SIZE
 
-        # Components
-        self.risk = RiskManager()
+        # Components — risk manager max_position_size must accommodate
+        # the actual trade size (which may be rounded up to meet exchange
+        # minimums like Binance's $10 MIN_NOTIONAL).
+        effective_max = max(
+            settings.MAX_POSITION_SIZE,
+            self.position_size_usd * 3,  # headroom for rounding + scale-in
+        )
+        self.risk = RiskManager(max_position_size=effective_max)
         self.orders = OrderManager(self.client)
         self.positions = PositionTracker()
         self.storage = DataStorage()
@@ -157,26 +166,43 @@ class Trader:
 
     def _calculate_amount(self, price: float) -> float:
         """Convert USD position size to base currency amount.
-        Rounds UP when truncation would drop below MIN_NOTIONAL ($5).
+        Rounds UP when truncation would drop below the exchange's real MIN_NOTIONAL.
+        Fetches min notional dynamically from market data (no hard-coded values).
         """
         if price <= 0:
             return 0
         raw = self.position_size_usd / price
         amount = self.client.amount_to_precision(self.symbol, raw)
 
-        # If truncation dropped notional below Binance MIN_NOTIONAL, round up
-        min_notional = 5.0
-        if amount * price < min_notional:
-            try:
-                mkt = self.client.exchange.market(self.symbol)
-                prec = mkt.get("precision", {}).get("amount", 0)
-                # ccxt precision can be decimal places (int) or step size (float)
-                step = 10 ** (-prec) if isinstance(prec, int) and prec > 0 else prec
+        # Fetch real exchange limits (amount step + min notional cost)
+        try:
+            mkt = self.client.exchange.market(self.symbol)
+            prec = mkt.get("precision", {}).get("amount", 0)
+            # ccxt precision can be int (decimal places) or float (step size)
+            step = 10 ** (-prec) if isinstance(prec, int) and prec > 0 else float(prec or 0)
+
+            # min notional: prefer limits.cost.min from exchange, but enforce
+            # a floor of $10 because Binance's real MIN_NOTIONAL for major pairs
+            # is $10 even though ccxt sometimes reports $5.
+            limits = mkt.get("limits", {})
+            exchange_min = float(limits.get("cost", {}).get("min") or 0)
+            min_notional = max(exchange_min, 10.0)
+
+            if amount * price < min_notional:
                 if step and step > 0:
                     amount = math.ceil(raw / step) * step
                     amount = round(amount, 8)
-            except Exception:
-                pass
+                # If still below min notional after rounding up, scale up further
+                if amount * price < min_notional:
+                    amount = math.ceil(min_notional / price / step) * step
+                    amount = round(amount, 8)
+
+            logger.debug(
+                "_calculate_amount: raw=%.8f step=%.8f min_notional=%.2f → amount=%.8f notional=%.4f",
+                raw, step, min_notional, amount, amount * price,
+            )
+        except Exception as e:
+            logger.warning("_calculate_amount market data error: %s", e)
 
         return amount
 

@@ -73,23 +73,43 @@ class RSISwingProStrategy(BaseStrategy):
     min_trade_usd : float
         Minimum USD balance needed to scale into another position
         (default 5.0 — same as the base position size).
+    timeframe : str | None
+        Trading timeframe (e.g. '1m', '5m', '1h', '4h').
+        On short timeframes (1m/5m) the RSI thresholds are automatically
+        widened so the bot can realistically catch dips — RSI(14) on 1m
+        almost never reaches 30 in normal BTC price action.
     """
+
+    # Timeframe-aware defaults: shorter TFs need wider thresholds + shorter RSI
+    _TF_PRESETS = {
+        "1m":  {"rsi_period": 10, "oversold": 40.0, "overbought": 65.0},
+        "5m":  {"rsi_period": 12, "oversold": 35.0, "overbought": 68.0},
+        "15m": {"rsi_period": 14, "oversold": 32.0, "overbought": 70.0},
+    }
 
     def __init__(
         self,
-        rsi_period: int = 14,
-        oversold: float = 30.0,
-        overbought: float = 70.0,
+        rsi_period: int = None,
+        oversold: float = None,
+        overbought: float = None,
         stop_loss_pct: float = 2.0,
         take_profit_pct: float = 3.0,
         min_trade_usd: float = 5.0,
+        timeframe: str = None,
     ):
-        self.rsi_period      = rsi_period
-        self.oversold        = oversold
-        self.overbought      = overbought
+        # Apply timeframe presets first, then let explicit params override
+        preset = self._TF_PRESETS.get(timeframe, {})
+        self.rsi_period      = rsi_period  if rsi_period  is not None else preset.get("rsi_period", 14)
+        self.oversold        = oversold    if oversold     is not None else preset.get("oversold", 30.0)
+        self.overbought      = overbought  if overbought   is not None else preset.get("overbought", 70.0)
         self.stop_loss_pct   = stop_loss_pct
         self.take_profit_pct = take_profit_pct
         self.min_trade_usd   = min_trade_usd
+
+        logger.info(
+            "RSISwingPro init: rsi_period=%d, oversold=%.1f, overbought=%.1f, tf=%s",
+            self.rsi_period, self.oversold, self.overbought, timeframe or "default",
+        )
 
     # ── BaseStrategy interface ────────────────────────────────────────
 
